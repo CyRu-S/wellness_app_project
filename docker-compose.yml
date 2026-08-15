@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: wellness
+      POSTGRES_USER: wellness
+      POSTGRES_PASSWORD: wellness
+    ports:
+      - "5432:5432"
+    volumes:
+      - wellness_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wellness -d wellness"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  wellness_postgres:
+

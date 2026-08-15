@@ -1,0 +1,14 @@
+import React, { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import Screen from '../../components/common/Screen';
+import { colors, radius, type } from '../../theme';
+
+export default function ActivityTimerScreen() {
+  const [running, setRunning] = useState(false); const [seconds, setSeconds] = useState(0);
+  useEffect(() => { if (!running) return undefined; const id = setInterval(() => setSeconds((value) => value + 1), 1000); return () => clearInterval(id); }, [running]);
+  const formatted = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  return <Screen scroll={false} contentStyle={styles.page}><View><Text style={styles.kicker}>MIDDAY MOVEMENT</Text><Text style={styles.title}>Brisk walk</Text><Text style={styles.body}>Keep a pace where talking feels easy, but singing doesn’t.</Text></View><View style={styles.timer}><View style={styles.timerInner}><Text style={styles.time}>{formatted}</Text><Text style={styles.timerLabel}>{running ? 'IN PROGRESS' : 'READY'}</Text></View></View><View style={styles.stats}><Text style={styles.stat}><Text style={styles.statValue}>0.0</Text>{'\n'}kilometres</Text><Text style={styles.stat}><Text style={styles.statValue}>—</Text>{'\n'}avg pace</Text></View><Pressable onPress={() => setRunning(!running)} style={styles.control}><Ionicons name={running ? 'pause' : 'play'} size={26} color={colors.white} /><Text style={styles.controlText}>{running ? 'Pause activity' : 'Start activity'}</Text></Pressable></Screen>;
+}
+const styles = StyleSheet.create({ page: { paddingTop: 26, justifyContent: 'space-between' }, kicker: { ...type.label, color: colors.moss }, title: { ...type.display, color: colors.ink, marginTop: 6 }, body: { ...type.body, color: colors.muted, marginTop: 7 }, timer: { width: 270, height: 270, borderRadius: 135, borderWidth: 18, borderColor: colors.accentSoft, backgroundColor: colors.accent, padding: 12, alignSelf: 'center', alignItems: 'center', justifyContent: 'center' }, timerInner: { width: 210, height: 210, borderRadius: 105, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' }, time: { color: colors.white, fontSize: 48, fontWeight: '300', letterSpacing: -2 }, timerLabel: { ...type.label, color: '#AFC1B8', marginTop: 6 }, stats: { flexDirection: 'row', justifyContent: 'space-around' }, stat: { color: colors.muted, textAlign: 'center', lineHeight: 22 }, statValue: { color: colors.ink, fontSize: 22, fontWeight: '800' }, control: { height: 58, borderRadius: radius.pill, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }, controlText: { color: colors.white, fontSize: 16, fontWeight: '800' } });
+

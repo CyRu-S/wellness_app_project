@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Wellnest",
+    "slug": "wellnest",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#F4F1E8"
+    },
+    "android": {
+      "package": "com.wellnessapp.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#193C34"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.wellnessapp.mobile",
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
+

@@ -1,0 +1,13 @@
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSelector } from 'react-redux';
+import PrimaryButton from '../../components/common/PrimaryButton';
+import Screen from '../../components/common/Screen';
+import { colors, radius, type } from '../../theme';
+
+export default function MealDetailsScreen({ route }) {
+  const meal = useSelector((state) => state.meals.items.find((item) => item.id === route.params?.mealId) || state.meals.items[0]);
+  return <Screen><View style={styles.visual}><View style={styles.plate}><Ionicons name="leaf" size={78} color={colors.moss} /></View><Text style={styles.time}>{meal.time}</Text></View><Text style={styles.type}>{meal.type}</Text><Text style={styles.title}>{meal.name}</Text><View style={styles.nutrition}><View><Text style={styles.value}>{meal.calories}</Text><Text style={styles.label}>kcal</Text></View><View><Text style={styles.value}>{meal.protein}g</Text><Text style={styles.label}>protein</Text></View><View><Text style={styles.value}>12g</Text><Text style={styles.label}>fibre</Text></View></View><Text style={styles.ingredients}>INGREDIENTS</Text>{meal.ingredients.map((item, index) => <View key={item} style={styles.ingredient}><Text style={styles.index}>0{index + 1}</Text><Text style={styles.ingredientText}>{item}</Text></View>)}<View style={styles.button}><PrimaryButton title="Mark as eaten" onPress={() => {}} /></View></Screen>;
+}
+const styles = StyleSheet.create({ visual: { height: 240, borderRadius: radius.lg, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', marginTop: 10 }, plate: { width: 158, height: 158, borderRadius: 79, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 12, borderColor: colors.white }, time: { position: 'absolute', right: 18, top: 18, color: colors.ink, fontWeight: '800' }, type: { ...type.label, color: colors.moss, marginTop: 25 }, title: { ...type.h1, color: colors.ink, marginTop: 5 }, nutrition: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 24, marginTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, value: { color: colors.ink, fontSize: 20, fontWeight: '800' }, label: { color: colors.muted, marginTop: 3 }, ingredients: { ...type.label, color: colors.muted, marginTop: 27 }, ingredient: { flexDirection: 'row', paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, index: { color: colors.moss, width: 42, fontWeight: '800' }, ingredientText: { color: colors.ink, fontSize: 16 }, button: { marginTop: 27 } });
