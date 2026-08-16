@@ -11,9 +11,13 @@ const authSlice = createSlice({
       const email = action.payload.email.toLowerCase();
       state.user = {
         id: email === 'admin@wellnest.app' ? 2 : 1,
-        name: email === 'admin@wellnest.app' ? 'Maya Admin' : 'Aarav',
+        name: email === 'admin@wellnest.app' ? 'Arpan' : 'Aarav',
         email,
         role: email === 'admin@wellnest.app' ? 'ADMIN' : 'USER',
+        ...(email === 'admin@wellnest.app' && {
+          phone: '+91 98765 43210',
+          clubName: 'Wellnest Collective',
+        }),
       };
       state.token = 'demo-token';
     },
@@ -22,9 +26,12 @@ const authSlice = createSlice({
       state.token = 'demo-token';
     },
     signOut: (state) => { state.user = null; state.token = null; },
+    updateProfile: (state, action) => {
+      if (state.user) state.user = { ...state.user, ...action.payload };
+    },
   },
 });
 
-export const { finishOnboarding, signIn, register, signOut } = authSlice.actions;
+export const { finishOnboarding, signIn, register, signOut, updateProfile } = authSlice.actions;
 export default authSlice.reducer;
 
