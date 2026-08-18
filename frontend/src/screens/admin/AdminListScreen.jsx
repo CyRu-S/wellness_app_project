@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Screen from '../../components/common/Screen';
-import { colors, type } from '../../theme';
+import { colors, fonts, type } from '../../theme';
 
 const content = {
   requests: { eyebrow: 'MEMBERSHIP', title: 'User requests', items: [['Anika Rao', 'Goal: improve energy'], ['Dev Kapoor', 'Goal: weight management'], ['Mina Shah', 'Goal: balanced nutrition']] },
@@ -18,5 +18,4 @@ export default function AdminListScreen({ kind = 'users', navigation }) {
   const page = content[kind];
   return <Screen><Text style={styles.eyebrow}>{page.eyebrow}</Text><Text style={styles.title}>{page.title}</Text><Text style={styles.context}>{page.items.length} items shown · Updated now</Text><View style={styles.list}>{page.items.map(([title, meta], index) => <Pressable key={title} onPress={() => kind === 'users' && navigation.navigate('UserDetails', { name: title })} style={styles.row}><Text style={styles.index}>0{index + 1}</Text><View style={styles.copy}><Text style={styles.itemTitle}>{title}</Text><Text style={styles.meta}>{meta}</Text></View><Ionicons name="arrow-forward" size={20} color={colors.ink} /></Pressable>)}</View></Screen>;
 }
-const styles = StyleSheet.create({ eyebrow: { ...type.label, color: colors.moss, marginTop: 20 }, title: { ...type.display, color: colors.ink, marginTop: 6 }, context: { color: colors.muted, marginTop: 8 }, list: { marginTop: 30, borderTopWidth: 1, borderColor: colors.ink }, row: { minHeight: 83, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, index: { color: colors.moss, fontWeight: '800', width: 42 }, copy: { flex: 1 }, itemTitle: { color: colors.ink, fontSize: 17, fontWeight: '800' }, meta: { color: colors.muted, marginTop: 5 } });
-
+const styles = StyleSheet.create({ eyebrow: { ...type.label, color: colors.moss, marginTop: 20 }, title: { ...type.display, color: colors.ink, marginTop: 6 }, context: { color: colors.muted, fontFamily: fonts.regular, marginTop: 8 }, list: { marginTop: 30, borderTopWidth: 1, borderColor: colors.ink }, row: { minHeight: 83, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, index: { color: colors.moss, fontFamily: fonts.semibold, width: 42 }, copy: { flex: 1 }, itemTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 17 }, meta: { color: colors.muted, fontFamily: fonts.regular, marginTop: 5 } });

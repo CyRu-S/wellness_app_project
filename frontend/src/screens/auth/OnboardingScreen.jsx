@@ -1,39 +1,64 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useDispatch } from 'react-redux';
-import { Ionicons } from '@expo/vector-icons';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AnimatedLogo from '../../components/auth/AnimatedLogo';
+import StaggeredView from '../../components/auth/StaggeredView';
+import AmbientBackground from '../../components/common/AmbientBackground';
 import BrandMark from '../../components/common/BrandMark';
 import PrimaryButton from '../../components/common/PrimaryButton';
-import Screen from '../../components/common/Screen';
-import { finishOnboarding } from '../../store/slices/authSlice';
-import { colors, type } from '../../theme';
+import { colors, fonts, radius, type } from '../../theme';
 
 export default function OnboardingScreen({ navigation }) {
-  const dispatch = useDispatch();
-  const continueToLogin = () => { dispatch(finishOnboarding()); navigation.replace('Login'); };
   return (
-    <Screen contentStyle={styles.content}>
-      <BrandMark />
-      <View style={styles.art}>
-        <View style={styles.sun} />
-        <View style={styles.arc}><Ionicons name="leaf-outline" size={78} color={colors.surface} /></View>
-        <Text style={styles.artLabel}>Your day, in balance.</Text>
-      </View>
-      <View style={styles.copy}>
-        <Text style={styles.kicker}>PERSONAL WELLNESS, DAILY</Text>
-        <Text style={styles.title}>A plan that moves with your life.</Text>
-        <Text style={styles.body}>Meals, movement and mindful reminders—kept simple enough to become routine.</Text>
-      </View>
-      <PrimaryButton title="Start your journey" onPress={continueToLogin} />
-    </Screen>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        <View style={styles.poster}>
+          <AmbientBackground />
+          <StaggeredView delay={30} style={styles.topline}>
+            <BrandMark light />
+            <Text style={styles.step}>01 / 02</Text>
+          </StaggeredView>
+          <View style={styles.logoStage}>
+            <Text style={styles.posterWord}>RHYTHM</Text>
+            <AnimatedLogo size={248} halo={false} />
+          </View>
+          <StaggeredView delay={220} style={styles.posterFooter}>
+            <View style={styles.goldLine} />
+            <Text style={styles.mantra}>PERSONAL NUTRITION{`\n`}FOR REAL LIFE</Text>
+          </StaggeredView>
+        </View>
+
+        <View style={styles.sheet}>
+          <StaggeredView delay={270}>
+            <Text style={styles.eyebrow}>YOUR WELLNESS JOURNEY</Text>
+            <Text style={styles.title}>A better day starts with a steadier rhythm.</Text>
+            <Text style={styles.body}>Meals, movement and expert guidance—shaped around the life you already live.</Text>
+          </StaggeredView>
+          <StaggeredView delay={390} style={styles.footer}>
+            <View style={styles.progress}><View style={styles.activeBar} /><View style={styles.bar} /></View>
+            <PrimaryButton title="Begin your journey" onPress={() => navigation.navigate('GetStarted')} />
+          </StaggeredView>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-const styles = StyleSheet.create({
-  content: { paddingTop: 12, justifyContent: 'space-between' },
-  art: { height: 300, backgroundColor: colors.ink, borderRadius: 150, marginTop: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  sun: { position: 'absolute', width: 138, height: 138, borderRadius: 69, backgroundColor: colors.accent, top: 25, right: 25 },
-  arc: { width: 186, height: 186, borderRadius: 93, backgroundColor: colors.moss, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-12deg' }] },
-  artLabel: { position: 'absolute', bottom: 25, left: 31, color: colors.white, fontSize: 18, fontWeight: '700' },
-  copy: { gap: 10, marginVertical: 26 }, kicker: { ...type.label, color: colors.moss }, title: { ...type.h1, color: colors.ink }, body: { ...type.body, color: colors.muted, maxWidth: 340 },
-});
 
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.ink },
+  page: { flexGrow: 1, backgroundColor: colors.paper },
+  poster: { minHeight: 440, backgroundColor: colors.ink, overflow: 'hidden', paddingHorizontal: 24, paddingTop: 15, paddingBottom: 32 },
+  topline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  step: { ...type.label, color: '#77AEB1', fontSize: 9 },
+  logoStage: { minHeight: 292, alignItems: 'center', justifyContent: 'center' },
+  posterWord: { position: 'absolute', color: 'rgba(255,255,255,0.035)', fontFamily: fonts.bold, fontSize: 64, letterSpacing: 5 },
+  posterFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  goldLine: { width: 30, height: 1, backgroundColor: colors.gold },
+  mantra: { ...type.label, color: '#A7D3D4', fontSize: 9, lineHeight: 15 },
+  sheet: { flex: 1, backgroundColor: colors.paper, marginTop: -22, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: 24, paddingTop: 34, paddingBottom: 24 },
+  eyebrow: { ...type.label, color: colors.tealMid },
+  title: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 33, lineHeight: 37, letterSpacing: -1.2, marginTop: 10, maxWidth: 350 },
+  body: { ...type.body, color: colors.muted, marginTop: 14, maxWidth: 345 },
+  footer: { marginTop: 25, gap: 18 },
+  progress: { flexDirection: 'row', gap: 7 }, activeBar: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.tealMid }, bar: { width: 8, height: 4, borderRadius: 2, backgroundColor: colors.line },
+});
