@@ -94,6 +94,46 @@ export const adminMembers = [
   },
 ];
 
+const defaultDailyMeals = [
+  { id: 1, hour: 8, time: '8:00 AM', type: 'Breakfast', name: 'Oats, berries & seed crunch', calories: 410, protein: 24, ingredients: ['Rolled oats', 'Greek yoghurt', 'Seasonal berries', 'Pumpkin seeds'] },
+  { id: 2, hour: 13, time: '1:00 PM', type: 'Lunch', name: 'Green grain power bowl', calories: 520, protein: 31, ingredients: ['Brown rice', 'Roasted chickpeas', 'Greens', 'Lemon tahini'] },
+  { id: 3, hour: 16.5, time: '4:30 PM', type: 'Snack', name: 'Apple with almond butter', calories: 190, protein: 6, ingredients: ['Apple', 'Almond butter'] },
+  { id: 4, hour: 19.5, time: '7:30 PM', type: 'Dinner', name: 'Ginger tofu & vegetables', calories: 470, protein: 29, ingredients: ['Tofu', 'Broccoli', 'Carrot', 'Ginger tamari'] },
+];
+
+export const adminMemberMealPlans = Object.fromEntries(adminMembers.map((member) => [
+  member.id,
+  {
+    memberId: member.id,
+    planName: `${member.plan} daily plan`,
+    consultant: 'Coach Arpan',
+    updatedAt: 'Today',
+    items: defaultDailyMeals.map((meal, index) => ({
+      ...meal,
+      id: member.id * 100 + meal.id,
+      consumed: index < member.meals,
+      uploadedAt: index < member.meals ? ['8:12 AM', '1:08 PM', '4:36 PM', '7:42 PM'][index] : null,
+      imageUri: null,
+    })),
+  },
+]));
+
+const mealPostDate = (daysBack, hour) => {
+  const date = new Date();
+  date.setDate(date.getDate() - daysBack);
+  date.setHours(hour, 10, 0, 0);
+  return date.toISOString();
+};
+
+export const adminMemberMealPostHistory = Object.fromEntries(adminMembers.map((member) => [
+  member.id,
+  [
+    { id: `${member.id}-history-1`, type: 'Breakfast', name: defaultDailyMeals[0].name, imageUri: null, loggedAt: '8:10 AM', postedAt: mealPostDate(2, 8) },
+    { id: `${member.id}-history-2`, type: 'Dinner', name: defaultDailyMeals[3].name, imageUri: null, loggedAt: '7:40 PM', postedAt: mealPostDate(6, 19) },
+    { id: `${member.id}-history-3`, type: 'Lunch', name: defaultDailyMeals[1].name, imageUri: null, loggedAt: '1:10 PM', postedAt: mealPostDate(13, 13) },
+  ],
+]));
+
 export const adminApprovals = [
   { id: 101, initials: 'NR', name: 'Nikhil Rao', email: 'nikhil.rao@example.com', requestedAt: '18 min ago', goal: 'Build an active daily routine', recommendedPlan: 'Active foundation' },
   { id: 102, initials: 'SI', name: 'Sara Iqbal', email: 'sara.iqbal@example.com', requestedAt: '1 hour ago', goal: 'Improve weight and energy balance', recommendedPlan: 'Metabolic reset' },

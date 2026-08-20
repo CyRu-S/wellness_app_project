@@ -2,6 +2,8 @@ import { createSlice } from '@reduxjs/toolkit';
 import {
   adminApprovals,
   adminAttention,
+  adminMemberMealPostHistory,
+  adminMemberMealPlans,
   adminMealInsights,
   adminMembers,
   adminPreferences,
@@ -14,6 +16,8 @@ const initialState = {
   approvals: adminApprovals,
   mealInsights: adminMealInsights,
   attention: adminAttention,
+  memberMealPlans: adminMemberMealPlans,
+  memberMealPostHistory: adminMemberMealPostHistory,
   preferences: adminPreferences,
   lastApprovalDecision: null,
 };
@@ -59,6 +63,32 @@ const adminSlice = createSlice({
       const { key, value } = action.payload;
       if (Object.prototype.hasOwnProperty.call(state.preferences, key)) state.preferences[key] = value;
     },
+    updateMemberMealPlan: (state, action) => {
+      const { memberId, planName, items } = action.payload;
+      const current = state.memberMealPlans[memberId];
+      const currentItems = current?.items || [];
+      state.memberMealPlans[memberId] = {
+        memberId,
+        planName,
+        consultant: 'Coach Arpan',
+        updatedAt: 'Just now',
+        items: items.map((item, index) => {
+          const exact = currentItems.find((meal) => meal.id === item.id);
+          const newlyAdded = typeof item.id === 'string' && item.id.includes('-new-');
+          const previous = exact || (!newlyAdded ? currentItems.find((meal) => meal.type === item.type) || currentItems[index] : undefined);
+          return {
+            ...previous,
+            ...item,
+            id: previous?.id || item.id || memberId * 100 + index + 1,
+            consumed: previous?.consumed || false,
+            uploadedAt: previous?.uploadedAt || null,
+            imageUri: previous?.imageUri || null,
+          };
+        }),
+      };
+      const member = state.members.find((item) => item.id === memberId);
+      if (member) member.plan = planName;
+    },
   },
 });
 
@@ -72,6 +102,7 @@ export const {
   setInsightRange,
   setPreference,
   undoApprovalDecision,
+  updateMemberMealPlan,
 } = adminSlice.actions;
 
 export const selectAdminSummary = (state) => state.admin.summary;
@@ -80,6 +111,8 @@ export const selectAdminApprovals = (state) => state.admin.approvals;
 export const selectAdminMealInsights = (state) => state.admin.mealInsights;
 export const selectAdminAttention = (state) => state.admin.attention;
 export const selectAdminPreferences = (state) => state.admin.preferences;
+export const selectAdminMemberMealPlans = (state) => state.admin.memberMealPlans;
+export const selectAdminMemberMealPostHistory = (state) => state.admin.memberMealPostHistory;
 
 export default adminSlice.reducer;
 

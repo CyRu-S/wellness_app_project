@@ -15,6 +15,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   const category = route.params?.category || 'meal';
   const targetMealId = route.params?.targetMealId;
   const targetMeal = useSelector((state) => state.meals.items.find((meal) => meal.id === targetMealId));
+  const analysisCategory = targetMeal?.type === 'Herbalife product' ? 'product' : category;
   const token = useSelector((state) => state.auth.token);
   const dispatch = useDispatch();
   const camera = useRef(null);
@@ -47,7 +48,7 @@ export default function MealCaptureScreen({ navigation, route }) {
     setAnalyzing(true);
     sheet.setValue(0);
     try {
-      const result = await analyzeMealPhoto({ uri, category, token });
+      const result = await analyzeMealPhoto({ uri, category: analysisCategory, token });
       setAnalysis(result);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (error) {
@@ -77,8 +78,9 @@ export default function MealCaptureScreen({ navigation, route }) {
   const retake = () => { setPhoto(null); setAnalysis(null); sheet.setValue(0); };
 
   const confirm = () => {
-    const loggedAt = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const payload = { id: Date.now(), targetMealId, analysis, imageUri: photo, loggedAt };
+    const postedAt = new Date();
+    const loggedAt = postedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const payload = { id: postedAt.getTime(), targetMealId, analysis, imageUri: photo, loggedAt, postedAt: postedAt.toISOString() };
     dispatch(logDetectedMeal(payload));
     dispatch(logMealNutrition({ ...analysis, loggedAt }));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});

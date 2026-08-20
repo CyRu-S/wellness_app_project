@@ -3,20 +3,35 @@ import { login as loginApi, register as registerApi } from '../../services/api/a
 
 const initialState = { user: null, token: null, hasOnboarded: false, status: 'idle', error: null, source: null };
 
-const demoLogin = ({ email }) => ({
-  token: 'demo-token',
-  id: email.toLowerCase() === 'admin@wellnest.app' ? 2 : 1,
-  name: email.toLowerCase() === 'admin@wellnest.app' ? 'Arpan' : 'Aarav',
-  email: email.toLowerCase(),
-  role: email.toLowerCase() === 'admin@wellnest.app' ? 'ADMIN' : 'USER',
-  ...(email.toLowerCase() === 'admin@wellnest.app' && {
-    phone: '+91 98765 43210',
-    clubName: 'Wellnest Collective',
-  }),
-  source: 'demo',
-});
+const DEMO_EMAILS = new Set(['user@wellnest.app', 'admin@wellnest.app']);
+
+const isDemoAccount = ({ email, password }) => (
+  process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK !== 'true'
+  && DEMO_EMAILS.has(email?.trim().toLowerCase())
+  && password === 'password'
+);
+
+const demoLogin = ({ email }) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const isAdmin = normalizedEmail === 'admin@wellnest.app';
+
+  return {
+    token: 'demo-token',
+    id: isAdmin ? 2 : 1,
+    name: isAdmin ? 'Arpan' : 'Aarav',
+    email: normalizedEmail,
+    role: isAdmin ? 'ADMIN' : 'USER',
+    ...(isAdmin && {
+      phone: '+91 98765 43210',
+      clubName: 'Wellnest Collective',
+    }),
+    source: 'demo',
+  };
+};
 
 export const signIn = createAsyncThunk('auth/signIn', async (credentials) => {
+  if (isDemoAccount(credentials)) return demoLogin(credentials);
+
   try {
     const response = await loginApi(credentials);
     return { ...response, source: 'api' };

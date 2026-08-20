@@ -3,11 +3,11 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { adminColors, adminFonts } from '../../theme/admin';
 
-function Bar({ item, maxValue, progress, compact }) {
+function Bar({ item, maxValue, progress, compact, valueSuffix }) {
   const targetHeight = Math.max(8, (item.value / maxValue) * (compact ? 58 : 112));
   return (
     <View style={styles.column}>
-      {!compact && <Text style={styles.value}>{item.value}%</Text>}
+      {!compact && <Text style={styles.value}>{item.value}{valueSuffix}</Text>}
       <View style={[styles.track, { height: compact ? 62 : 116 }]}>
         <Animated.View style={[styles.bar, { height: progress.interpolate({ inputRange: [0, 1], outputRange: [4, targetHeight] }) }]} />
       </View>
@@ -16,11 +16,18 @@ function Bar({ item, maxValue, progress, compact }) {
   );
 }
 
-export default function AdminBarChart({ data, label, compact = false }) {
+export default function AdminBarChart({
+  data,
+  label,
+  compact = false,
+  maxValue: maximum,
+  valueUnit = 'percent',
+  valueSuffix = '%',
+}) {
   const reduceMotion = useReducedMotion();
   const progress = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
-  const maxValue = useMemo(() => Math.max(...data.map((item) => item.value), 1), [data]);
-  const summary = data.map((item) => `${item.label}: ${item.value} percent`).join(', ');
+  const maxValue = useMemo(() => Math.max(maximum || 0, ...data.map((item) => item.value), 1), [data, maximum]);
+  const summary = data.map((item) => `${item.label}: ${item.value} ${valueUnit}`).join(', ');
 
   useEffect(() => {
     progress.setValue(reduceMotion ? 1 : 0);
@@ -29,7 +36,7 @@ export default function AdminBarChart({ data, label, compact = false }) {
 
   return (
     <View accessible accessibilityRole="image" accessibilityLabel={`${label}. ${summary}`} style={[styles.chart, compact && styles.compact]}>
-      {data.map((item, index) => <Bar key={`${item.label}-${index}`} item={item} maxValue={maxValue} progress={progress} compact={compact} />)}
+      {data.map((item, index) => <Bar key={`${item.label}-${index}`} item={item} maxValue={maxValue} progress={progress} compact={compact} valueSuffix={valueSuffix} />)}
     </View>
   );
 }
