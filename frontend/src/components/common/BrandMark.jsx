@@ -1,21 +1,21 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import AppLogo from './AppLogo';
-import { colors } from '../../theme';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { colors, fonts } from '../../theme';
+
+const logo = require('../../../assets/images/arjun-nutrition-logo.png');
 
 export default function BrandMark({ compact = false, light = false }) {
   return (
     <View style={styles.row}>
-      <AppLogo size={38} style={light && styles.markLight} />
-      {!compact && <Text style={[styles.name, light && styles.nameLight]}>wellnest</Text>}
+      <Image source={logo} style={styles.mark} resizeMode="contain" />
+      {!compact && <Text style={[styles.name, light && styles.nameLight]}>ARJUN NUTRITION</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  markLight: { borderWidth: 2, borderColor: colors.surface },
-  name: { color: colors.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.7 },
+  mark: { width: 42, height: 42 },
+  name: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14, letterSpacing: 1.1 },
   nameLight: { color: colors.surface },
 });
-

@@ -1,20 +1,22 @@
 {
   "expo": {
-    "name": "Wellnest",
+    "name": "Arjun Nutrition",
     "slug": "wellnest",
     "version": "0.1.0",
-    "icon": "./assets/app-logo.png",
+    "icon": "./assets/images/arjun-nutrition-logo.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#F4F1E8"
+      "image": "./assets/images/arjun-nutrition-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#002E36"
     },
     "android": {
       "package": "com.wellnessapp.mobile",
-      "icon": "./assets/app-logo.png",
       "adaptiveIcon": {
-        "backgroundColor": "#193C34"
+        "foregroundImage": "./assets/images/arjun-nutrition-logo.png",
+        "backgroundColor": "#002E36"
       }
     },
     "ios": {
@@ -25,7 +27,22 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Arjun Nutrition to photograph meals for nutrition analysis.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Arjun Nutrition to select meal photos for nutrition analysis.",
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }

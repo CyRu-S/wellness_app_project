@@ -31,5 +31,5 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
   scroll: { flexGrow: 1 },
-  content: { flex: 1, paddingHorizontal: 22, paddingBottom: 36 },
+  content: { flex: 1, paddingHorizontal: 22, paddingBottom: 108 },
 });

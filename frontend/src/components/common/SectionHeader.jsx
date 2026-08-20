@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, type } from '../../theme';
+import { colors, fonts, type } from '../../theme';
 
 export default function SectionHeader({ title, eyebrow, action, onPress }) {
   return (
@@ -18,6 +18,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   eyebrow: { ...type.label, color: colors.muted, marginBottom: 4 },
   title: { ...type.h2, color: colors.ink },
-  action: { color: colors.ink, fontWeight: '700', textDecorationLine: 'underline' },
+  action: { color: colors.moss, fontFamily: fonts.semibold, textDecorationLine: 'underline' },
 });
-
