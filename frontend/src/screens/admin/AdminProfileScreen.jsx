@@ -88,8 +88,6 @@ export default function AdminProfileScreen({ navigation }) {
         title="Admin profile"
         back
         onBackPress={() => navigation.goBack()}
-        rightIcon={editing ? 'checkmark' : 'pencil-outline'}
-        onRightPress={editing ? save : () => setEditing(true)}
       />
 
       <View style={styles.hero}>
@@ -119,11 +117,6 @@ export default function AdminProfileScreen({ navigation }) {
             <ViewField icon="business-outline" label="CLUB NAME" value={admin?.clubName} />
           </>
         )}
-      </View>
-
-      <View style={styles.permissionCard}>
-        <View style={styles.permissionTop}><View style={styles.permissionIcon}><Ionicons name="key-outline" size={18} color={adminColors.deepTeal} /></View><View style={styles.permissionCopy}><Text style={styles.permissionTitle}>Role & permissions</Text><Text style={styles.permissionText}>Read-only · managed by the workspace owner</Text></View></View>
-        <View style={styles.permissionTags}><Text style={styles.permissionTag}>MEMBER CARE</Text><Text style={styles.permissionTag}>INSIGHTS</Text><Text style={styles.permissionTag}>APPROVALS</Text></View>
       </View>
 
       {editing && (
@@ -163,14 +156,6 @@ const styles = StyleSheet.create({
   inputError: { borderColor: adminColors.coral, backgroundColor: adminColors.coralSoft },
   input: { flex: 1, minHeight: 48, color: adminColors.ink, fontFamily: adminFonts.medium, fontSize: 14 },
   errorText: { color: adminColors.coral, fontFamily: adminFonts.medium, fontSize: 11 },
-  permissionCard: { padding: 15, borderRadius: adminRadius.lg, backgroundColor: adminColors.sageSoft, marginTop: 13 },
-  permissionTop: { flexDirection: 'row', alignItems: 'center' },
-  permissionIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.surface },
-  permissionCopy: { flex: 1, paddingLeft: 11 },
-  permissionTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 13 },
-  permissionText: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 11, marginTop: 3 },
-  permissionTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 13 },
-  permissionTag: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 11, letterSpacing: 0.4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, backgroundColor: adminColors.surface },
   actions: { marginTop: 14, gap: 8 },
   saveButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: adminRadius.md, backgroundColor: adminColors.teal },
   saveText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 12 },

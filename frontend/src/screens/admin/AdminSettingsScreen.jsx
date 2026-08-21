@@ -1,14 +1,13 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AppLogo from '../../components/common/AppLogo';
 import { signOut } from '../../store/slices/authSlice';
 import { selectAdminPreferences, setPreference } from '../../store/slices/adminSlice';
-import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
+import { adminColors, adminFonts, adminRadius } from '../../theme/admin';
 
 function SectionHeading({ eyebrow, title, meta }) {
   return (
@@ -22,29 +21,7 @@ function SectionHeading({ eyebrow, title, meta }) {
   );
 }
 
-function ActionRow({ icon, title, detail, onPress, last }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. ${detail}`}
-      onPress={onPress}
-      style={({ pressed }) => [styles.actionRow, !last && styles.rowBorder, pressed && styles.pressed]}
-    >
-      <View style={styles.actionIcon}>
-        <Ionicons name={icon} size={21} color={adminColors.deepTeal} />
-      </View>
-      <View style={styles.rowCopy}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <Text style={styles.rowDetail}>{detail}</Text>
-      </View>
-      <View style={styles.forwardButton}>
-        <Ionicons name="arrow-forward" size={17} color={adminColors.deepTeal} />
-      </View>
-    </Pressable>
-  );
-}
-
-function ToggleRow({ icon, title, detail, value, onValueChange, last }) {
+function PreferenceRow({ index, title, detail, value, onValueChange, last }) {
   return (
     <Pressable
       accessibilityRole="switch"
@@ -52,26 +29,46 @@ function ToggleRow({ icon, title, detail, value, onValueChange, last }) {
       accessibilityLabel={title}
       accessibilityHint={detail}
       onPress={() => onValueChange(!value)}
-      style={({ pressed }) => [styles.toggleRow, !last && styles.toggleBorder, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.preferenceRow, !last && styles.preferenceDivider, pressed && styles.pressed]}
     >
-      <View style={[styles.toggleIcon, value && styles.toggleIconActive]}>
-        <Ionicons name={icon} size={22} color={value ? adminColors.white : adminColors.deepTeal} />
+      <View style={[styles.preferenceNumber, value && styles.preferenceNumberActive]}>
+        <Text style={[styles.preferenceNumberText, value && styles.preferenceNumberTextActive]}>{index}</Text>
       </View>
-      <View style={styles.rowCopy}>
-        <View style={styles.toggleTitleLine}>
-          <Text style={styles.rowTitle}>{title}</Text>
-          <Text style={[styles.toggleState, value && styles.toggleStateActive]}>{value ? 'On' : 'Off'}</Text>
-        </View>
-        <Text style={styles.rowDetail}>{detail}</Text>
+      <View style={styles.preferenceCopy}>
+        <Text style={styles.preferenceTitle}>{title}</Text>
+        <Text style={styles.preferenceDetail}>{detail}</Text>
       </View>
-      <Switch
-        accessible={false}
-        pointerEvents="none"
-        value={value}
-        trackColor={{ false: '#D6E2DE', true: '#79C9C4' }}
-        thumbColor={value ? adminColors.deepTeal : adminColors.white}
-        ios_backgroundColor="#D6E2DE"
-      />
+      <View style={styles.preferenceControl}>
+        <Text style={[styles.preferenceState, value && styles.preferenceStateActive]}>{value ? 'ON' : 'OFF'}</Text>
+        <Switch
+          accessible={false}
+          pointerEvents="none"
+          value={value}
+          trackColor={{ false: '#D8E3DF', true: '#86CFC9' }}
+          thumbColor={value ? adminColors.deepTeal : adminColors.white}
+          ios_backgroundColor="#D8E3DF"
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+function AccountRow({ icon, title, detail, onPress, last }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${detail}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.accountRow, !last && styles.accountDivider, pressed && styles.pressed]}
+    >
+      <Ionicons name={icon} size={22} color={adminColors.deepTeal} />
+      <View style={styles.accountCopy}>
+        <Text style={styles.accountTitle}>{title}</Text>
+        <Text style={styles.accountDetail}>{detail}</Text>
+      </View>
+      <View style={styles.accountArrow}>
+        <Ionicons name="arrow-forward" size={17} color={adminColors.deepTeal} />
+      </View>
     </Pressable>
   );
 }
@@ -82,8 +79,8 @@ export default function AdminSettingsScreen({ navigation }) {
   const preferences = useSelector(selectAdminPreferences);
   const activeAlerts = Object.values(preferences).filter(Boolean).length;
   const alertTotal = Object.keys(preferences).length;
-  const comingNext = (title) => Alert.alert(title, 'This destination is planned for the next admin release.');
 
+  const comingNext = (title) => Alert.alert(title, 'This destination is planned for the next admin release.');
   const changePreference = (key, value) => dispatch(setPreference({ key, value }));
   const confirmSignOut = () => {
     Alert.alert(
@@ -101,115 +98,80 @@ export default function AdminSettingsScreen({ navigation }) {
       <AdminHeader title="Settings" back onBackPress={() => navigation.navigate('AdminDashboard')} />
 
       <View style={styles.heading}>
-        <Text style={styles.eyebrow}>YOUR WORKSPACE</Text>
-        <Text style={styles.title}>Set your rhythm.</Text>
-        <Text style={styles.subtitle}>Keep the signals that matter close, and let everything else stay quiet.</Text>
+        <Text style={styles.eyebrow}>ADMIN SPACE</Text>
+        <Text style={styles.title}>Tune your space.</Text>
+        <Text style={styles.subtitle}>Choose what deserves your attention and keep the rest of your day quiet.</Text>
       </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open profile for ${admin?.name || 'Arpan'}`}
-        onPress={() => navigation.navigate('AdminProfile')}
-        style={({ pressed }) => [styles.identity, pressed && styles.pressed]}
-      >
+      <View style={styles.profile}>
         <View style={styles.avatarWrap}>
-          <AppLogo size={66} style={styles.avatar} />
-          <View style={styles.onlineDot} />
+          <AppLogo size={68} style={styles.avatar} />
+          <View style={styles.profileStatus} />
         </View>
-        <View style={styles.identityCopy}>
-          <Text numberOfLines={1} style={styles.identityName}>{admin?.name || 'Arpan'}</Text>
-          <Text numberOfLines={1} style={styles.identityEmail}>{admin?.email || 'arpan@wellnest.app'}</Text>
-          <View style={styles.roleLine}>
-            <Ionicons name="shield-checkmark" size={14} color={adminColors.teal} />
-            <Text style={styles.roleText}>Club administrator</Text>
-          </View>
-        </View>
-        <View style={styles.editButton}>
-          <Ionicons name="create-outline" size={19} color={adminColors.deepTeal} />
-        </View>
-      </Pressable>
-
-      <SectionHeading eyebrow="SMART ALERTS" title="Choose what reaches you" meta={`${activeAlerts} of ${alertTotal} on`} />
-      <View style={styles.alertShell}>
-        <LinearGradient
-          colors={['#E0F5F1', '#C4E8E1']}
-          start={{ x: 0.03, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.alertPanel}
-        >
-          <View pointerEvents="none" style={styles.alertOrbLarge} />
-          <View pointerEvents="none" style={styles.alertOrbSmall} />
-          <View style={styles.alertIntro}>
-            <View style={styles.alertMark}>
-              <Ionicons name="notifications" size={21} color={adminColors.white} />
-            </View>
-            <View style={styles.alertIntroCopy}>
-              <Text style={styles.alertIntroTitle}>Your signal desk</Text>
-              <Text style={styles.alertIntroText}>Changes are saved for this session.</Text>
-            </View>
-            <View style={styles.activeCount}>
-              <Text style={styles.activeCountValue}>{activeAlerts}</Text>
-              <Text style={styles.activeCountLabel}>ACTIVE</Text>
-            </View>
-          </View>
-
-          <View style={styles.toggleList}>
-            <ToggleRow
-              icon="person-add-outline"
-              title="New signup requests"
-              detail="When someone asks to join your club"
-              value={preferences.signupAlerts}
-              onValueChange={(value) => changePreference('signupAlerts', value)}
-            />
-            <ToggleRow
-              icon="alert-circle-outline"
-              title="Missed deadline alerts"
-              detail="When a member may need your support"
-              value={preferences.deadlineAlerts}
-              onValueChange={(value) => changePreference('deadlineAlerts', value)}
-            />
-            <ToggleRow
-              icon="sunny-outline"
-              title="Daily club digest"
-              detail="A quiet morning summary of club activity"
-              value={preferences.dailyDigest}
-              onValueChange={(value) => changePreference('dailyDigest', value)}
-              last
-            />
-          </View>
-        </LinearGradient>
-      </View>
-
-      <SectionHeading eyebrow="ACCOUNT" title="Profile and access" />
-      <View style={styles.actionList}>
-        <ActionRow icon="person-outline" title="Personal profile" detail="Identity and club contact details" onPress={() => navigation.navigate('AdminProfile')} />
-        <ActionRow icon="key-outline" title="Security" detail="Password and signed-in devices" onPress={() => comingNext('Security')} last />
-      </View>
-
-      <SectionHeading eyebrow="TRUST CENTER" title="Privacy, considered" />
-      <View style={styles.privacyStatement}>
-        <View style={styles.privacyIcon}>
-          <Ionicons name="lock-closed" size={21} color="#BCEBE4" />
-        </View>
-        <View style={styles.privacyCopy}>
-          <Text style={styles.privacyTitle}>Private by default</Text>
-          <Text style={styles.privacyText}>Member activity is confidential coaching information. Wellnest keeps care and discretion at the center.</Text>
+        <View style={styles.profileCopy}>
+          <Text style={styles.profileEyebrow}>ADMIN PROFILE</Text>
+          <Text numberOfLines={1} style={styles.profileName}>{admin?.name || 'Arpan'}</Text>
+          <Text numberOfLines={1} style={styles.profileClub}>{admin?.clubName || 'Wellnest Collective'}</Text>
         </View>
       </View>
-      <View style={styles.legalLinks}>
-        <Pressable accessibilityRole="button" onPress={() => comingNext('Data and privacy')} style={({ pressed }) => [styles.legalLink, pressed && styles.pressed]}>
-          <Text style={styles.legalText}>Data & privacy</Text>
-          <Ionicons name="arrow-forward" size={16} color={adminColors.deepTeal} />
-        </Pressable>
-        <View style={styles.legalDivider} />
-        <Pressable accessibilityRole="button" onPress={() => comingNext('Admin terms')} style={({ pressed }) => [styles.legalLink, pressed && styles.pressed]}>
-          <Text style={styles.legalText}>Admin terms</Text>
-          <Ionicons name="arrow-forward" size={16} color={adminColors.deepTeal} />
-        </Pressable>
+
+      <SectionHeading eyebrow="NOTIFICATIONS" title="Only the useful signals" meta={`${activeAlerts}/${alertTotal} active`} />
+      <View style={styles.preferenceList}>
+        <PreferenceRow
+          index="01"
+          title="Signup requests"
+          detail="When someone asks to join the club"
+          value={preferences.signupAlerts}
+          onValueChange={(value) => changePreference('signupAlerts', value)}
+        />
+        <PreferenceRow
+          index="02"
+          title="Missed deadlines"
+          detail="When a member may need support"
+          value={preferences.deadlineAlerts}
+          onValueChange={(value) => changePreference('deadlineAlerts', value)}
+        />
+        <PreferenceRow
+          index="03"
+          title="Morning digest"
+          detail="One daily summary of club activity"
+          value={preferences.dailyDigest}
+          onValueChange={(value) => changePreference('dailyDigest', value)}
+          last
+        />
+      </View>
+      <Text style={styles.sessionNote}>Preference changes stay with you for this session.</Text>
+
+      <SectionHeading eyebrow="ACCOUNT & ACCESS" title="The essentials" />
+      <View style={styles.accountList}>
+        <AccountRow icon="person-outline" title="Profile details" detail="Name, contact and club information" onPress={() => navigation.navigate('AdminProfile')} />
+        <AccountRow icon="key-outline" title="Security" detail="Password and signed-in devices" onPress={() => comingNext('Security')} last />
+      </View>
+
+      <SectionHeading eyebrow="TRUST CENTER" title="Care beyond coaching" />
+      <View style={styles.trustCard}>
+        <View pointerEvents="none" style={styles.trustOrb} />
+        <View style={styles.trustTopline}>
+          <View style={styles.trustIcon}><Ionicons name="lock-closed" size={20} color="#BFECE5" /></View>
+          <Text style={styles.trustLabel}>PRIVATE BY DEFAULT</Text>
+        </View>
+        <Text style={styles.trustTitle}>Member data deserves the same care as member wellbeing.</Text>
+        <Text style={styles.trustText}>Activity and coaching information remain confidential inside the admin workspace.</Text>
+        <View style={styles.trustLinks}>
+          <Pressable accessibilityRole="button" onPress={() => comingNext('Data and privacy')} style={({ pressed }) => [styles.trustLink, pressed && styles.pressed]}>
+            <Text style={styles.trustLinkText}>Data & privacy</Text>
+            <Ionicons name="arrow-forward" size={16} color={adminColors.white} />
+          </Pressable>
+          <View style={styles.trustDivider} />
+          <Pressable accessibilityRole="button" onPress={() => comingNext('Admin terms')} style={({ pressed }) => [styles.trustLink, pressed && styles.pressed]}>
+            <Text style={styles.trustLinkText}>Admin terms</Text>
+            <Ionicons name="arrow-forward" size={16} color={adminColors.white} />
+          </Pressable>
+        </View>
       </View>
 
       <Pressable accessibilityRole="button" onPress={confirmSignOut} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}>
-        <View style={styles.logoutIcon}><Ionicons name="log-out-outline" size={20} color={adminColors.coral} /></View>
+        <Ionicons name="log-out-outline" size={20} color={adminColors.coral} />
         <Text style={styles.logoutText}>Sign out of admin</Text>
         <Ionicons name="arrow-forward" size={18} color={adminColors.coral} />
       </Pressable>
@@ -220,65 +182,57 @@ export default function AdminSettingsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   screenContent: { paddingBottom: 34 },
-  heading: { marginTop: 28 },
+  heading: { marginTop: 29 },
   eyebrow: { color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 17, letterSpacing: 1.35 },
-  title: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 32, lineHeight: 38, letterSpacing: -1.15, marginTop: 7 },
+  title: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 33, lineHeight: 39, letterSpacing: -1.2, marginTop: 7 },
   subtitle: { maxWidth: 345, color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 15, lineHeight: 23, marginTop: 6 },
-  identity: { minHeight: 112, flexDirection: 'row', alignItems: 'center', marginTop: 25, paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line },
-  avatarWrap: { width: 68, height: 68 },
+  profile: { minHeight: 116, flexDirection: 'row', alignItems: 'center', paddingVertical: 18, marginTop: 27, borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line },
+  avatarWrap: { width: 70, height: 70 },
   avatar: { borderWidth: 2, borderColor: adminColors.aquaStrong },
-  onlineDot: { position: 'absolute', right: 0, bottom: 1, width: 16, height: 16, borderRadius: 8, backgroundColor: adminColors.teal, borderWidth: 3, borderColor: adminColors.canvas },
-  identityCopy: { flex: 1, minWidth: 0, paddingHorizontal: 14 },
-  identityName: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 20, lineHeight: 25 },
-  identityEmail: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 2 },
-  roleLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 },
-  roleText: { color: adminColors.teal, fontFamily: adminFonts.medium, fontSize: 13, lineHeight: 17 },
-  editButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
-  sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14, marginTop: 31, marginBottom: 13 },
-  sectionHeadingCopy: { flex: 1 },
+  profileStatus: { position: 'absolute', right: 0, bottom: 1, width: 16, height: 16, borderRadius: 8, backgroundColor: adminColors.teal, borderWidth: 3, borderColor: adminColors.canvas },
+  profileCopy: { flex: 1, minWidth: 0, paddingHorizontal: 14 },
+  profileEyebrow: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 11, lineHeight: 15, letterSpacing: 1.05 },
+  profileName: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 26, marginTop: 3 },
+  profileClub: { color: adminColors.teal, fontFamily: adminFonts.medium, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 34, marginBottom: 13 },
+  sectionHeadingCopy: { flex: 1, minWidth: 0 },
   sectionEyebrow: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 17, letterSpacing: 1.2 },
   sectionTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 22, lineHeight: 28, letterSpacing: -0.55, marginTop: 4 },
   sectionMeta: { color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 13, lineHeight: 18, marginBottom: 3 },
-  alertShell: { borderRadius: 27, backgroundColor: '#B7DAD3', ...adminShadow },
-  alertPanel: { overflow: 'hidden', borderRadius: 27, padding: 17 },
-  alertOrbLarge: { position: 'absolute', width: 176, height: 176, right: -80, top: -92, borderRadius: 88, backgroundColor: 'rgba(255,255,255,0.26)' },
-  alertOrbSmall: { position: 'absolute', width: 72, height: 72, left: -29, bottom: 48, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.18)' },
-  alertIntro: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 14 },
-  alertMark: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.deepTeal },
-  alertIntroCopy: { flex: 1, minWidth: 0 },
-  alertIntroTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 17, lineHeight: 22 },
-  alertIntroText: { color: adminColors.deepTeal, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 2 },
-  activeCount: { alignItems: 'flex-end' },
-  activeCountValue: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 25, lineHeight: 28 },
-  activeCountLabel: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 10, lineHeight: 14, letterSpacing: 1.05 },
-  toggleList: { overflow: 'hidden', borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.76)' },
-  toggleRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9 },
-  toggleBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#C8E0DA' },
-  toggleIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
-  toggleIconActive: { backgroundColor: adminColors.deepTeal },
-  toggleTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  toggleState: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 11, lineHeight: 15, paddingHorizontal: 7, paddingVertical: 2, borderRadius: adminRadius.pill, backgroundColor: '#E8EFEC' },
-  toggleStateActive: { color: adminColors.deepTeal, backgroundColor: '#CDECE7' },
-  rowCopy: { flex: 1, minWidth: 0, paddingHorizontal: 12 },
-  rowTitle: { flexShrink: 1, color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 15, lineHeight: 20 },
-  rowDetail: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 3 },
-  actionList: { overflow: 'hidden', borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line },
-  actionRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', paddingVertical: 9 },
-  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: adminColors.line },
-  actionIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
-  forwardButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  privacyStatement: { minHeight: 132, flexDirection: 'row', alignItems: 'flex-start', gap: 13, overflow: 'hidden', padding: 18, borderRadius: 24, backgroundColor: adminColors.deepTeal },
-  privacyIcon: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.11)' },
-  privacyCopy: { flex: 1, minWidth: 0 },
-  privacyTitle: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 17, lineHeight: 22 },
-  privacyText: { color: '#CBE7E3', fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 20, marginTop: 5 },
-  legalLinks: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: adminColors.line, marginTop: 4 },
-  legalLink: { minHeight: 58, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 10 },
-  legalDivider: { width: 1, height: 24, backgroundColor: adminColors.line },
-  legalText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 13, lineHeight: 18 },
-  logout: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderRadius: adminRadius.md, borderWidth: 1, borderColor: '#F0C6C2', backgroundColor: '#FFF9F8', marginTop: 29 },
-  logoutIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.coralSoft },
+  preferenceList: { overflow: 'hidden', paddingHorizontal: 16, borderRadius: 24, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
+  preferenceRow: { minHeight: 91, flexDirection: 'row', alignItems: 'center', paddingVertical: 13 },
+  preferenceDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: adminColors.line },
+  preferenceNumber: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.surfaceMuted },
+  preferenceNumberActive: { backgroundColor: adminColors.aqua },
+  preferenceNumberText: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 11, lineHeight: 15, letterSpacing: 0.6 },
+  preferenceNumberTextActive: { color: adminColors.deepTeal },
+  preferenceCopy: { flex: 1, minWidth: 0, paddingHorizontal: 11 },
+  preferenceTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 15, lineHeight: 20 },
+  preferenceDetail: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 3 },
+  preferenceControl: { width: 52, alignItems: 'center', gap: 3 },
+  preferenceState: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 10, lineHeight: 13, letterSpacing: 0.8 },
+  preferenceStateActive: { color: adminColors.teal },
+  sessionNote: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, lineHeight: 17, marginTop: 9, marginLeft: 3 },
+  accountList: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line },
+  accountRow: { minHeight: 79, flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 4 },
+  accountDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: adminColors.line },
+  accountCopy: { flex: 1, minWidth: 0, paddingHorizontal: 13 },
+  accountTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 15, lineHeight: 20 },
+  accountDetail: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 3 },
+  accountArrow: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  trustCard: { minHeight: 248, overflow: 'hidden', padding: 19, borderRadius: 26, backgroundColor: adminColors.deepTeal },
+  trustOrb: { position: 'absolute', width: 190, height: 190, right: -92, top: -88, borderRadius: 95, backgroundColor: 'rgba(180,245,235,0.08)' },
+  trustTopline: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  trustIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+  trustLabel: { color: '#BFECE5', fontFamily: adminFonts.semibold, fontSize: 11, lineHeight: 16, letterSpacing: 1.15 },
+  trustTitle: { maxWidth: 300, color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 28, letterSpacing: -0.45, marginTop: 17 },
+  trustText: { maxWidth: 310, color: '#C7E5E1', fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 20, marginTop: 7 },
+  trustLinks: { minHeight: 50, flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.18)', marginTop: 18 },
+  trustLink: { minHeight: 50, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7, paddingHorizontal: 5 },
+  trustDivider: { width: 1, height: 23, backgroundColor: 'rgba(255,255,255,0.17)', marginHorizontal: 8 },
+  trustLinkText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 13, lineHeight: 18 },
+  logout: { minHeight: 59, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0CBC7', marginTop: 31 },
   logoutText: { flex: 1, color: adminColors.coral, fontFamily: adminFonts.semibold, fontSize: 15, lineHeight: 20 },
   version: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 18 },
-  pressed: { opacity: 0.68, transform: [{ scale: 0.99 }] },
+  pressed: { opacity: 0.66, transform: [{ scale: 0.99 }] },
 });

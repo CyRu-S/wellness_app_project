@@ -137,6 +137,9 @@ export default function AdminDashboardScreen({ navigation }) {
   const highPriorityCount = openAttention.filter((item) => item.severity === 'HIGH').length;
   const compactHero = width < 365 || fontScale > 1.15;
   const stackedMosaic = width < 340 || fontScale > 1.25;
+  const activeMemberRatio = summary.totalMembers
+    ? Math.min(100, Math.round((summary.activeUsers / summary.totalMembers) * 100))
+    : 0;
   const todaySeries = insights.ranges.TODAY.series;
   const todayMemberSeries = useMemo(
     () => todaySeries.map((item) => ({
@@ -273,27 +276,40 @@ export default function AdminDashboardScreen({ navigation }) {
             </View>
 
             <View style={styles.heroFooter}>
-              <View style={styles.heroStatsRail}>
-                <View style={styles.heroFooterMetric}>
-                  <View style={styles.heroMetricValueRow}>
+              <LinearGradient
+                colors={['#ECF8F4', '#D8ECE6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroStatsRail}
+              >
+                <View pointerEvents="none" style={styles.memberPulseOrb} />
+                <View style={styles.memberPulseTopline}>
+                  <View style={styles.memberPulseLabelWrap}>
                     <View style={styles.heroActiveDot} />
-                    <Text style={styles.heroFooterValue}>{summary.activeUsers}</Text>
+                    <Text style={styles.memberPulseLabel}>MEMBER PULSE</Text>
                   </View>
-                  <Text numberOfLines={1} style={styles.heroFooterLabel}>Active now</Text>
-                </View>
-                <View style={styles.heroFooterDivider} />
-                <View style={styles.heroFooterMetric}>
-                  <View style={styles.heroMetricValueRow}>
-                    <Ionicons name="people" size={15} color={adminColors.deepTeal} />
-                    <Text style={styles.heroFooterValue}>{summary.totalMembers}</Text>
+                  <View style={styles.membersAction}>
+                    <Text style={styles.membersActionText}>Members</Text>
+                    <Ionicons name="arrow-up-outline" size={16} color={adminColors.white} style={styles.diagonalArrow} />
                   </View>
-                  <Text numberOfLines={1} style={styles.heroFooterLabel}>Club members</Text>
                 </View>
-              </View>
-              <View style={[styles.membersAction, compactHero && styles.membersActionCompact]}>
-                {!compactHero ? <Text style={styles.membersActionText}>View all</Text> : null}
-                <Ionicons name="arrow-up-outline" size={17} color={adminColors.white} style={styles.diagonalArrow} />
-              </View>
+
+                <View style={styles.memberPulseValues}>
+                  <View style={styles.activeMemberValueWrap}>
+                    <Text style={styles.activeMemberValue}>{summary.activeUsers}</Text>
+                    <Text style={styles.activeMemberLabel}>active now</Text>
+                  </View>
+                  <View style={styles.totalMemberValueWrap}>
+                    <Text style={styles.totalMemberValue}>of {summary.totalMembers}</Text>
+                    <Text style={styles.totalMemberLabel}>club members</Text>
+                  </View>
+                </View>
+
+                <View style={styles.memberProgressTrack}>
+                  <View style={[styles.memberProgressFill, { width: `${activeMemberRatio}%` }]} />
+                </View>
+                <Text style={styles.memberProgressCaption}>{activeMemberRatio}% of the club is active right now</Text>
+              </LinearGradient>
             </View>
           </LinearGradient>
         </Pressable>
@@ -467,18 +483,26 @@ const styles = StyleSheet.create({
   scoreBubbleCompact: { right: 2, top: 272 },
   scoreValue: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 25, letterSpacing: -0.5 },
   scoreLabel: { color: '#FFF1EE', fontFamily: adminFonts.medium, fontSize: 12, lineHeight: 15 },
-  heroCurve: { zIndex: 4, position: 'absolute', left: 0, right: 0, bottom: 0, height: 113 },
-  heroFooter: { zIndex: 6, minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  heroStatsRail: { minHeight: 63, flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 9, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.9)', borderWidth: 1, borderColor: adminColors.line, marginTop: 8 },
-  heroFooterMetric: { flex: 1, minWidth: 0 },
-  heroMetricValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  heroActiveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: adminColors.teal },
-  heroFooterValue: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 22, lineHeight: 25, letterSpacing: -0.5 },
-  heroFooterLabel: { color: adminColors.deepTeal, fontFamily: adminFonts.medium, fontSize: 11, lineHeight: 15, marginTop: 3 },
-  heroFooterDivider: { width: 1, height: 39, backgroundColor: adminColors.line, marginHorizontal: 11 },
-  membersAction: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: adminRadius.pill, backgroundColor: adminColors.deepTeal },
-  membersActionCompact: { width: 46, justifyContent: 'center', paddingHorizontal: 0 },
-  membersActionText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 12 },
+  heroCurve: { zIndex: 4, position: 'absolute', left: 0, right: 0, bottom: 0, height: 156 },
+  heroFooter: { zIndex: 6, minHeight: 136, flexDirection: 'row', alignItems: 'center', marginTop: 28 },
+  heroStatsRail: { minHeight: 132, flex: 1, overflow: 'hidden', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 24, borderWidth: 1, borderColor: '#C4E2DC' },
+  memberPulseOrb: { position: 'absolute', width: 118, height: 118, right: -45, bottom: -63, borderRadius: 59, backgroundColor: 'rgba(255,255,255,0.34)' },
+  memberPulseTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  memberPulseLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  memberPulseLabel: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 11, lineHeight: 16, letterSpacing: 1.1 },
+  heroActiveDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: adminColors.teal, borderWidth: 2, borderColor: '#A8E0D8' },
+  membersAction: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, borderRadius: adminRadius.pill, backgroundColor: adminColors.deepTeal },
+  membersActionText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 16 },
+  memberPulseValues: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 9 },
+  activeMemberValueWrap: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  activeMemberValue: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 34, lineHeight: 38, letterSpacing: -1.2 },
+  activeMemberLabel: { color: adminColors.deepTeal, fontFamily: adminFonts.medium, fontSize: 13, lineHeight: 18, marginBottom: 3 },
+  totalMemberValueWrap: { alignItems: 'flex-end', marginBottom: 3 },
+  totalMemberValue: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16, lineHeight: 20 },
+  totalMemberLabel: { color: adminColors.muted, fontFamily: adminFonts.medium, fontSize: 12, lineHeight: 16 },
+  memberProgressTrack: { height: 6, overflow: 'hidden', borderRadius: 3, backgroundColor: 'rgba(7,95,103,0.13)', marginTop: 9 },
+  memberProgressFill: { height: 6, borderRadius: 3, backgroundColor: adminColors.teal },
+  memberProgressCaption: { color: adminColors.deepTeal, fontFamily: adminFonts.medium, fontSize: 11, lineHeight: 15, marginTop: 5 },
   diagonalArrow: { transform: [{ rotate: '45deg' }] },
   sectionIntro: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 30 },
   sectionEyebrow: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 17, letterSpacing: 1.25 },
