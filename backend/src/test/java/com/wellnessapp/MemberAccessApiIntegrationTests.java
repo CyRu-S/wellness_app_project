@@ -1,0 +1,106 @@
+package com.wellnessapp;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wellnessapp.entity.User;
+import com.wellnessapp.repository.MealRepository;
+import com.wellnessapp.repository.UserRepository;
+import com.wellnessapp.security.JwtTokenProvider;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@Transactional
+class MemberAccessApiIntegrationTests {
+    @Autowired MockMvc mvc;
+    @Autowired ObjectMapper objectMapper;
+    @Autowired JwtTokenProvider tokens;
+    @Autowired UserRepository users;
+    @Autowired MealRepository meals;
+    @Autowired ZoneId applicationZoneId;
+
+    @Test
+    void adminCanGrantAndUserCanReadButCannotAdminister() throws Exception {
+        User aarav = user("user@wellnest.app");
+        User kavya = user("kavya.menon@example.com");
+        String adminToken = token("admin@wellnest.app", "ROLE_ADMIN");
+        String userToken = token(aarav.getEmail(), "ROLE_USER");
+
+        mvc.perform(put("/api/admin/member-access/{viewerId}", aarav.getId())
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of("memberIds", List.of(kavya.getId())))))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(put("/api/admin/member-access/{viewerId}", aarav.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of("memberIds", List.of(kavya.getId())))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignedCount").value(1))
+                .andExpect(jsonPath("$.assignedMembers[0].name").value("Kavya Menon"));
+
+        mvc.perform(get("/api/shared-members").header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.members[0].id").value(kavya.getId()));
+
+        User rohan = user("rohan.das@example.com");
+        mvc.perform(get("/api/shared-members/{memberId}/today", rohan.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void reactNativeStyleTextMetadataPartCreatesMealPost() throws Exception {
+        User aarav = user("user@wellnest.app");
+        Long mealId = meals.findByUserIdAndMealDateOrderByMealTime(
+                aarav.getId(), LocalDate.now(applicationZoneId)).getFirst().getId();
+        byte[] metadata = objectMapper.writeValueAsBytes(Map.of(
+                "plannedMealId", mealId,
+                "mealType", "Breakfast",
+                "mealName", "Oats and fruit",
+                "calories", 410,
+                "proteinGrams", 24,
+                "carbsGrams", 55,
+                "fatGrams", 12,
+                "clientRequestId", "mock-multipart-request"));
+        MockMultipartFile metadataPart = new MockMultipartFile(
+                "metadata", "", MediaType.TEXT_PLAIN_VALUE, metadata);
+        MockMultipartFile imagePart = new MockMultipartFile(
+                "image", "meal.png", MediaType.IMAGE_PNG_VALUE,
+                new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1});
+
+        mvc.perform(multipart("/api/meal-posts")
+                        .file(metadataPart)
+                        .file(imagePart)
+                        .header("Authorization", "Bearer " + token(aarav.getEmail(), "ROLE_USER")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.plannedMealId").value(mealId))
+                .andExpect(jsonPath("$.imageUrl").isNotEmpty());
+    }
+
+    private User user(String email) { return users.findByEmailIgnoreCase(email).orElseThrow(); }
+
+    private String token(String email, String role) {
+        var authentication = new UsernamePasswordAuthenticationToken(
+                email, null, List.of(new SimpleGrantedAuthority(role)));
+        return tokens.generate(authentication);
+    }
+}

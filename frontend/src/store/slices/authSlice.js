@@ -4,9 +4,11 @@ import { login as loginApi, register as registerApi } from '../../services/api/a
 const initialState = { user: null, token: null, hasOnboarded: false, status: 'idle', error: null, source: null };
 
 const DEMO_EMAILS = new Set(['user@wellnest.app', 'admin@wellnest.app']);
+const useApiDemoAccounts = process.env.EXPO_PUBLIC_USE_API_DEMO_ACCOUNTS === 'true';
+const demoModeEnabled = !useApiDemoAccounts && process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK !== 'true';
 
 const isDemoAccount = ({ email, password }) => (
-  process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK !== 'true'
+  demoModeEnabled
   && DEMO_EMAILS.has(email?.trim().toLowerCase())
   && password === 'password'
 );
@@ -31,14 +33,8 @@ const demoLogin = ({ email }) => {
 
 export const signIn = createAsyncThunk('auth/signIn', async (credentials) => {
   if (isDemoAccount(credentials)) return demoLogin(credentials);
-
-  try {
-    const response = await loginApi(credentials);
-    return { ...response, source: 'api' };
-  } catch (error) {
-    if (process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK === 'true') throw error;
-    return demoLogin(credentials);
-  }
+  const response = await loginApi(credentials);
+  return { ...response, source: 'api' };
 });
 
 export const register = createAsyncThunk('auth/register', async (profile) => {
@@ -46,7 +42,7 @@ export const register = createAsyncThunk('auth/register', async (profile) => {
     const response = await registerApi({ name: profile.name, email: profile.email, password: profile.password });
     return { ...response, source: 'api' };
   } catch (error) {
-    if (process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK === 'true') throw error;
+    if (!demoModeEnabled) throw error;
     return { token: 'demo-token', id: 1, name: profile.name, email: profile.email, role: 'USER', source: 'demo' };
   }
 });

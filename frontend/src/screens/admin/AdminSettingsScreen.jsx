@@ -7,7 +7,7 @@ import AdminScreen from '../../components/admin/AdminScreen';
 import AppLogo from '../../components/common/AppLogo';
 import { signOut } from '../../store/slices/authSlice';
 import { selectAdminPreferences, setPreference } from '../../store/slices/adminSlice';
-import { adminColors, adminFonts, adminRadius } from '../../theme/admin';
+import { adminColors, adminFonts } from '../../theme/admin';
 
 function SectionHeading({ eyebrow, title, meta }) {
   return (

@@ -7,5 +7,6 @@ import activity from './slices/activitySlice';
 import notifications from './slices/notificationSlice';
 import admin from './slices/adminSlice';
 import profile from './slices/profileSlice';
+import memberAccess from './slices/memberAccessSlice';
 
-export const store = configureStore({ reducer: { auth, dashboard, plan, meals, activity, notifications, admin, profile } });
+export const store = configureStore({ reducer: { auth, dashboard, plan, meals, activity, notifications, admin, profile, memberAccess } });

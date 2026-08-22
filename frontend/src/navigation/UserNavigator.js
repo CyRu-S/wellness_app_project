@@ -12,6 +12,9 @@ import ActivityTimerScreen from '../screens/user/ActivityTimerScreen';
 import NotificationsScreen from '../screens/user/NotificationsScreen';
 import ProfileScreen from '../screens/user/ProfileScreen';
 import BodyDetailsScreen from '../screens/user/BodyDetailsScreen';
+import SharedMembersScreen from '../screens/user/SharedMembersScreen';
+import SharedMemberTodayScreen from '../screens/user/SharedMemberTodayScreen';
+import SharedPhotoScreen from '../screens/user/SharedPhotoScreen';
 import { colors, fonts } from '../theme';
 
 const Tab = createBottomTabNavigator(); const Stack = createNativeStackNavigator();
@@ -19,7 +22,8 @@ const header = { headerStyle: { backgroundColor: colors.paper }, headerShadowVis
 function HomeStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} /><Stack.Screen name="Notifications" component={NotificationsScreen} /><Stack.Screen name="Meals" component={MealsScreen} options={{ headerShown: false }} /><Stack.Screen name="MealDetails" component={MealDetailsScreen} /><Stack.Screen name="MealLog" component={MealLogScreen} options={{ headerShown: false }} /><Stack.Screen name="MealCapture" component={MealCaptureScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
 function LogStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="MealLogHome" component={MealLogScreen} options={{ headerShown: false }} /><Stack.Screen name="MealCapture" component={MealCaptureScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
 function ProfileStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ headerShown: false }} /><Stack.Screen name="BodyDetails" component={BodyDetailsScreen} options={{ headerShown: false }} /></Stack.Navigator>; }
-const icons = { Today: ['home', 'home-outline'], Log: ['camera', 'camera-outline'], Move: ['walk', 'walk-outline'], Profile: ['person', 'person-outline'] };
+function SharedStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="SharedMembers" component={SharedMembersScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedMemberToday" component={SharedMemberTodayScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedPhoto" component={SharedPhotoScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
+const icons = { Today: ['home', 'home-outline'], Log: ['camera', 'camera-outline'], Move: ['walk', 'walk-outline'], Shared: ['people', 'people-outline'], Profile: ['person', 'person-outline'] };
 
 function TabIcon({ focused, color, size, names }) {
   const [progress] = useState(() => new Animated.Value(focused ? 1 : 0));
@@ -33,7 +37,7 @@ function TabIcon({ focused, color, size, names }) {
 }
 
 export default function UserNavigator() {
-  return <Tab.Navigator screenOptions={({ route }) => ({ headerShown: false, animation: 'fade', tabBarActiveTintColor: colors.accent, tabBarInactiveTintColor: '#78999C', tabBarStyle: styles.tabBar, tabBarLabelStyle: styles.tabLabel, tabBarItemStyle: styles.tabItem, tabBarIcon: (props) => <TabIcon {...props} names={icons[route.name]} /> })}><Tab.Screen name="Today" component={HomeStack} /><Tab.Screen name="Log" component={LogStack} /><Tab.Screen name="Move" component={ActivityTimerScreen} /><Tab.Screen name="Profile" component={ProfileStack} /></Tab.Navigator>;
+  return <Tab.Navigator screenOptions={({ route }) => ({ headerShown: false, animation: 'fade', tabBarActiveTintColor: colors.accent, tabBarInactiveTintColor: '#78999C', tabBarStyle: styles.tabBar, tabBarLabelStyle: styles.tabLabel, tabBarItemStyle: styles.tabItem, tabBarIcon: (props) => <TabIcon {...props} names={icons[route.name]} /> })}><Tab.Screen name="Today" component={HomeStack} /><Tab.Screen name="Log" component={LogStack} /><Tab.Screen name="Move" component={ActivityTimerScreen} /><Tab.Screen name="Shared" component={SharedStack} /><Tab.Screen name="Profile" component={ProfileStack} /></Tab.Navigator>;
 }
 
 const styles = StyleSheet.create({

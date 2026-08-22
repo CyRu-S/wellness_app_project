@@ -7,10 +7,12 @@ import AdminAttentionScreen from '../screens/admin/AdminAttentionScreen';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import AdminListScreen from '../screens/admin/AdminListScreen';
 import AdminMealInsightsScreen from '../screens/admin/AdminMealInsightsScreen';
+import AdminMemberAccessScreen from '../screens/admin/AdminMemberAccessScreen';
 import AdminMembersScreen from '../screens/admin/AdminMembersScreen';
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import AdminSettingsScreen from '../screens/admin/AdminSettingsScreen';
 import UserDetailsScreen from '../screens/admin/UserDetailsScreen';
+import ManageMemberAccessScreen from '../screens/admin/ManageMemberAccessScreen';
 import useReducedMotion from '../hooks/useReducedMotion';
 import { adminColors } from '../theme/admin';
 
@@ -43,6 +45,7 @@ function AdminTabs() {
       <Tab.Screen name="Reports" component={AdminMealInsightsScreen} />
       <Tab.Screen name="Alerts" component={AdminAttentionScreen} />
       <Tab.Screen name="UserList" component={AdminMembersScreen} />
+      <Tab.Screen name="MemberAccess" component={AdminMemberAccessScreen} />
       <Tab.Screen name="UserRequests" component={AdminApprovalsScreen} />
       <Tab.Screen name="NotificationSettings" component={AdminSettingsScreen} />
     </Tab.Navigator>
@@ -64,6 +67,7 @@ export default function AdminNavigator() {
       {Object.keys(variants).map((name) => <Stack.Screen key={name} name={name} component={Variant} />)}
       <Stack.Screen name="UserDetails" component={UserDetailsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="AdminProfile" component={AdminProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ManageMemberAccess" component={ManageMemberAccessScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

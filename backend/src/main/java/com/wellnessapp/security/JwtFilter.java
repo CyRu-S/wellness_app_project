@@ -22,9 +22,11 @@ public class JwtFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             if (tokens.isValid(token) && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails details = userDetailsService.loadUserByUsername(tokens.username(token));
-                var auth = new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities());
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                if (details.isEnabled() && details.isAccountNonLocked() && details.isAccountNonExpired()) {
+                    var auth = new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities());
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
             }
         }
         chain.doFilter(request, response);

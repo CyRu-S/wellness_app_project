@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { analyzeMealPhoto } from '../../services/api/mealAnalysisApi';
+import { createMealPost } from '../../services/api/mealPostApi';
 import { logMealNutrition } from '../../store/slices/dashboardSlice';
 import { logDetectedMeal } from '../../store/slices/mealSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
@@ -17,6 +18,8 @@ export default function MealCaptureScreen({ navigation, route }) {
   const targetMeal = useSelector((state) => state.meals.items.find((meal) => meal.id === targetMealId));
   const analysisCategory = targetMeal?.type === 'Herbalife product' ? 'product' : category;
   const token = useSelector((state) => state.auth.token);
+  const authSource = useSelector((state) => state.auth.source);
+  const userId = useSelector((state) => state.auth.user?.id);
   const dispatch = useDispatch();
   const camera = useRef(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -25,6 +28,8 @@ export default function MealCaptureScreen({ navigation, route }) {
   const [photo, setPhoto] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const clientRequestId = useRef(null);
   const scan = useRef(new Animated.Value(0)).current;
   const sheet = useRef(new Animated.Value(0)).current;
 
@@ -43,6 +48,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   }, [analysis, sheet]);
 
   const processPhoto = async (uri) => {
+    clientRequestId.current = `${userId || 'member'}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     setPhoto(uri);
     setAnalysis(null);
     setAnalyzing(true);
@@ -75,12 +81,50 @@ export default function MealCaptureScreen({ navigation, route }) {
     if (!result.canceled && result.assets?.[0]?.uri) await processPhoto(result.assets[0].uri);
   };
 
-  const retake = () => { setPhoto(null); setAnalysis(null); sheet.setValue(0); };
+  const retake = () => {
+    if (posting) return;
+    clientRequestId.current = null;
+    setPhoto(null);
+    setAnalysis(null);
+    sheet.setValue(0);
+  };
 
-  const confirm = () => {
+  const confirm = async () => {
+    if (posting || !analysis || !photo) return;
+    setPosting(true);
     const postedAt = new Date();
     const loggedAt = postedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const payload = { id: postedAt.getTime(), targetMealId, analysis, imageUri: photo, loggedAt, postedAt: postedAt.toISOString() };
+    let savedPost;
+
+    try {
+      if (authSource === 'api') {
+        const numericMealId = Number(targetMealId);
+        savedPost = await createMealPost(token, {
+          ...(Number.isSafeInteger(numericMealId) && numericMealId > 0 ? { plannedMealId: numericMealId } : {}),
+          mealType: targetMeal?.type || (category === 'product' ? 'Herbalife product' : 'Meal'),
+          mealName: analysis.name,
+          calories: Number(analysis.calories) || 0,
+          proteinGrams: Number(analysis.protein) || 0,
+          carbsGrams: Number(analysis.carbs) || 0,
+          fatGrams: Number(analysis.fat) || 0,
+          clientRequestId: clientRequestId.current,
+          imageUri: photo,
+        });
+      }
+    } catch (error) {
+      Alert.alert('Upload not completed', error.message || 'Your meal was not saved. Check your connection and try again.');
+      setPosting(false);
+      return;
+    }
+
+    const payload = {
+      id: savedPost?.id || postedAt.getTime(),
+      targetMealId,
+      analysis,
+      imageUri: photo,
+      loggedAt,
+      postedAt: savedPost?.postedAt || postedAt.toISOString(),
+    };
     dispatch(logDetectedMeal(payload));
     dispatch(logMealNutrition({ ...analysis, loggedAt }));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -117,7 +161,7 @@ export default function MealCaptureScreen({ navigation, route }) {
         <View style={styles.resultTop}><View><Text style={styles.resultLabel}>{analysis.source === 'live' ? 'LIVE ANALYSIS' : 'PREVIEW ESTIMATE'}</Text><Text style={styles.resultTitle}>{analysis.name}</Text></View><View style={styles.confidence}><Text style={styles.confidenceValue}>{analysis.confidence}%</Text><Text style={styles.confidenceLabel}>MATCH</Text></View></View>
         <View style={styles.nutrition}><View><Text style={styles.value}>{analysis.calories}</Text><Text style={styles.valueLabel}>KCAL</Text></View><View><Text style={styles.value}>{analysis.protein}g</Text><Text style={styles.valueLabel}>PROTEIN</Text></View><View><Text style={styles.value}>{analysis.carbs}g</Text><Text style={styles.valueLabel}>CARBS</Text></View><View><Text style={styles.value}>{analysis.fat}g</Text><Text style={styles.valueLabel}>FAT</Text></View></View>
         {analysis.source !== 'live' ? <View style={styles.demoNote}><Ionicons name="information-circle-outline" size={16} color={colors.tealDark} /><Text style={styles.demoText}>Demo estimate. Connect the meal-analysis endpoint for live food recognition.</Text></View> : null}
-        <View style={styles.resultActions}><Pressable onPress={retake} style={styles.retake}><Text style={styles.retakeText}>Retake</Text></Pressable><Pressable onPress={confirm} style={styles.confirm}><Text style={styles.confirmText}>Add to dashboard</Text><Ionicons name="arrow-forward" size={17} color={colors.white} /></Pressable></View>
+        <View style={styles.resultActions}><Pressable onPress={retake} disabled={posting} style={[styles.retake, posting && styles.disabled]}><Text style={styles.retakeText}>Retake</Text></Pressable><Pressable accessibilityState={{ busy: posting, disabled: posting }} onPress={confirm} disabled={posting} style={[styles.confirm, posting && styles.disabled]}><Text style={styles.confirmText}>{posting ? 'Saving meal…' : 'Add to dashboard'}</Text><Ionicons name={posting ? 'cloud-upload-outline' : 'arrow-forward'} size={17} color={colors.white} /></Pressable></View>
       </Animated.View> : null}
     </SafeAreaView>
   );
@@ -132,5 +176,6 @@ const styles = StyleSheet.create({
   result: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, backgroundColor: colors.paper, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 22, paddingTop: 11, paddingBottom: 22, ...shadows.raised }, resultHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: colors.line, alignSelf: 'center', marginBottom: 16 }, resultTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, resultLabel: { ...type.label, color: colors.tealMid, fontSize: 8 }, resultTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 21, marginTop: 4 }, confidence: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }, confidenceValue: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 13 }, confidenceLabel: { ...type.label, color: colors.muted, fontSize: 6 },
   nutrition: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 18, marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, value: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 18, textAlign: 'center' }, valueLabel: { ...type.label, color: colors.muted, fontSize: 7, marginTop: 2, textAlign: 'center' }, demoNote: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 }, demoText: { flex: 1, color: colors.muted, fontFamily: fonts.regular, fontSize: 10, lineHeight: 14 },
   resultActions: { flexDirection: 'row', gap: 10, marginTop: 15 }, retake: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 19 }, retakeText: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 13 }, confirm: { flex: 1, minHeight: 52, borderRadius: radius.md, backgroundColor: colors.tealMid, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }, confirmText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 13 },
+  disabled: { opacity: 0.58 },
   permission: { flex: 1, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', padding: 30 }, permissionTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 24, marginTop: 18 }, permissionCopy: { color: '#A9C7C9', fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 8 }, permissionButton: { minHeight: 52, borderRadius: radius.md, backgroundColor: colors.tealMid, paddingHorizontal: 26, alignItems: 'center', justifyContent: 'center', marginTop: 24 }, permissionButtonText: { color: colors.white, fontFamily: fonts.semibold }, libraryLink: { color: colors.accent, fontFamily: fonts.medium, marginTop: 20 },
 });

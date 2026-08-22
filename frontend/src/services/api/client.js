@@ -1,4 +1,4 @@
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8080/api';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8080/api';
 const configuredTimeout = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS);
 const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 5000;
 
@@ -16,10 +16,11 @@ export async function request(path, options = {}) {
   else upstreamSignal?.addEventListener?.('abort', abortRequest);
 
   try {
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const response = await fetch(`${API_URL}${path}`, {
       ...options,
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers: { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...options.headers },
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({ message: 'Request failed' }));

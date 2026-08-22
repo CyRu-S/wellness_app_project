@@ -2,36 +2,32 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { getProfile, updateBodyMetrics as updateBodyMetricsApi } from '../../services/api/profileApi';
 
 export const BODY_UPDATE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+const initialProfileState = {
+  bodyMetrics: { heightCm: 174, weightKg: 72.4, waistCm: 84, bodyFatPercent: 19.2 },
+  lastBodyMetricsUpdatedAt: null,
+  status: 'idle',
+  error: null,
+};
 
-export const loadProfile = createAsyncThunk('profile/load', async (token) => {
-  try {
-    return await getProfile(token);
-  } catch (error) {
-    if (process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK === 'true') throw error;
-    return null;
-  }
+export const loadProfile = createAsyncThunk('profile/load', async (token, { getState }) => {
+  if (getState().auth?.source === 'demo') return null;
+  return getProfile(token);
 });
 
-export const saveBodyMetrics = createAsyncThunk('profile/saveBodyMetrics', async ({ token, metrics }) => {
-  try {
-    return await updateBodyMetricsApi(token, metrics);
-  } catch (error) {
-    if (error.status || process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK === 'true') throw error;
+export const saveBodyMetrics = createAsyncThunk('profile/saveBodyMetrics', async ({ token, metrics }, { getState }) => {
+  if (getState().auth?.source === 'demo') {
     return { ...metrics, lastBodyMetricsUpdatedAt: new Date().toISOString(), source: 'demo' };
   }
+  return updateBodyMetricsApi(token, metrics);
 });
 
 const profileSlice = createSlice({
   name: 'profile',
-  initialState: {
-    bodyMetrics: { heightCm: 174, weightKg: 72.4, waistCm: 84, bodyFatPercent: 19.2 },
-    lastBodyMetricsUpdatedAt: null,
-    status: 'idle',
-    error: null,
-  },
+  initialState: initialProfileState,
   reducers: {},
   extraReducers: (builder) => {
     builder
+      .addCase('auth/signOut', () => initialProfileState)
       .addCase(loadProfile.pending, (state) => { state.status = 'loading'; state.error = null; })
       .addCase(loadProfile.fulfilled, (state, action) => {
         state.status = 'idle';

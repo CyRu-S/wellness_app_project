@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -9,13 +9,14 @@ import { adminColors, adminFonts, adminShadow } from '../../theme/admin';
 const tabs = {
   AdminDashboard: { label: 'Home', icon: 'home-outline', activeIcon: 'home' },
   UserList: { label: 'Members', icon: 'people-outline', activeIcon: 'people' },
+  MemberAccess: { label: 'Access', icon: 'key-outline', activeIcon: 'key' },
   UserRequests: { label: 'Approvals', icon: 'checkmark-done-outline', activeIcon: 'checkmark-done' },
   Reports: { label: 'Meals', icon: 'bar-chart-outline', activeIcon: 'bar-chart' },
   Alerts: { label: 'Attention', icon: 'alert-circle-outline', activeIcon: 'alert-circle' },
   NotificationSettings: { label: 'Settings', icon: 'options-outline', activeIcon: 'options' },
 };
 
-function TabButton({ route, focused, options, navigation, badge, reduceMotion }) {
+function TabButton({ route, focused, options, navigation, badge, reduceMotion, compact }) {
   const config = tabs[route.name];
   const progress = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
@@ -51,14 +52,14 @@ function TabButton({ route, focused, options, navigation, badge, reduceMotion })
     >
       <Animated.View style={[styles.itemContent, animatedStyle]}>
         <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-          <Ionicons name={focused ? config.activeIcon : config.icon} size={20} color={focused ? adminColors.deepTeal : adminColors.muted} />
+          <Ionicons name={focused ? config.activeIcon : config.icon} size={compact ? 19 : 20} color={focused ? adminColors.deepTeal : adminColors.muted} />
           {badge > 0 && (
             <View style={[styles.badge, route.name === 'Alerts' && styles.attentionBadge]}>
               <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
             </View>
           )}
         </View>
-        <Text numberOfLines={1} style={[styles.label, focused && styles.labelActive]}>{config.label}</Text>
+        <Text adjustsFontSizeToFit maxFontSizeMultiplier={1.2} minimumFontScale={0.78} numberOfLines={1} style={[styles.label, compact && styles.labelCompact, focused && styles.labelActive]}>{config.label}</Text>
         <Animated.View style={[styles.activeMarker, { opacity: progress, transform: [{ scaleX: progress }] }]} />
       </Animated.View>
     </Pressable>
@@ -67,7 +68,9 @@ function TabButton({ route, focused, options, navigation, badge, reduceMotion })
 
 export default function AdminTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
+  const compact = width <= 360;
   const pendingApprovals = useSelector((storeState) => storeState.admin.summary.pendingApprovals);
   const attentionCount = useSelector((storeState) => storeState.admin.attention.filter((item) => item.status !== 'RESOLVED').length);
 
@@ -85,6 +88,7 @@ export default function AdminTabBar({ state, descriptors, navigation }) {
               navigation={navigation}
               badge={badge}
               reduceMotion={reduceMotion}
+              compact={compact}
             />
           );
         })}
@@ -101,6 +105,7 @@ const styles = StyleSheet.create({
   iconWrap: { width: 37, height: 30, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   iconWrapActive: { backgroundColor: adminColors.aqua },
   label: { color: adminColors.muted, fontFamily: adminFonts.medium, fontSize: 11, marginTop: 3 },
+  labelCompact: { fontSize: 9.5 },
   labelActive: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold },
   activeMarker: { width: 15, height: 3, borderRadius: 2, backgroundColor: adminColors.teal, marginTop: 3 },
   badge: { position: 'absolute', top: -6, right: -7, minWidth: 18, height: 18, paddingHorizontal: 3, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.teal, borderWidth: 2, borderColor: adminColors.surface },
