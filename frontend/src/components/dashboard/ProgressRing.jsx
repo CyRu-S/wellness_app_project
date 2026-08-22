@@ -3,18 +3,18 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import AnimatedNumber from '../common/AnimatedNumber';
 import { colors, fonts } from '../../theme';
 
-export default function ProgressRing({ value = 72, label = 'complete' }) {
+export default function ProgressRing({ value = 72, label = 'complete', size = 124 }) {
   const [scale] = useState(() => new Animated.Value(0.82));
   useEffect(() => {
     scale.setValue(0.92);
     Animated.spring(scale, { toValue: 1, speed: 14, bounciness: 7, useNativeDriver: true }).start();
   }, [scale, value]);
   return (
-    <Animated.View style={[styles.motion, { transform: [{ scale }] }]}>
-      <View style={styles.outer} accessibilityLabel={`${value} percent ${label}`}>
-        <View style={styles.cutout}>
-          <AnimatedNumber value={value} style={styles.value} suffix="%" />
-          <Text style={styles.label}>{label}</Text>
+    <Animated.View style={[styles.motion, { width: size, height: size, transform: [{ scale }] }]}>
+      <View style={[styles.outer, { width: size, height: size, borderRadius: size / 2, padding: size * 0.085, borderWidth: size * 0.085 }]} accessibilityLabel={`${value} percent ${label}`}>
+        <View style={[styles.cutout, { borderRadius: size / 2 }]}>
+          <AnimatedNumber value={value} style={[styles.value, { fontSize: size * 0.23 }]} suffix="%" />
+          <Text style={[styles.label, { fontSize: Math.max(9, size * 0.075) }]}>{label}</Text>
         </View>
       </View>
     </Animated.View>

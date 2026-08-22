@@ -7,8 +7,9 @@ export async function request(path, options = {}) {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(payload.message || `Request failed (${response.status})`);
+    const error = new Error(payload.message || `Request failed (${response.status})`);
+    error.status = response.status;
+    throw error;
   }
   return response.status === 204 ? null : response.json();
 }
-

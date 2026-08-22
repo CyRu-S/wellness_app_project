@@ -6,6 +6,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import AmbientBackground from '../../components/common/AmbientBackground';
 import Screen from '../../components/common/Screen';
+import UserHeader from '../../components/user/UserHeader';
 import { completeActivity } from '../../store/slices/activitySlice';
 import { recordActivity } from '../../store/slices/dashboardSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
@@ -63,6 +64,7 @@ export default function ActivityTimerScreen({ navigation }) {
 
   return (
     <Screen contentStyle={styles.page}>
+      <UserHeader navigation={navigation} />
       <StaggeredView delay={35} style={styles.head}><Text style={styles.kicker}>ACTIVITY TIMER</Text><Text style={styles.title}>Track movement</Text><Text style={styles.body}>Choose an activity and let the timer update today’s movement totals.</Text></StaggeredView>
 
       <StaggeredView delay={90}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activityTabs}>{activities.map((activity) => <Pressable key={activity.key} onPress={() => { if (!running) setSelected(activity); }} style={[styles.activityTab, selected.key === activity.key && styles.activityTabActive]}><Ionicons name={activity.icon} size={19} color={selected.key === activity.key ? colors.white : colors.tealDark} /><Text style={[styles.activityTabText, selected.key === activity.key && styles.activityTabTextActive]}>{activity.label}</Text></Pressable>)}</ScrollView></StaggeredView>
@@ -83,7 +85,7 @@ export default function ActivityTimerScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  page: { paddingTop: 22 }, head: { gap: 6 }, kicker: { ...type.label, color: colors.tealMid }, title: { ...type.display, color: colors.ink }, body: { ...type.body, color: colors.muted, maxWidth: 340 },
+  page: {}, head: { gap: 6, marginTop: 24 }, kicker: { ...type.label, color: colors.tealMid }, title: { ...type.display, color: colors.ink }, body: { ...type.body, color: colors.muted, maxWidth: 340 },
   activityTabs: { gap: 9, paddingVertical: 22, paddingRight: 20 }, activityTab: { minWidth: 76, minHeight: 58, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', gap: 4 }, activityTabActive: { backgroundColor: colors.tealMid, borderColor: colors.tealMid, ...shadows.soft }, activityTabText: { color: colors.tealDark, fontFamily: fonts.medium, fontSize: 10 }, activityTabTextActive: { color: colors.white },
   timerPanel: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 19, overflow: 'hidden', ...shadows.soft }, timerStage: { minHeight: 225, alignItems: 'center', justifyContent: 'center' }, pulse: { position: 'absolute', width: 205, height: 205, borderRadius: 103, backgroundColor: colors.accent }, timer: { width: 188, height: 188, borderRadius: 94, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.mist }, timerLabel: { ...type.label, color: colors.tealMid, fontSize: 8 }, time: { color: colors.ink, fontFamily: fonts.medium, fontSize: 45, letterSpacing: -2, marginTop: 6 }, ready: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 }, readyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.line }, runningDot: { backgroundColor: colors.accent }, readyText: { ...type.label, color: colors.muted, fontSize: 7 },
   liveStats: { flexDirection: 'row', gap: 10 }, liveStat: { flex: 1, backgroundColor: colors.accentSoft, borderRadius: radius.md, padding: 15 }, liveLabel: { ...type.label, color: colors.tealDark, fontSize: 7 }, liveValue: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 21, marginTop: 4 }, liveUnit: { color: colors.muted, fontFamily: fonts.regular, fontSize: 11 },
