@@ -6,6 +6,7 @@ import StaggeredView from '../../components/auth/StaggeredView';
 import AmbientBackground from '../../components/common/AmbientBackground';
 import MealSchedule, { getMealStatus } from '../../components/meal/MealSchedule';
 import Screen from '../../components/common/Screen';
+import UserHeader from '../../components/user/UserHeader';
 import { colors, fonts, radius, type } from '../../theme';
 
 export default function MealsScreen({ navigation }) {
@@ -15,6 +16,7 @@ export default function MealsScreen({ navigation }) {
   const openMeal = (meal) => meal.consumed ? navigation.navigate('MealDetails', { mealId: meal.id }) : navigation.navigate('MealCapture', { category: 'meal', targetMealId: meal.id });
   return (
     <Screen>
+      <UserHeader navigation={navigation} />
       <StaggeredView delay={35} style={styles.head}><Text style={styles.kicker}>PERSONALISED NUTRITION</Text><Text style={styles.title}>Meal sheet</Text><Text style={styles.body}>Your assigned meals, times, and photo check-ins in one place.</Text></StaggeredView>
       <StaggeredView delay={110} style={styles.summary}>
         <AmbientBackground />
@@ -30,7 +32,7 @@ export default function MealsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  head: { marginTop: 18 }, kicker: { ...type.label, color: colors.tealMid }, title: { ...type.display, color: colors.ink, marginTop: 6 }, body: { ...type.body, color: colors.muted, marginTop: 7, maxWidth: 340 },
+  head: { marginTop: 24 }, kicker: { ...type.label, color: colors.tealMid }, title: { ...type.display, color: colors.ink, marginTop: 6 }, body: { ...type.body, color: colors.muted, marginTop: 7, maxWidth: 340 },
   summary: { minHeight: 180, backgroundColor: colors.ink, borderRadius: radius.lg, marginTop: 24, padding: 21, overflow: 'hidden' }, summaryTop: { flexDirection: 'row', justifyContent: 'space-between' }, summaryLabel: { ...type.label, color: '#8DC3C5', fontSize: 8 }, summaryTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 21, marginTop: 5 }, coach: { color: '#9BBFC1', fontFamily: fonts.regular, fontSize: 11, marginTop: 4 }, count: { color: colors.accent, fontFamily: fonts.semibold, fontSize: 28 }, progress: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.12)', marginTop: 21, overflow: 'hidden' }, progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.accent }, summaryFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 17 }, summaryMeta: { color: '#A8C7C9', fontFamily: fonts.regular, fontSize: 10 }, logButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 9, paddingHorizontal: 12 }, logButtonText: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 10 },
   alert: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF4F2', borderRadius: radius.md, padding: 14, marginTop: 14 }, alertCopy: { flex: 1 }, alertTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 12 }, alertText: { color: colors.muted, fontFamily: fonts.regular, fontSize: 9, marginTop: 3 },
   schedule: { marginTop: 27 }, scheduleHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 4 }, scheduleLabel: { ...type.label, color: colors.muted, fontSize: 8 }, scheduleDate: { ...type.label, color: colors.tealMid, fontSize: 8 },

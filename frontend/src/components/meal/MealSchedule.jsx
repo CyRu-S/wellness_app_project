@@ -10,17 +10,17 @@ export const getMealStatus = (meal) => {
   return currentHour > meal.hour + 0.75 ? 'overdue' : 'scheduled';
 };
 
-export default function MealSchedule({ items, onLog, compact = false }) {
+export default function MealSchedule({ items, onLog, compact = false, showPhotoAction = true, showType = true }) {
   return (
     <View style={styles.list}>
       {items.map((meal, index) => {
         const status = getMealStatus(meal);
         return (
-          <Pressable key={meal.id} onPress={() => onLog?.(meal)} style={({ pressed }) => [styles.row, compact && styles.compactRow, pressed && styles.pressed]}>
+          <Pressable key={meal.id} disabled={!onLog} onPress={() => onLog?.(meal)} style={({ pressed }) => [styles.row, compact && styles.compactRow, pressed && styles.pressed]}>
             <View style={styles.timeline}><View style={[styles.node, status === 'logged' && styles.nodeLogged, status === 'overdue' && styles.nodeOverdue]}>{status === 'logged' ? <Ionicons name="checkmark" size={12} color={colors.white} /> : null}</View>{index < items.length - 1 ? <View style={styles.line} /> : null}</View>
-            <View style={styles.timeBlock}><Text style={styles.time}>{meal.time}</Text><Text style={styles.type}>{meal.type.toUpperCase()}</Text></View>
+            <View style={styles.timeBlock}><Text style={styles.time}>{meal.time}</Text>{showType ? <Text style={styles.type}>{meal.type.toUpperCase()}</Text> : null}</View>
             <View style={styles.copy}><Text numberOfLines={1} style={styles.name}>{meal.name}</Text><Text style={[styles.status, status === 'overdue' && styles.overdue]}>{status === 'logged' ? `Uploaded ${meal.uploadedAt}` : status === 'overdue' ? 'Photo check-in overdue' : 'Awaiting check-in'}</Text></View>
-            {status !== 'logged' ? <View style={[styles.action, status === 'overdue' && styles.actionOverdue]}><Ionicons name="camera-outline" size={17} color={status === 'overdue' ? colors.white : colors.tealDark} /></View> : <Ionicons name="checkmark-circle" size={20} color={colors.tealMid} />}
+            {status !== 'logged' ? showPhotoAction ? <View style={[styles.action, status === 'overdue' && styles.actionOverdue]}><Ionicons name="camera-outline" size={17} color={status === 'overdue' ? colors.white : colors.tealDark} /></View> : <Ionicons name={status === 'overdue' ? 'alert-circle-outline' : 'time-outline'} size={20} color={status === 'overdue' ? colors.danger : colors.muted} /> : <Ionicons name="checkmark-circle" size={20} color={colors.tealMid} />}
           </Pressable>
         );
       })}
