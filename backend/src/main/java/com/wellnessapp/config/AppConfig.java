@@ -68,7 +68,7 @@ public class AppConfig {
                 .passwordHash(encoder.encode("password")).role(User.Role.USER).status(User.Status.ACTIVE).build());
         profiles.save(UserProfile.builder().user(user).goal("Build energy through steady nutrition and movement.")
                 .heightCm(175).weightKg(72.5).waistCm(84.0).bodyFatPercent(19.2)
-                .dietaryPreferences("Vegetarian").build());
+                .dietaryPreferences("Vegetarian").waterGoalMl(2500).build());
         Plan plan = plans.save(Plan.builder().user(user).title("Balanced energy")
                 .goal("Steady energy throughout the day").startDate(today.minusDays(10)).endDate(today.plusDays(18)).active(true).build());
         planItems.saveAll(List.of(
@@ -99,7 +99,8 @@ public class AppConfig {
         User user = users.save(User.builder().fullName(name).email(email).passwordHash(encoder.encode("password"))
                 .role(User.Role.USER).status(User.Status.ACTIVE).build());
         profiles.save(UserProfile.builder().user(user).heightCm(164 + offset * 3).weightKg(61.0 + offset * 4)
-                .waistCm(72.0 + offset * 2).bodyFatPercent(17.0 + offset).build());
+                .waistCm(72.0 + offset * 2).bodyFatPercent(17.0 + offset)
+                .waterGoalMl(1750 + offset * 250).build());
         meals.saveAll(List.of(
                 Meal.builder().user(user).type("Breakfast").name("Protein breakfast bowl").mealDate(today)
                         .mealTime(LocalTime.of(8, 0)).calories(390 + offset * 10).proteinGrams(22).consumed(true).build(),

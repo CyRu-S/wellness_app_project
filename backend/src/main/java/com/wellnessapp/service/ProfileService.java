@@ -54,7 +54,8 @@ import java.time.Instant;
                 profile == null ? null : profile.getDietaryPreferences(),
                 profile == null ? null : profile.getWaistCm(),
                 profile == null ? null : profile.getBodyFatPercent(),
-                profile == null ? null : profile.getLastBodyMetricsUpdatedAt());
+                profile == null ? null : profile.getLastBodyMetricsUpdatedAt(),
+                profile == null ? 2000 : profile.getWaterGoalMl());
     }
 }
 

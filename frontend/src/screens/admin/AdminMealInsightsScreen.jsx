@@ -100,7 +100,7 @@ export default function AdminMealInsightsScreen({ navigation }) {
 
   return (
     <AdminScreen>
-      <AdminHeader title="Meals" back onBackPress={() => navigation.navigate('AdminDashboard')} />
+      <AdminHeader title="Meals" back onBackPress={() => navigation.goBack()} />
 
       <View style={styles.heading}>
         <Text style={styles.eyebrow}>NUTRITION RHYTHM</Text>

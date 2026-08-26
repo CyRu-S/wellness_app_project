@@ -94,6 +94,14 @@ public class MemberAccessService {
         return buildToday(subject);
     }
 
+    @Transactional(readOnly = true)
+    public SharedMemberTodayResponse adminMemberToday(Long memberId) {
+        User subject = users.findById(memberId)
+                .filter(user -> user.getRole() == User.Role.USER)
+                .orElseThrow(() -> new NotFoundException("Member not found"));
+        return buildToday(subject);
+    }
+
     public boolean canReadMember(User viewer, Long subjectId) {
         if (viewer.getStatus() != User.Status.ACTIVE) return false;
         User subject = users.findById(subjectId).filter(this::isEligible).orElse(null);

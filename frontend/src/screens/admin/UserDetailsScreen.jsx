@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -19,15 +20,22 @@ import AdminBarChart from '../../components/admin/AdminBarChart';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl';
+import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
 import { memberAdherence } from '../../data/adminDemoData';
 import {
-  selectAdminMemberMealPostHistory,
   selectAdminMemberMealPlans,
   selectAdminMembers,
   updateMemberMealPlan,
 } from '../../store/slices/adminSlice';
-import { prunePostHistory } from '../../store/slices/mealSlice';
+import {
+  loadAdminMemberJournal,
+  saveAdminMemberWaterGoal,
+  selectAdminMemberJournal,
+  selectAdminMemberJournalRequest,
+  selectAdminMemberWaterGoalRequest,
+} from '../../store/slices/adminMemberJournalSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
+import { formatJournalClock, formatJournalDate, mealImageUri, protectedImageSource } from '../../utils/memberJournal';
 
 const TIME_PATTERN = /^(0?[1-9]|1[0-2]):[0-5]\d\s?(AM|PM)$/i;
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Snack', 'Dinner', 'Herbalife product'];
@@ -51,30 +59,49 @@ function Stat({ value, label, last }) {
   );
 }
 
-function Overview({ member, plan }) {
+function Overview({ member, plan, snapshot }) {
   const series = memberAdherence.map((value, index) => ({
     label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][index],
     value: Math.max(34, Math.min(100, value + member.adherence - 82)),
   }));
-  const completed = plan.items.filter((item) => item.consumed).length;
+  const completedItems = plan.items.filter((item) => item.consumed);
+  const completed = completedItems.length;
+  const calories = snapshot?.summary?.calories ?? completedItems.reduce((sum, item) => sum + (item.detectedCalories ?? item.calories ?? 0), 0);
+  const protein = snapshot?.summary?.proteinGrams ?? completedItems.reduce((sum, item) => sum + (item.detectedProtein ?? item.protein ?? 0), 0);
+  const hydrationMl = snapshot?.summary?.hydrationMl;
+  const hydrationConsumed = hydrationMl != null
+    ? hydrationMl >= 1000 ? `${(hydrationMl / 1000).toFixed(hydrationMl % 1000 ? 1 : 0)} L` : `${hydrationMl} ml`
+    : `${member.hydration}%`;
+  const waterGoalMl = member.waterGoalMl || 2000;
+  const hydration = hydrationMl != null
+    ? `${hydrationConsumed} / ${(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 ? 2 : 0).replace(/0$/, '')} L`
+    : hydrationConsumed;
 
   return (
     <>
-      <View style={styles.statsRail}>
-        <Stat value={`${completed}/${plan.items.length}`} label="meals today" />
-        <Stat value={`${member.hydration}%`} label="hydration" />
-        <Stat value={member.streak} label="day streak" last />
-      </View>
+      <LinearGradient colors={['#ECF8F5', '#C6EAE3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statsCard}>
+        <View style={styles.statsRow}>
+          <Stat value={`${completed}/${plan.items.length}`} label="meals today" />
+          <Stat value={hydration} label="water intake" />
+          <Stat value={member.streak} label="day streak" last />
+        </View>
+        <View style={styles.statsHorizontalDivider} />
+        <View style={styles.statsRow}>
+          <Stat value={calories} label="kcal today" />
+          <Stat value={`${protein}g`} label="protein today" last />
+        </View>
+      </LinearGradient>
 
-      <View style={styles.chartCard}>
+      <LinearGradient colors={['#FFFFFF', '#F0FAF7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.chartCard}>
+        <View pointerEvents="none" style={styles.chartGlow} />
         <View style={styles.cardHeading}>
           <View><Text style={styles.cardEyebrow}>SEVEN-DAY ADHERENCE</Text><Text style={styles.cardTitle}>{member.adherence}% average</Text></View>
           <Text style={styles.chartTrend}>{member.adherence >= 75 ? 'On track' : 'Needs care'}</Text>
         </View>
         <AdminBarChart data={series} label={`${member.name} seven day adherence`} />
-      </View>
+      </LinearGradient>
 
-      <View style={styles.planCard}>
+      <LinearGradient colors={['#E5F6F2', '#B5E0D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planCard}>
         <View style={styles.planTop}>
           <View style={styles.planHeading}>
             <Text style={styles.cardEyebrow}>DAILY MEAL PLAN</Text>
@@ -93,7 +120,7 @@ function Overview({ member, plan }) {
           ))}
         </View>
         <Text style={styles.planUpdated}>Last adjusted {plan.updatedAt || 'today'}</Text>
-      </View>
+      </LinearGradient>
 
       {member.attentionReason ? (
         <View style={styles.careNote}>
@@ -104,7 +131,8 @@ function Overview({ member, plan }) {
   );
 }
 
-function Today({ plan, onOpenPhoto }) {
+function Today({ plan, snapshot, token, onOpenPhoto }) {
+  if (snapshot) return <MemberTodaySnapshot snapshot={snapshot} token={token} onOpenPhoto={onOpenPhoto} showHero={false} showHydration={false} />;
   const completed = plan.items.filter((item) => item.consumed).length;
   return (
     <>
@@ -150,7 +178,8 @@ function Today({ plan, onOpenPhoto }) {
   );
 }
 
-function History({ posts, onOpenPhoto }) {
+function History({ posts = [], days, token, retentionDays = 21, onOpenPhoto }) {
+  if (days) return <JournalHistory days={days} token={token} retentionDays={retentionDays} onOpenPhoto={onOpenPhoto} />;
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const cutoff = startOfToday.getTime() - 21 * 24 * 60 * 60 * 1000;
@@ -192,6 +221,107 @@ function History({ posts, onOpenPhoto }) {
         <View style={styles.historyEmpty}><Text style={styles.historyEmptyTitle}>No previous posts</Text><Text style={styles.historyEmptyText}>Yesterday’s meal posts will appear here and remain available for 21 days.</Text></View>
       )}
     </>
+  );
+}
+
+function JournalState({ loading, error, onRetry }) {
+  return (
+    <View style={styles.journalState}>
+      {loading ? <ActivityIndicator color={adminColors.teal} /> : <Ionicons name="cloud-offline-outline" size={25} color={adminColors.coral} />}
+      <Text style={styles.journalStateTitle}>{loading ? 'Loading member journal' : 'Member journal unavailable'}</Text>
+      <Text style={styles.journalStateText}>{loading ? 'Bringing today’s check-ins together…' : error?.message || 'Please check your connection and try again.'}</Text>
+      {!loading ? <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}><Text style={styles.retryText}>Try again</Text></Pressable> : null}
+    </View>
+  );
+}
+
+function JournalHistory({ days, token, retentionDays, onOpenPhoto }) {
+  return (
+    <>
+      <View style={styles.historyHeading}>
+        <View><Text style={styles.cardEyebrow}>MEAL HISTORY</Text><Text style={styles.historyHeadingTitle}>Previous-day posts</Text></View>
+        <View style={styles.retentionPill}><Text style={styles.retentionText}>{retentionDays} DAYS</Text></View>
+      </View>
+      <Text style={styles.historyIntro}>Previous meal posts remain available for {retentionDays} days, then their records and photos are removed automatically.</Text>
+      {days.length ? (
+        <View style={styles.historyDays}>
+          {days.map((day) => (
+            <View key={day.date} style={styles.historyDay}>
+              <View style={styles.historyDayHead}>
+                <Text style={styles.historyDayDate}>{formatJournalDate(day.date, { weekday: 'long', day: 'numeric', month: 'short' })}</Text>
+                <Text style={styles.historyDayCount}>{day.posts.length} post{day.posts.length === 1 ? '' : 's'}</Text>
+              </View>
+              {day.posts.map((post, index) => {
+                const hasPhoto = Boolean(mealImageUri(post));
+                const nutrition = post.nutrition || {};
+                return (
+                  <Pressable
+                    key={post.postId || `${day.date}-${index}`}
+                    accessibilityRole={hasPhoto ? 'button' : undefined}
+                    accessibilityLabel={hasPhoto ? `View ${post.type} photo from ${formatJournalDate(day.date)}` : `${post.type} posted ${formatJournalDate(day.date)}`}
+                    disabled={!hasPhoto}
+                    onPress={() => onOpenPhoto(post)}
+                    style={({ pressed }) => [styles.historyRow, index < day.posts.length - 1 && styles.historyRowDivider, pressed && styles.pressed]}
+                  >
+                    {hasPhoto ? <Image source={protectedImageSource(post, token)} resizeMode="cover" style={styles.historyPhoto} /> : <View style={styles.historyPlaceholder}><Ionicons name="image-outline" size={22} color={adminColors.muted} /></View>}
+                    <View style={styles.historyCopy}>
+                      <View style={styles.historyTitleRow}><Text style={styles.historyTitle}>{post.type}</Text><Text style={styles.historyTime}>{formatJournalClock(post.postedAt)}</Text></View>
+                      <Text numberOfLines={1} style={styles.historyDetail}>{post.name}</Text>
+                      <Text style={styles.historyNutrition}>{nutrition.calories || 0} kcal · {nutrition.proteinGrams || 0}g protein{hasPhoto ? ' · View photo' : ''}</Text>
+                    </View>
+                    {hasPhoto ? <Ionicons name="expand-outline" size={19} color={adminColors.teal} /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.historyEmpty}><Ionicons name="images-outline" size={28} color={adminColors.teal} /><Text style={styles.historyEmptyTitle}>No previous posts</Text><Text style={styles.historyEmptyText}>Yesterday’s meal posts will appear here and remain available for {retentionDays} days.</Text></View>
+      )}
+    </>
+  );
+}
+
+function Metric({ label, value, unit, last }) {
+  return (
+    <View style={[styles.metric, !last && styles.metricDivider]}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue}>{value ?? '—'}{value != null && unit ? <Text style={styles.metricUnit}> {unit}</Text> : null}</Text>
+    </View>
+  );
+}
+
+function WaterGoalEditor({ visible, member, currentGoal, saving, onClose, onSave }) {
+  const [goal, setGoal] = useState(currentGoal || 2000);
+  const presets = [1500, 2000, 2500, 3000, 3500];
+  const changeGoal = (amount) => setGoal((value) => Math.max(500, Math.min(6000, value + amount)));
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.waterSheet}>
+          <View style={styles.editorHandle} />
+          <View style={styles.editorHeader}>
+            <View style={styles.editorHeaderCopy}><Text style={styles.editorEyebrow}>DAILY HYDRATION</Text><Text style={styles.editorTitle}>Set {member.name}’s goal</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close water goal editor" onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={21} color={adminColors.ink} /></Pressable>
+          </View>
+          <Text style={styles.editorIntro}>Choose a personal daily target. It will appear immediately in the member’s hydration tracker.</Text>
+          <View style={styles.waterGoalControl}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Reduce water goal by 250 millilitres" onPress={() => changeGoal(-250)} disabled={goal <= 500} style={({ pressed }) => [styles.waterStep, pressed && styles.pressed, goal <= 500 && styles.waterStepDisabled]}><Ionicons name="remove" size={23} color={adminColors.deepTeal} /></Pressable>
+            <View style={styles.waterGoalValue}><Text style={styles.waterGoalNumber}>{(goal / 1000).toFixed(goal % 1000 ? 2 : 1).replace(/0$/, '')} L</Text><Text style={styles.waterGoalGlasses}>{goal / 250} glasses of 250 ml</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Increase water goal by 250 millilitres" onPress={() => changeGoal(250)} disabled={goal >= 6000} style={({ pressed }) => [styles.waterStep, pressed && styles.pressed, goal >= 6000 && styles.waterStepDisabled]}><Ionicons name="add" size={23} color={adminColors.deepTeal} /></Pressable>
+          </View>
+          <View style={styles.waterPresets}>
+            {presets.map((value) => <Pressable key={value} accessibilityRole="button" onPress={() => setGoal(value)} style={[styles.waterPreset, goal === value && styles.waterPresetActive]}><Text style={[styles.waterPresetText, goal === value && styles.waterPresetTextActive]}>{value / 1000} L</Text></Pressable>)}
+          </View>
+          <View style={styles.editorActions}>
+            <Pressable accessibilityRole="button" onPress={onClose} disabled={saving} style={styles.cancelButton}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => onSave(goal)} disabled={saving} style={styles.saveButton}>{saving ? <ActivityIndicator color={adminColors.white} /> : <><Text style={styles.saveText}>Save water goal</Text><Ionicons name="checkmark" size={18} color={adminColors.white} /></>}</Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -313,16 +443,18 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
   );
 }
 
-function PhotoViewer({ meal, onClose }) {
+function PhotoViewer({ meal, token, memberName, onClose }) {
+  const nutrition = meal?.nutrition || {};
+  const source = meal ? protectedImageSource(meal, token) : null;
   return (
     <Modal visible={Boolean(meal)} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.photoBackdrop}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close meal photo" onPress={onClose} style={styles.photoClose}><Ionicons name="close" size={23} color={adminColors.white} /></Pressable>
-        {meal?.imageUri ? <Image source={{ uri: meal.imageUri }} resizeMode="contain" style={styles.photoFull} /> : null}
+        {source ? <Image accessibilityLabel={`${meal?.type || 'Meal'} photo posted by ${memberName}`} source={source} resizeMode="contain" style={styles.photoFull} /> : null}
         <View style={styles.photoCaption}>
           <Text style={styles.photoType}>{meal?.type}</Text>
           <Text style={styles.photoTitle}>{meal?.detectedName || meal?.name}</Text>
-          <Text style={styles.photoMeta}>Posted {meal?.uploadedAt}{meal?.detectedCalories ? ` · ${meal.detectedCalories} kcal · ${meal.detectedProtein}g protein` : ''}</Text>
+          <Text style={styles.photoMeta}>Posted {formatJournalClock(meal?.postedAt || meal?.uploadedAt) || 'today'} · {nutrition.calories ?? meal?.detectedCalories ?? meal?.calories ?? 0} kcal · {nutrition.proteinGrams ?? meal?.detectedProtein ?? meal?.protein ?? 0}g protein</Text>
         </View>
       </View>
     </Modal>
@@ -333,16 +465,21 @@ export default function UserDetailsScreen({ route, navigation }) {
   const dispatch = useDispatch();
   const members = useSelector(selectAdminMembers);
   const memberPlans = useSelector(selectAdminMemberMealPlans);
-  const memberPostHistory = useSelector(selectAdminMemberMealPostHistory);
   const liveUserMeals = useSelector((state) => state.meals);
+  const token = useSelector((state) => state.auth.token);
+  const authSource = useSelector((state) => state.auth.source);
   const [segment, setSegment] = useState('Overview');
   const [editingPlan, setEditingPlan] = useState(false);
+  const [editingWaterGoal, setEditingWaterGoal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const member = useMemo(
     () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name) || members[0],
     [members, route.params],
   );
-  const active = member.status === 'ACTIVE';
+  const journal = useSelector((state) => selectAdminMemberJournal(state, member.id));
+  const journalRequest = useSelector((state) => selectAdminMemberJournalRequest(state, member.id));
+  const waterGoalRequest = useSelector((state) => selectAdminMemberWaterGoalRequest(state, member.id));
+  const profileMember = useMemo(() => ({ ...member, ...(journal?.member || {}), id: member.id, initials: member.initials }), [journal?.member, member]);
   const storedPlan = memberPlans[member.id];
   const plan = useMemo(() => {
     if (member.id !== 1) return storedPlan;
@@ -353,20 +490,65 @@ export default function UserDetailsScreen({ route, navigation }) {
       items: liveUserMeals.items,
     };
   }, [liveUserMeals.consultant, liveUserMeals.items, liveUserMeals.planName, member.id, storedPlan]);
-  const historyPosts = member.id === 1 ? liveUserMeals.postHistory : memberPostHistory[member.id] || [];
+  const todaySnapshot = useMemo(() => {
+    if (!journal?.today || authSource !== 'demo') return journal?.today || null;
+    const currentMeals = journal.today.meals || [];
+    const meals = plan.items.map((meal) => {
+      const existing = currentMeals.find((item) => String(item.plannedMealId) === String(meal.id))
+        || currentMeals.find((item) => item.type === meal.type);
+      return {
+        ...existing,
+        plannedMealId: meal.id,
+        type: meal.type,
+        name: meal.detectedName || meal.name,
+        scheduledTime: meal.time,
+        completed: Boolean(meal.consumed),
+        postedAt: meal.consumed ? existing?.postedAt || meal.uploadedAt : null,
+        imageUrl: meal.imageUri || existing?.imageUrl || null,
+        nutrition: meal.consumed ? existing?.nutrition || {
+          calories: meal.detectedCalories ?? meal.calories ?? 0,
+          proteinGrams: meal.detectedProtein ?? meal.protein ?? 0,
+          carbsGrams: 0,
+          fatGrams: 0,
+        } : null,
+      };
+    });
+    const completedMeals = meals.filter((meal) => meal.completed);
+    return {
+      ...journal.today,
+      meals,
+      summary: {
+        ...journal.today.summary,
+        plannedMeals: meals.length,
+        completedMeals: completedMeals.length,
+        calories: completedMeals.reduce((sum, meal) => sum + (meal.nutrition?.calories || 0), 0),
+        proteinGrams: completedMeals.reduce((sum, meal) => sum + (meal.nutrition?.proteinGrams || 0), 0),
+      },
+    };
+  }, [authSource, journal?.today, plan.items]);
 
   useEffect(() => {
-    const cutoff = new Date();
-    cutoff.setHours(0, 0, 0, 0);
-    cutoff.setDate(cutoff.getDate() - 21);
-    dispatch(prunePostHistory(cutoff.toISOString()));
-  }, [dispatch]);
+    dispatch(loadAdminMemberJournal({ memberId: member.id, email: member.email }));
+  }, [dispatch, member.email, member.id]);
+
+  const retryJournal = () => dispatch(loadAdminMemberJournal({ memberId: member.id, email: member.email }));
+  const journalLoading = journalRequest.status === 'loading' || journalRequest.status === 'idle';
 
   const savePlan = (nextPlan) => {
     dispatch(updateMemberMealPlan({ memberId: member.id, ...nextPlan }));
     setEditingPlan(false);
     setSegment('Overview');
     Alert.alert('Daily plan updated', `${member.name} will follow this meal schedule each day until you change it again.`);
+  };
+
+  const saveWaterGoal = async (waterGoalMl) => {
+    try {
+      await dispatch(saveAdminMemberWaterGoal({ memberId: member.id, email: member.email, waterGoalMl })).unwrap();
+      setEditingWaterGoal(false);
+      Alert.alert('Water goal updated', `${profileMember.name}'s daily target is now ${waterGoalMl / 1000} litres.`);
+    } catch (error) {
+      Alert.alert('Could not update water goal', error?.message || 'Please try again.');
+    }
   };
 
   return (
@@ -378,69 +560,112 @@ export default function UserDetailsScreen({ route, navigation }) {
           <View pointerEvents="none" style={styles.identityOrb} />
           <View style={styles.identityTop}>
             <View style={styles.avatar}><Text style={styles.avatarText}>{member.initials}</Text></View>
-            <View style={styles.statusPill}><View style={[styles.statusDot, !active && styles.statusDotAway]} /><Text style={styles.statusText}>{member.lastActiveAt}</Text></View>
+            <View style={styles.identityCopy}>
+              <Text numberOfLines={2} style={styles.memberName}>{profileMember.name}</Text>
+              <Text numberOfLines={1} style={styles.memberEmail}>{profileMember.email}</Text>
+            </View>
           </View>
-          <Text style={styles.memberName}>{member.name}</Text>
-          <Text style={styles.memberEmail}>{member.email}</Text>
-          <View style={styles.identityFooter}>
-            <View style={styles.identityContext}><Text style={styles.contextLabel}>DAILY PLAN</Text><Text numberOfLines={1} style={styles.contextValue}>{plan.planName}</Text></View>
-            <View style={styles.contextDivider} />
-            <View style={styles.identityContext}><Text style={styles.contextLabel}>GOAL</Text><Text numberOfLines={2} style={styles.contextValue}>{member.goal}</Text></View>
+          <View style={styles.bodyProfile}>
+            <View style={styles.bodyProfileHead}>
+              <Text style={styles.bodyProfileTitle}>BODY PROFILE</Text>
+              <Text style={styles.bodyProfileDate}>{profileMember.lastBodyMetricsUpdatedAt ? `Updated ${formatJournalDate(profileMember.lastBodyMetricsUpdatedAt, { day: 'numeric', month: 'short' })}` : 'Update unavailable'}</Text>
+            </View>
+            <View style={styles.metricsRow}>
+              <Metric label="HEIGHT" value={profileMember.heightCm} unit="cm" />
+              <Metric label="WEIGHT" value={profileMember.weightKg} unit="kg" />
+              <Metric label="BMI" value={profileMember.bmi} last />
+            </View>
+            <View style={styles.metricsRowDivider} />
+            <View style={styles.metricsRow}>
+              <Metric label="WAIST" value={profileMember.waistCm} unit="cm" />
+              <Metric label="BODY FAT" value={profileMember.bodyFatPercent} unit="%" last />
+            </View>
+          </View>
+          <View style={styles.profileDetails}>
+            <View style={styles.profileDetail}><Text style={styles.contextLabel}>GOAL</Text><Text style={styles.contextValue}>{profileMember.goal || 'Not added yet'}</Text></View>
+            <View style={styles.profileDetail}><Text style={styles.contextLabel}>DIETARY PREFERENCES</Text><Text style={styles.contextValue}>{profileMember.dietaryPreferences || 'Not added yet'}</Text></View>
           </View>
         </LinearGradient>
       </View>
 
-      <Pressable accessibilityRole="button" onPress={() => setEditingPlan(true)} style={({ pressed }) => [styles.adjustAction, pressed && styles.pressed]}>
-        <View><Text style={styles.adjustLabel}>MEAL SCHEDULE</Text><Text style={styles.adjustText}>Adjust daily plan</Text></View>
-        <View style={styles.adjustIcon}><Ionicons name="options-outline" size={20} color={adminColors.white} /></View>
+      <Pressable accessibilityRole="button" onPress={() => setEditingPlan(true)} style={({ pressed }) => [styles.adjustActionShell, pressed && styles.pressed]}>
+        <LinearGradient colors={['#FFFFFF', '#EEF8F5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.adjustAction}>
+          <View><Text style={styles.adjustLabel}>MEAL SCHEDULE</Text><Text style={styles.adjustText}>Adjust daily plan</Text></View>
+          <View style={styles.adjustIcon}><Ionicons name="options-outline" size={20} color={adminColors.deepTeal} /></View>
+        </LinearGradient>
+      </Pressable>
+
+      <Pressable accessibilityRole="button" accessibilityLabel={`Set daily water goal. Current goal ${profileMember.waterGoalMl || 2000} millilitres`} onPress={() => setEditingWaterGoal(true)} style={({ pressed }) => [styles.waterAction, pressed && styles.pressed]}>
+        <View style={styles.waterActionIcon}><Ionicons name="water-outline" size={22} color={adminColors.teal} /></View>
+        <View style={styles.waterActionCopy}><Text style={styles.waterActionLabel}>DAILY HYDRATION</Text><Text style={styles.waterActionText}>Set water goal</Text></View>
+        <View style={styles.waterActionValue}><Text style={styles.waterActionNumber}>{((profileMember.waterGoalMl || 2000) / 1000).toFixed((profileMember.waterGoalMl || 2000) % 1000 ? 2 : 0).replace(/0$/, '')} L</Text><Ionicons name="chevron-forward" size={18} color={adminColors.muted} /></View>
       </Pressable>
 
       <View style={styles.segmentWrap}><AdminSegmentedControl options={['Overview', 'Today', 'History']} value={segment} onChange={setSegment} accessibilityLabel="Member profile section" /></View>
 
-      {segment === 'Overview' && <Overview member={member} plan={plan} />}
-      {segment === 'Today' && <Today plan={plan} onOpenPhoto={setSelectedPhoto} />}
-      {segment === 'History' && <History posts={historyPosts} onOpenPhoto={setSelectedPhoto} />}
+      {segment === 'Overview' && <Overview member={profileMember} plan={plan} snapshot={todaySnapshot} />}
+      {segment === 'Today' && (todaySnapshot ? <Today plan={plan} snapshot={todaySnapshot} token={token} onOpenPhoto={setSelectedPhoto} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
+      {segment === 'History' && (journal ? <History days={journal.history || []} token={token} retentionDays={journal.retentionDays || 21} onOpenPhoto={setSelectedPhoto} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
 
       {editingPlan ? <PlanEditor visible member={member} plan={plan} onClose={() => setEditingPlan(false)} onSave={savePlan} /> : null}
-      <PhotoViewer meal={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
+      {editingWaterGoal ? <WaterGoalEditor visible member={profileMember} currentGoal={profileMember.waterGoalMl || 2000} saving={waterGoalRequest.status === 'saving'} onClose={() => setEditingWaterGoal(false)} onSave={saveWaterGoal} /> : null}
+      <PhotoViewer meal={selectedPhoto} token={token} memberName={profileMember.name} onClose={() => setSelectedPhoto(null)} />
     </AdminScreen>
   );
 }
 
 const styles = StyleSheet.create({
   identityShell: { marginTop: 23, borderRadius: 28, backgroundColor: adminColors.deepTeal, ...adminShadow },
-  identity: { minHeight: 259, overflow: 'hidden', padding: 19, borderRadius: 28 },
+  identity: { overflow: 'hidden', padding: 19, borderRadius: 28 },
   identityOrb: { position: 'absolute', width: 220, height: 220, right: -88, top: -104, borderRadius: 110, backgroundColor: 'rgba(180,255,242,0.1)' },
-  identityTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  identityTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatar: { width: 58, height: 58, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   avatarText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 16 },
-  statusPill: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, borderRadius: adminRadius.pill, backgroundColor: 'rgba(255,255,255,0.12)' },
-  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#89E5D6' },
-  statusDotAway: { backgroundColor: '#C6D4D2' },
-  statusText: { color: '#D7F0ED', fontFamily: adminFonts.medium, fontSize: 12 },
-  memberName: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 29, lineHeight: 35, letterSpacing: -0.9, marginTop: 18 },
+  identityCopy: { flex: 1, minWidth: 0 },
+  memberName: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 25, lineHeight: 30, letterSpacing: -0.7 },
   memberEmail: { color: '#CFEAE7', fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 3 },
-  identityFooter: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', gap: 13, paddingTop: 17, marginTop: 17, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.18)' },
-  identityContext: { flex: 1, minWidth: 0 },
-  contextDivider: { width: 1, height: 42, backgroundColor: 'rgba(255,255,255,0.18)' },
+  bodyProfile: { overflow: 'hidden', marginTop: 18, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.13)' },
+  bodyProfileHead: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingHorizontal: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.16)' },
+  bodyProfileTitle: { color: '#CFEAE7', fontFamily: adminFonts.semibold, fontSize: 10, letterSpacing: 0.85 },
+  bodyProfileDate: { color: '#A9D4D0', fontFamily: adminFonts.regular, fontSize: 10 },
+  metricsRow: { minHeight: 67, flexDirection: 'row', alignItems: 'stretch' },
+  metricsRowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.16)', marginHorizontal: 13 },
+  metric: { flex: 1, minWidth: 0, justifyContent: 'center', paddingHorizontal: 12 },
+  metricDivider: { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(255,255,255,0.16)' },
+  metricLabel: { color: '#A9D4D0', fontFamily: adminFonts.semibold, fontSize: 10, letterSpacing: 0.6 },
+  metricValue: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 18, marginTop: 4 },
+  metricUnit: { color: '#CFEAE7', fontFamily: adminFonts.medium, fontSize: 11 },
+  profileDetails: { gap: 12, paddingTop: 16, marginTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.18)' },
+  profileDetail: { gap: 3 },
   contextLabel: { color: '#A9D4D0', fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.85 },
   contextValue: { color: adminColors.white, fontFamily: adminFonts.medium, fontSize: 13, lineHeight: 18, marginTop: 4 },
-  adjustAction: { minHeight: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderRadius: 21, backgroundColor: adminColors.teal, marginTop: 13, ...adminShadow },
-  adjustLabel: { color: '#D9F4EF', fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.85 },
-  adjustText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 16, lineHeight: 21, marginTop: 2 },
-  adjustIcon: { width: 42, height: 42, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
+  adjustActionShell: { overflow: 'hidden', borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, marginTop: 13, ...adminShadow },
+  adjustAction: { minHeight: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  adjustLabel: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.85 },
+  adjustText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 16, lineHeight: 21, marginTop: 2 },
+  adjustIcon: { width: 42, height: 42, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  waterAction: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, marginTop: 10, ...adminShadow },
+  waterActionIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  waterActionCopy: { flex: 1, minWidth: 0, paddingHorizontal: 12 },
+  waterActionLabel: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 10, letterSpacing: 0.8 },
+  waterActionText: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16, lineHeight: 20, marginTop: 2 },
+  waterActionValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  waterActionNumber: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 17 },
   segmentWrap: { marginTop: 20, marginBottom: 12 },
-  statsRail: { minHeight: 88, flexDirection: 'row', borderRadius: adminRadius.lg, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, ...adminShadow },
+  statsCard: { overflow: 'hidden', borderRadius: adminRadius.lg, borderWidth: 1, borderColor: '#BFE3DC', ...adminShadow },
+  statsRow: { minHeight: 84, flexDirection: 'row' },
+  statsHorizontalDivider: { height: StyleSheet.hairlineWidth, backgroundColor: adminColors.line, marginHorizontal: 16 },
   stat: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   statDivider: { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: adminColors.line },
   statValue: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 19 },
   statLabel: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 },
-  chartCard: { padding: 17, borderTopLeftRadius: 22, borderTopRightRadius: 34, borderBottomRightRadius: 22, borderBottomLeftRadius: 34, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, marginTop: 12, ...adminShadow },
+  chartCard: { overflow: 'hidden', padding: 17, borderTopLeftRadius: 22, borderTopRightRadius: 34, borderBottomRightRadius: 22, borderBottomLeftRadius: 34, borderWidth: 1, borderColor: adminColors.line, marginTop: 12, ...adminShadow },
+  chartGlow: { position: 'absolute', width: 170, height: 170, right: -70, top: -86, borderRadius: 85, backgroundColor: 'rgba(30,177,164,0.1)' },
   cardHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 },
   cardEyebrow: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.9 },
   cardTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 18, lineHeight: 23, marginTop: 4 },
   chartTrend: { color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 12 },
-  planCard: { padding: 17, borderTopLeftRadius: 22, borderTopRightRadius: 34, borderBottomRightRadius: 22, borderBottomLeftRadius: 34, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, marginTop: 12, ...adminShadow },
+  planCard: { padding: 17, borderTopLeftRadius: 22, borderTopRightRadius: 34, borderBottomRightRadius: 22, borderBottomLeftRadius: 34, borderWidth: 1, borderColor: '#A9D8D0', marginTop: 12, ...adminShadow },
   planTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   planHeading: { flex: 1 },
   planName: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 18, lineHeight: 23, marginTop: 4 },
@@ -484,6 +709,11 @@ const styles = StyleSheet.create({
   retentionPill: { minHeight: 31, justifyContent: 'center', paddingHorizontal: 10, borderRadius: adminRadius.pill, backgroundColor: adminColors.sageSoft, marginBottom: 2 },
   retentionText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 11, letterSpacing: 0.55 },
   historyIntro: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, marginTop: 7, marginBottom: 13 },
+  historyDays: { gap: 12 },
+  historyDay: { overflow: 'hidden', paddingHorizontal: 13, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, ...adminShadow },
+  historyDayHead: { minHeight: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: adminColors.line },
+  historyDayDate: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 14 },
+  historyDayCount: { color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 11 },
   historyList: { overflow: 'hidden', paddingHorizontal: 13, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
   historyRow: { minHeight: 90, flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
   historyRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: adminColors.line },
@@ -496,11 +726,29 @@ const styles = StyleSheet.create({
   historyTitle: { flex: 1, color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 14, lineHeight: 19 },
   historyDetail: { color: adminColors.ink, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 4 },
   historyTime: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, lineHeight: 16, marginTop: 4 },
+  historyNutrition: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 11, lineHeight: 16, marginTop: 4 },
   historyEmpty: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 38, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
   historyEmptyTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16 },
   historyEmptyText: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 5 },
+  journalState: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 38, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
+  journalStateTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16, marginTop: 12 },
+  journalStateText: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 5 },
+  retryButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, borderRadius: 15, backgroundColor: adminColors.teal, marginTop: 15 },
+  retryText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 12 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(3,33,37,0.48)' },
   editorSheet: { maxHeight: '92%', paddingHorizontal: 18, paddingTop: 10, paddingBottom: 18, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: adminColors.canvas },
+  waterSheet: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 24, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: adminColors.canvas },
+  waterGoalControl: { minHeight: 116, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, paddingHorizontal: 15, borderRadius: 23, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
+  waterStep: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  waterStepDisabled: { opacity: 0.35 },
+  waterGoalValue: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  waterGoalNumber: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 32, lineHeight: 38, letterSpacing: -0.8 },
+  waterGoalGlasses: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, marginTop: 3 },
+  waterPresets: { flexDirection: 'row', gap: 7, marginTop: 12, marginBottom: 22 },
+  waterPreset: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
+  waterPresetActive: { backgroundColor: adminColors.aqua, borderColor: adminColors.teal },
+  waterPresetText: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12 },
+  waterPresetTextActive: { color: adminColors.deepTeal },
   editorHandle: { width: 42, height: 4, alignSelf: 'center', borderRadius: 2, backgroundColor: adminColors.line, marginBottom: 15 },
   editorHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   editorHeaderCopy: { flex: 1 },

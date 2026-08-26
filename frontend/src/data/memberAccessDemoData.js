@@ -164,6 +164,12 @@ export async function getDemoSharedMemberToday(viewerId, memberId) {
     throw error;
   }
 
+  return getDemoMemberTodaySnapshot(numericMemberId);
+}
+
+export async function getDemoMemberTodaySnapshot(memberId) {
+  const numericMemberId = Number(memberId);
+
   const member = adminMembers.find((item) => item.id === numericMemberId);
   const plan = adminMemberMealPlans[numericMemberId];
   if (!member || !plan) {

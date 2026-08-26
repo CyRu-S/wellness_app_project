@@ -4,14 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import useReducedMotion from '../../hooks/useReducedMotion';
-import { adminColors, adminFonts, adminShadow } from '../../theme/admin';
+import { adminColors, adminFonts } from '../../theme/admin';
 
 const tabs = {
   AdminDashboard: { label: 'Home', icon: 'home-outline', activeIcon: 'home' },
   UserList: { label: 'Members', icon: 'people-outline', activeIcon: 'people' },
   MemberAccess: { label: 'Access', icon: 'key-outline', activeIcon: 'key' },
   UserRequests: { label: 'Approvals', icon: 'checkmark-done-outline', activeIcon: 'checkmark-done' },
-  Reports: { label: 'Meals', icon: 'bar-chart-outline', activeIcon: 'bar-chart' },
   Alerts: { label: 'Attention', icon: 'alert-circle-outline', activeIcon: 'alert-circle' },
   NotificationSettings: { label: 'Settings', icon: 'options-outline', activeIcon: 'options' },
 };
@@ -76,22 +75,24 @@ export default function AdminTabBar({ state, descriptors, navigation }) {
 
   return (
     <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-      <View style={styles.dock}>
-        {state.routes.map((route, index) => {
-          const badge = route.name === 'UserRequests' ? pendingApprovals : route.name === 'Alerts' ? attentionCount : 0;
-          return (
-            <TabButton
-              key={route.key}
-              route={route}
-              focused={state.index === index}
-              options={descriptors[route.key].options}
-              navigation={navigation}
-              badge={badge}
-              reduceMotion={reduceMotion}
-              compact={compact}
-            />
-          );
-        })}
+      <View style={styles.dockShadow}>
+        <View style={styles.dock}>
+          {state.routes.map((route, index) => {
+            const badge = route.name === 'UserRequests' ? pendingApprovals : route.name === 'Alerts' ? attentionCount : 0;
+            return (
+              <TabButton
+                key={route.key}
+                route={route}
+                focused={state.index === index}
+                options={descriptors[route.key].options}
+                navigation={navigation}
+                badge={badge}
+                reduceMotion={reduceMotion}
+                compact={compact}
+              />
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -99,7 +100,8 @@ export default function AdminTabBar({ state, descriptors, navigation }) {
 
 const styles = StyleSheet.create({
   outer: { paddingHorizontal: 8, paddingTop: 7, backgroundColor: adminColors.canvas },
-  dock: { minHeight: 76, flexDirection: 'row', alignItems: 'stretch', borderRadius: 26, paddingHorizontal: 3, paddingVertical: 5, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, ...adminShadow },
+  dockShadow: { borderRadius: 27, backgroundColor: adminColors.surface },
+  dock: { minHeight: 76, overflow: 'hidden', flexDirection: 'row', alignItems: 'stretch', borderRadius: 27, paddingHorizontal: 3, paddingVertical: 5, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
   item: { flex: 1, minWidth: 0, minHeight: 64, alignItems: 'center', justifyContent: 'center' },
   itemContent: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   iconWrap: { width: 37, height: 30, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

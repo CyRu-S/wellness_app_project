@@ -42,7 +42,6 @@ function AdminTabs() {
       tabBar={(props) => <AdminTabBar {...props} />}
     >
       <Tab.Screen name="AdminDashboard" component={AdminDashboardScreen} />
-      <Tab.Screen name="Reports" component={AdminMealInsightsScreen} />
       <Tab.Screen name="Alerts" component={AdminAttentionScreen} />
       <Tab.Screen name="UserList" component={AdminMembersScreen} />
       <Tab.Screen name="MemberAccess" component={AdminMemberAccessScreen} />
@@ -64,6 +63,7 @@ export default function AdminNavigator() {
       }}
     >
       <Stack.Screen name="AdminTabs" component={AdminTabs} options={{ headerShown: false }} />
+      <Stack.Screen name="Reports" component={AdminMealInsightsScreen} options={{ headerShown: false }} />
       {Object.keys(variants).map((name) => <Stack.Screen key={name} name={name} component={Variant} />)}
       <Stack.Screen name="UserDetails" component={UserDetailsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="AdminProfile" component={AdminProfileScreen} options={{ headerShown: false }} />

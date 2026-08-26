@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import AmbientBackground from '../../components/common/AmbientBackground';
@@ -11,7 +12,7 @@ import HydrationMeter from '../../components/dashboard/HydrationMeter';
 import ProgressRing from '../../components/dashboard/ProgressRing';
 import MealSchedule, { getMealStatus } from '../../components/meal/MealSchedule';
 import UserHeader from '../../components/user/UserHeader';
-import { drinkWater } from '../../store/slices/dashboardSlice';
+import { drinkWater, refreshDashboard } from '../../store/slices/dashboardSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
 const greeting = () => {
@@ -25,6 +26,7 @@ export default function DashboardScreen({ navigation }) {
   const meals = useSelector((state) => state.meals);
   const activity = useSelector((state) => state.activity);
   const dispatch = useDispatch();
+  useFocusEffect(useCallback(() => { dispatch(refreshDashboard()); }, [dispatch]));
   const firstName = user?.name?.split(' ')[0] || 'there';
   const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
   const nextMeal = meals.items.find((meal) => !meal.consumed);

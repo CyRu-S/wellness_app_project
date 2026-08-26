@@ -12,4 +12,7 @@ public interface MealPostRepository extends JpaRepository<MealPost, Long> {
     Optional<MealPost> findByPlannedMealId(Long plannedMealId);
     List<MealPost> findByUserIdAndPostedAtGreaterThanEqualAndPostedAtLessThanOrderByPostedAt(
             Long userId, Instant start, Instant end);
+    List<MealPost> findByUserIdAndPostedAtGreaterThanEqualAndPostedAtLessThanOrderByPostedAtDesc(
+            Long userId, Instant start, Instant end);
+    List<MealPost> findByPostedAtLessThan(Instant cutoff);
 }

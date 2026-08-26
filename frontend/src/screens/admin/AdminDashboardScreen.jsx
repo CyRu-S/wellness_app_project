@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -132,10 +132,11 @@ export default function AdminDashboardScreen({ navigation }) {
   const admin = useSelector((state) => state.auth.user);
   const reduceMotion = useReducedMotion();
   const { width, fontScale } = useWindowDimensions();
+  const [heroWidth, setHeroWidth] = useState(0);
   const firstName = admin?.name?.split(' ')[0] || 'Coach';
   const openAttention = useMemo(() => attention.filter((item) => item.status !== 'RESOLVED'), [attention]);
   const highPriorityCount = openAttention.filter((item) => item.severity === 'HIGH').length;
-  const compactHero = width < 365 || fontScale > 1.15;
+  const compactHero = (heroWidth > 0 ? heroWidth < 350 : width < 390) || fontScale > 1.15;
   const stackedMosaic = width < 340 || fontScale > 1.25;
   const activeMemberRatio = summary.totalMembers
     ? Math.min(100, Math.round((summary.activeUsers / summary.totalMembers) * 100))
@@ -229,6 +230,7 @@ export default function AdminDashboardScreen({ navigation }) {
           accessibilityRole="button"
           accessibilityLabel={`${summary.onTrackPercentage} percent of ${summary.totalMembers} members are on track. ${summary.activeUsers} members active now. Open members.`}
           onPress={() => openRoute('UserList')}
+          onLayout={(event) => setHeroWidth(event.nativeEvent.layout.width)}
           style={({ pressed }) => [styles.heroPressable, pressed && styles.heroPressed]}
         >
           <LinearGradient
@@ -260,7 +262,7 @@ export default function AdminDashboardScreen({ navigation }) {
                 accessibilityIgnoresInvertColors
                 source={heroArtwork}
                 resizeMode="contain"
-                style={[styles.heroArtwork, compactHero && styles.heroArtworkCompact]}
+                style={[styles.heroArtwork, compactHero ? styles.heroArtworkCompact : styles.heroArtworkRegular]}
               />
             </View>
 
@@ -477,8 +479,9 @@ const styles = StyleSheet.create({
   heroDisplay: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 35, lineHeight: 37, letterSpacing: -1.45 },
   heroDisplayCompact: { fontSize: 30, lineHeight: 33, letterSpacing: -1.1 },
   heroSubcopy: { maxWidth: 156, color: '#CFEAE7', fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, marginTop: 13 },
-  heroArtwork: { zIndex: 3, position: 'absolute', width: 244, height: 244, right: -34, top: 34 },
-  heroArtworkCompact: { width: 215, height: 215, right: -46, top: 72 },
+  heroArtwork: { zIndex: 3, position: 'absolute' },
+  heroArtworkRegular: { width: 244, height: 244, right: -34, top: 34 },
+  heroArtworkCompact: { width: 215, height: 215, left: 175, top: 72 },
   scoreBubble: { zIndex: 7, position: 'absolute', width: 76, height: 76, right: 9, top: 246, borderRadius: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.coral, borderWidth: 4, borderColor: 'rgba(255,255,255,0.78)', transform: [{ rotate: '6deg' }], ...adminShadow },
   scoreBubbleCompact: { right: 2, top: 272 },
   scoreValue: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 25, letterSpacing: -0.5 },

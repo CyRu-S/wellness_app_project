@@ -96,6 +96,25 @@ class MemberAccessApiIntegrationTests {
                 .andExpect(jsonPath("$.imageUrl").isNotEmpty());
     }
 
+    @Test
+    void onlyAdministratorsCanOpenMemberJournals() throws Exception {
+        User aarav = user("user@wellnest.app");
+        String userToken = token(aarav.getEmail(), "ROLE_USER");
+        String adminToken = token("admin@wellnest.app", "ROLE_ADMIN");
+
+        mvc.perform(get("/api/admin/users/{memberId}/journal", aarav.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(get("/api/admin/users/{memberId}/journal", aarav.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.member.name").value("Aarav Mehta"))
+                .andExpect(jsonPath("$.member.bmi").isNumber())
+                .andExpect(jsonPath("$.today.member.id").value(aarav.getId()))
+                .andExpect(jsonPath("$.retentionDays").value(21));
+    }
+
     private User user(String email) { return users.findByEmailIgnoreCase(email).orElseThrow(); }
 
     private String token(String email, String role) {

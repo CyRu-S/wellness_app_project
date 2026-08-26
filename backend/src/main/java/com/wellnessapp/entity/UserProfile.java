@@ -18,5 +18,7 @@ public class UserProfile {
     @Column(name = "body_fat_percent") private Double bodyFatPercent;
     @Column(name = "last_body_metrics_updated_at") private Instant lastBodyMetricsUpdatedAt;
     @Column(name = "dietary_preferences", length = 500) private String dietaryPreferences;
+    @Builder.Default
+    @Column(name = "water_goal_ml", nullable = false) private Integer waterGoalMl = 2000;
 }
 

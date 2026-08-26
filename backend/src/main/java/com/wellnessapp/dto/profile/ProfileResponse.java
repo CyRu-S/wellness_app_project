@@ -13,6 +13,7 @@ public record ProfileResponse(
         String dietaryPreferences,
         Double waistCm,
         Double bodyFatPercent,
-        Instant lastBodyMetricsUpdatedAt
+        Instant lastBodyMetricsUpdatedAt,
+        Integer waterGoalMl
 ) {}
 
