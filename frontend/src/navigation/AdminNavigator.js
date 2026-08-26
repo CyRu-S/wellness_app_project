@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AdminTabBar from '../components/admin/AdminTabBar';
 import AdminApprovalsScreen from '../screens/admin/AdminApprovalsScreen';
 import AdminAttentionScreen from '../screens/admin/AdminAttentionScreen';
@@ -30,12 +31,14 @@ const Variant = ({ route, navigation }) => (
 
 function AdminTabs() {
   const reduceMotion = useReducedMotion();
+  const insets = useSafeAreaInsets();
+  const dockSpace = 83 + Math.max(insets.bottom, 8);
   return (
     <Tab.Navigator
       initialRouteName="AdminDashboard"
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: adminColors.canvas },
+        sceneStyle: { backgroundColor: adminColors.canvas, paddingBottom: dockSpace },
         animation: reduceMotion ? 'fade' : 'shift',
         transitionSpec: { animation: 'timing', config: { duration: reduceMotion ? 120 : 260 } },
       }}

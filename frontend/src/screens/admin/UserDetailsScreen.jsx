@@ -79,7 +79,7 @@ function Overview({ member, plan, snapshot }) {
 
   return (
     <>
-      <LinearGradient colors={['#ECF8F5', '#C6EAE3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statsCard}>
+      <LinearGradient colors={['#F1FBF9', '#D7F1EC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statsCard}>
         <View style={styles.statsRow}>
           <Stat value={`${completed}/${plan.items.length}`} label="meals today" />
           <Stat value={hydration} label="water intake" />
@@ -101,7 +101,7 @@ function Overview({ member, plan, snapshot }) {
         <AdminBarChart data={series} label={`${member.name} seven day adherence`} />
       </LinearGradient>
 
-      <LinearGradient colors={['#E5F6F2', '#B5E0D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planCard}>
+      <LinearGradient colors={['#F1FBF9', '#D7F1EC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planCard}>
         <View style={styles.planTop}>
           <View style={styles.planHeading}>
             <Text style={styles.cardEyebrow}>DAILY MEAL PLAN</Text>
@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
   waterActionValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   waterActionNumber: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 17 },
   segmentWrap: { marginTop: 20, marginBottom: 12 },
-  statsCard: { overflow: 'hidden', borderRadius: adminRadius.lg, borderWidth: 1, borderColor: '#BFE3DC', ...adminShadow },
+  statsCard: { overflow: 'hidden', borderRadius: adminRadius.lg, borderWidth: 1, borderColor: '#E0E7E2', ...adminShadow },
   statsRow: { minHeight: 84, flexDirection: 'row' },
   statsHorizontalDivider: { height: StyleSheet.hairlineWidth, backgroundColor: adminColors.line, marginHorizontal: 16 },
   stat: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -665,7 +665,7 @@ const styles = StyleSheet.create({
   cardEyebrow: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.9 },
   cardTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 18, lineHeight: 23, marginTop: 4 },
   chartTrend: { color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 12 },
-  planCard: { padding: 17, borderTopLeftRadius: 22, borderTopRightRadius: 34, borderBottomRightRadius: 22, borderBottomLeftRadius: 34, borderWidth: 1, borderColor: '#A9D8D0', marginTop: 12, ...adminShadow },
+  planCard: { padding: 17, borderTopLeftRadius: 22, borderTopRightRadius: 34, borderBottomRightRadius: 22, borderBottomLeftRadius: 34, borderWidth: 1, borderColor: '#E0E7E2', marginTop: 12, ...adminShadow },
   planTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   planHeading: { flex: 1 },
   planName: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 18, lineHeight: 23, marginTop: 4 },

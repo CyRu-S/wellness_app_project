@@ -3,6 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
+import Svg, { Rect } from 'react-native-svg';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { adminColors, adminFonts } from '../../theme/admin';
 
@@ -76,6 +77,9 @@ export default function AdminTabBar({ state, descriptors, navigation }) {
   return (
     <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.dockShadow}>
+        <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}>
+          <Rect x="0.5" y="0.5" width="99.7%" height="99%" rx="27" fill={adminColors.surface} stroke={adminColors.line} strokeWidth="1" />
+        </Svg>
         <View style={styles.dock}>
           {state.routes.map((route, index) => {
             const badge = route.name === 'UserRequests' ? pendingApprovals : route.name === 'Alerts' ? attentionCount : 0;
@@ -99,9 +103,9 @@ export default function AdminTabBar({ state, descriptors, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  outer: { paddingHorizontal: 8, paddingTop: 7, backgroundColor: adminColors.canvas },
-  dockShadow: { borderRadius: 27, backgroundColor: adminColors.surface },
-  dock: { minHeight: 76, overflow: 'hidden', flexDirection: 'row', alignItems: 'stretch', borderRadius: 27, paddingHorizontal: 3, paddingVertical: 5, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
+  outer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 8, paddingTop: 7, backgroundColor: 'transparent' },
+  dockShadow: { minHeight: 76, borderRadius: 27 },
+  dock: { minHeight: 76, flexDirection: 'row', alignItems: 'stretch', paddingHorizontal: 3, paddingVertical: 5 },
   item: { flex: 1, minWidth: 0, minHeight: 64, alignItems: 'center', justifyContent: 'center' },
   itemContent: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   iconWrap: { width: 37, height: 30, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
