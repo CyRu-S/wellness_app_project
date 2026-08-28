@@ -1,10 +1,17 @@
 import { createSelector, createSlice } from '@reduxjs/toolkit';
 
-const notificationSlice = createSlice({ name: 'notifications', initialState: { items: [] }, reducers: {} });
+const notificationSlice = createSlice({
+  name: 'notifications',
+  initialState: { items: [], timelineRemindersEnabled: true },
+  reducers: {
+    setTimelineRemindersEnabled: (state, action) => { state.timelineRemindersEnabled = action.payload; },
+  },
+});
 
 export const selectTimelineNotifications = createSelector(
-  [(state) => state.meals.items],
-  (meals) => {
+  [(state) => state.meals.items, (state) => state.notifications.timelineRemindersEnabled],
+  (meals, remindersEnabled) => {
+    if (!remindersEnabled) return [];
     const now = new Date();
     const currentHour = now.getHours() + now.getMinutes() / 60;
     return meals.filter((meal) => !meal.consumed).map((meal) => {
@@ -16,4 +23,5 @@ export const selectTimelineNotifications = createSelector(
   },
 );
 
+export const { setTimelineRemindersEnabled } = notificationSlice.actions;
 export default notificationSlice.reducer;

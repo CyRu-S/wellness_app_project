@@ -111,7 +111,7 @@ export default function AdminSettingsScreen({ navigation }) {
         <View style={styles.profileCopy}>
           <Text style={styles.profileEyebrow}>ADMIN PROFILE</Text>
           <Text numberOfLines={1} style={styles.profileName}>{admin?.name || 'Arpan'}</Text>
-          <Text numberOfLines={1} style={styles.profileClub}>{admin?.clubName || 'Wellnest Collective'}</Text>
+          <Text numberOfLines={1} style={styles.profileClub}>{admin?.clubName || 'Mr_Care Collective'}</Text>
         </View>
       </View>
 
@@ -175,7 +175,7 @@ export default function AdminSettingsScreen({ navigation }) {
         <Text style={styles.logoutText}>Sign out of admin</Text>
         <Ionicons name="arrow-forward" size={18} color={adminColors.coral} />
       </Pressable>
-      <Text style={styles.version}>Wellnest Admin · Prototype 0.2</Text>
+      <Text style={styles.version}>Mr_Care Admin · Prototype 0.2</Text>
     </AdminScreen>
   );
 }
