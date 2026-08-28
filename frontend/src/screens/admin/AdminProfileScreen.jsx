@@ -93,7 +93,7 @@ export default function AdminProfileScreen({ navigation }) {
       <View style={styles.hero}>
         <View style={styles.avatarWrap}><AppLogo size={78} style={styles.avatar} /><View style={styles.verified}><Ionicons name="checkmark" size={11} color={adminColors.white} /></View></View>
         <Text style={styles.name}>{admin?.name || 'Arpan'}</Text>
-        <Text style={styles.club}>{admin?.clubName || 'Wellnest Collective'}</Text>
+        <Text style={styles.club}>{admin?.clubName || 'Mr_Care Collective'}</Text>
         <View style={styles.rolePill}><Ionicons name="shield-checkmark-outline" size={13} color={adminColors.deepTeal} /><Text style={styles.roleText}>Club administrator</Text></View>
       </View>
 

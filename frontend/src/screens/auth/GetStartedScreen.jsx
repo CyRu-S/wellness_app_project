@@ -11,21 +11,24 @@ import AmbientBackground from '../../components/common/AmbientBackground';
 import BrandMark from '../../components/common/BrandMark';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import { finishOnboarding } from '../../store/slices/authSlice';
+import useGoogleSignIn from '../../hooks/useGoogleSignIn';
 import { colors, fonts, radius, type } from '../../theme';
 
 export default function GetStartedScreen({ navigation }) {
   const dispatch = useDispatch();
+  const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn();
   const open = (screen) => { dispatch(finishOnboarding()); navigation.navigate(screen); };
+  const continueWithGoogle = () => { dispatch(finishOnboarding()); startGoogleSignIn(); };
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={[colors.ink, colors.tealDark]} style={styles.hero}>
           <AmbientBackground />
           <StaggeredView delay={30} style={styles.top}><BrandMark light /><Text style={styles.step}>02 / 02</Text></StaggeredView>
-          <View style={styles.logo}><AnimatedLogo size={218} halo={false} /></View>
+          <View style={styles.logo}><AnimatedLogo size={184} halo /></View>
           <StaggeredView delay={180} style={styles.heroCopy}>
-            <Text style={styles.heroEyebrow}>YOUR PLAN. YOUR PACE.</Text>
-            <Text style={styles.heroTitle}>Wellness that fits.</Text>
+            <Text style={styles.heroEyebrow}>YOUR CARE. YOUR PACE.</Text>
+            <Text style={styles.heroTitle}>Begin with Mr_Care.</Text>
           </StaggeredView>
         </LinearGradient>
 
@@ -35,10 +38,10 @@ export default function GetStartedScreen({ navigation }) {
             <Text style={styles.body}>Create your personalised plan, or return to the routine you already started.</Text>
           </StaggeredView>
           <StaggeredView delay={350} style={styles.actions}>
-            <PrimaryButton title="Create my plan" onPress={() => open('Register')} />
+            <PrimaryButton title="Sign up" onPress={() => open('Register')} icon="person-add-outline" />
             <PrimaryButton title="Sign in to my account" onPress={() => open('Login')} secondary icon={null} />
             <AuthDivider label="OR" />
-            <GoogleButton onPress={() => open('Login')} />
+            <GoogleButton onPress={continueWithGoogle} disabled={!googleReady} />
           </StaggeredView>
         </View>
       </ScrollView>

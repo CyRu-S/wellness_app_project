@@ -9,5 +9,5 @@ import org.springframework.web.bind.annotation.*;
     private final AuthService auth;
     @PostMapping("/login") AuthResponse login(@Valid @RequestBody LoginRequest request) { return auth.login(request); }
     @PostMapping("/register") ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) { return ResponseEntity.status(HttpStatus.CREATED).body(auth.register(request)); }
+    @PostMapping("/google") AuthResponse google(@Valid @RequestBody GoogleLoginRequest request) { return auth.google(request); }
 }
-

@@ -1,6 +1,6 @@
-# Arjun Nutrition
+# Mr_Care
 
-Arjun Nutrition is a React Native and Spring Boot wellness app for daily nutrition, movement, hydration, plan adherence, and admin-managed member sharing. The repository contains an Expo mobile client, a JWT-secured REST API, PostgreSQL/Flyway persistence, and separate user/admin experiences.
+Mr_Care is a React Native and Spring Boot wellness app for daily nutrition, movement, hydration, plan adherence, and admin-managed member sharing. The repository contains an Expo mobile client, a JWT-secured REST API, PostgreSQL/Flyway persistence, and separate user/admin experiences.
 
 ## Run locally
 
@@ -39,6 +39,17 @@ $env:EXPO_PUBLIC_MEAL_ANALYSIS_URL='http://YOUR_LAN_IP:8080/api/meals/analyze'
 ```
 
 Without these values, camera capture still works and the result screen clearly identifies nutrition values as a demo estimate.
+
+To enable real Google sign-in, create OAuth clients for Android, iOS, and web in Google Cloud. Set the client IDs before starting the API and app; `GOOGLE_CLIENT_IDS` must include every client that is allowed to issue tokens for Mr_Care:
+
+```powershell
+$env:GOOGLE_CLIENT_IDS='WEB_CLIENT_ID,ANDROID_CLIENT_ID,IOS_CLIENT_ID'
+$env:EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID='WEB_CLIENT_ID'
+$env:EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID='ANDROID_CLIENT_ID'
+$env:EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID='IOS_CLIENT_ID'
+```
+
+The backend verifies the Google token signature, issuer, expiry, audience, and verified-email claim before creating a Mr_Care session.
 
 Demo accounts (both use `password`):
 

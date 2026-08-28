@@ -23,9 +23,13 @@ public class JwtTokenProvider {
     }
 
     public String generate(Authentication authentication) {
-        Instant now = Instant.now();
         String role = authentication.getAuthorities().stream().findFirst().map(Object::toString).orElse("ROLE_USER");
-        return Jwts.builder().subject(authentication.getName()).claim("role", role).issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(expirationSeconds))).signWith(key).compact();
+        return generate(authentication.getName(), role);
+    }
+
+    public String generate(String subject, String role) {
+        Instant now = Instant.now();
+        return Jwts.builder().subject(subject).claim("role", role).issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(expirationSeconds))).signWith(key).compact();
     }
 
     public String username(String token) {
