@@ -35,7 +35,7 @@ export default function DashboardScreen({ navigation }) {
   const latestActivity = dashboard.lastActivity || activity.history[0];
   return (
     <Screen contentStyle={styles.screen}>
-      <UserHeader navigation={navigation} />
+      <UserHeader navigation={navigation} title="Today" />
       <StaggeredView delay={40} style={styles.intro}>
         <Text style={styles.eyebrow}>YOUR DAILY RHYTHM</Text>
         <Text style={styles.greeting}>{greeting()}, <Text style={styles.name}>{firstName}.</Text></Text>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Screen from '../../components/common/Screen';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
@@ -14,7 +15,7 @@ export default function PrivacyDataScreen({ navigation }) {
     <Screen>
       <View style={styles.nav}><Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><Ionicons name="arrow-back" size={20} color={colors.ink} /></Pressable><Text style={styles.navTitle}>Privacy & data</Text><View style={styles.navSpace} /></View>
       <View style={styles.head}><Text style={styles.kicker}>YOUR DATA</Text><Text style={styles.title}>Clear access, by design</Text><Text style={styles.body}>Your wellness activity is private to your account and the coach assigned by your club.</Text></View>
-      <View style={styles.trust}><Ionicons name="shield-checkmark" size={28} color={colors.accent} /><Text style={styles.trustTitle}>Private by default</Text><Text style={styles.trustText}>Meal photos, body measurements, activity, and plan progress are protected behind your signed-in account.</Text></View>
+      <View style={styles.trust}><LinearGradient colors={['#064E55', '#08767B', '#0B9295']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} /><Ionicons name="shield-checkmark" size={28} color="#BFE9E8" /><Text style={styles.trustTitle}>Private by default</Text><Text style={styles.trustText}>Meal photos, body measurements, activity, and plan progress are protected behind your signed-in account.</Text></View>
       <View style={styles.section}><Text style={styles.sectionLabel}>MANAGE</Text>{actions.map((action) => <Pressable accessibilityRole="button" key={action.title} onPress={action.onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}><View style={styles.icon}><Ionicons name={action.icon} size={20} color={colors.tealDark} /></View><View style={styles.copy}><Text style={styles.rowTitle}>{action.title}</Text><Text style={styles.rowDetail}>{action.detail}</Text></View><Ionicons name="arrow-forward" size={18} color={colors.muted} /></Pressable>)}</View>
       <View style={styles.boundary}><Ionicons name="lock-closed-outline" size={19} color={colors.tealDark} /><View style={styles.copy}><Text style={styles.boundaryTitle}>Access boundary</Text><Text style={styles.boundaryText}>Shared-member access is read-only and controlled by the club administrator.</Text></View></View>
     </Screen>
@@ -27,7 +28,7 @@ const styles = StyleSheet.create({
   navTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16 },
   navSpace: { width: 44 },
   head: { marginTop: 28 }, kicker: { ...type.label, color: colors.tealMid }, title: { ...type.h1, color: colors.ink, marginTop: 7 }, body: { color: colors.muted, fontFamily: fonts.medium, fontSize: 15, lineHeight: 22, marginTop: 9 },
-  trust: { minHeight: 190, justifyContent: 'flex-end', padding: 22, borderRadius: radius.lg, backgroundColor: colors.tealDark, marginTop: 25 },
+  trust: { minHeight: 190, justifyContent: 'flex-end', padding: 22, borderRadius: radius.lg, backgroundColor: colors.tealDark, marginTop: 25, overflow: 'hidden' },
   trustTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 22, lineHeight: 28, marginTop: 16 },
   trustText: { color: '#C7E5E1', fontFamily: fonts.medium, fontSize: 13, lineHeight: 20, marginTop: 7 },
   section: { marginTop: 28 }, sectionLabel: { ...type.label, color: colors.muted, marginBottom: 5 },

@@ -16,7 +16,7 @@ export default function MealsScreen({ navigation }) {
   const openMeal = (meal) => meal.consumed ? navigation.navigate('MealDetails', { mealId: meal.id }) : navigation.navigate('MealCapture', { category: 'meal', targetMealId: meal.id });
   return (
     <Screen>
-      <UserHeader navigation={navigation} />
+      <UserHeader navigation={navigation} title="Meals" />
       <StaggeredView delay={35} style={styles.head}><Text style={styles.kicker}>PERSONALISED NUTRITION</Text><Text style={styles.title}>Meal sheet</Text><Text style={styles.body}>Your assigned meals, times, and photo check-ins in one place.</Text></StaggeredView>
       <StaggeredView delay={110} style={styles.summary}>
         <AmbientBackground />

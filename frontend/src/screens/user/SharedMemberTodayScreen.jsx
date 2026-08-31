@@ -99,7 +99,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
-  content: { flexGrow: 1, paddingHorizontal: 22, paddingBottom: 112 },
+  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 },
   topBar: { minHeight: 51, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   topTitle: { position: 'absolute', left: 64, right: 104, color: colors.ink, fontFamily: fonts.semibold, fontSize: 14, textAlign: 'center' },

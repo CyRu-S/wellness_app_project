@@ -37,7 +37,7 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <Screen>
-      <UserHeader navigation={navigation} showNotifications={false} />
+      <UserHeader navigation={navigation} title="Profile" showNotifications={false} />
       <StaggeredView delay={40} style={styles.head}>
         <View style={styles.avatar}><Text style={styles.initial}>{displayName[0]?.toUpperCase()}</Text><View style={styles.status} /></View>
         <View style={styles.identity}><Text style={styles.kicker}>YOUR PROFILE</Text><Text numberOfLines={2} style={styles.title}>{displayName}</Text><Text style={styles.email}>{user?.email}</Text></View>

@@ -131,7 +131,7 @@ export default function SharedMembersScreen({ navigation }) {
 
   const header = (
     <>
-      <UserHeader navigation={navigation} />
+      <UserHeader navigation={navigation} title="Shared" />
       <StaggeredView delay={35} style={styles.intro}>
         <Text style={styles.eyebrow}>SHARED WITH YOU</Text>
         <Text style={styles.title}>Your circle</Text>
@@ -190,10 +190,10 @@ export default function SharedMembersScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
-  content: { flexGrow: 1, paddingHorizontal: 22, paddingBottom: 28 },
+  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 },
   intro: { marginTop: 24 },
   eyebrow: { ...type.label, color: colors.tealMid, fontSize: 11 },
-  title: { ...type.display, color: colors.ink, fontSize: 38, lineHeight: 42, marginTop: 5 },
+  title: { ...type.display, color: colors.ink, marginTop: 5 },
   introCopy: { color: colors.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, marginTop: 7, maxWidth: 345 },
   hero: { minHeight: 210, borderRadius: radius.lg, marginTop: 23, padding: 22, overflow: 'hidden', flexDirection: 'row', alignItems: 'flex-end', ...shadows.raised },
   heroCopy: { flex: 1, zIndex: 2 },

@@ -20,7 +20,7 @@ export default function MealLogScreen({ navigation }) {
 
   return (
     <Screen>
-      <UserHeader navigation={navigation} />
+      <UserHeader navigation={navigation} title="Log meals" />
       <StaggeredView delay={40} style={[styles.head, compactLayout && styles.headCompact]}>
         <Text {...fittedText} style={styles.kicker}>PHOTO CHECK-IN</Text>
         <Text {...fittedText} style={[styles.title, compactLayout && styles.titleCompact]}>Today’s timeline</Text>
@@ -47,7 +47,7 @@ export default function MealLogScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   head: { marginTop: 26 }, kicker: { ...type.label, color: colors.tealMid }, title: { ...type.display, color: colors.ink, marginTop: 9 },
-  headCompact: { marginTop: 22 }, titleCompact: { fontSize: 38, lineHeight: 41, letterSpacing: -1.4 },
+  headCompact: { marginTop: 22 }, titleCompact: { fontSize: 32, lineHeight: 37, letterSpacing: -1 },
   status: { minHeight: 96, flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 27, paddingHorizontal: 15, paddingVertical: 15, backgroundColor: colors.accentSoft, borderRadius: radius.md }, statusIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }, statusCopy: { flex: 1, minWidth: 0 }, statusLabel: { ...type.label, color: colors.tealDark, fontSize: 11 }, statusText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18, marginTop: 6 }, live: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface }, liveOff: { backgroundColor: colors.mist }, liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.tealMid }, liveDotOff: { backgroundColor: colors.muted }, liveText: { color: colors.tealMid, fontFamily: fonts.semibold, fontSize: 10, letterSpacing: 0.7 }, liveTextOff: { color: colors.muted },
   statusCompact: { minHeight: 90, marginTop: 23, paddingVertical: 12 }, statusTextCompact: { fontSize: 11, lineHeight: 16, marginTop: 5 },
   timeline: { marginTop: 34 }, timelineHead: { minHeight: 67, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, timelineCopy: { flex: 1, minWidth: 0 }, timelineLabel: { ...type.label, color: colors.muted, fontSize: 11 }, timelineTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 20, lineHeight: 26, marginTop: 6 }, remaining: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 12, lineHeight: 17, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.accentSoft },

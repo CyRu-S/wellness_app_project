@@ -64,7 +64,7 @@ export default function ActivityTimerScreen({ navigation }) {
 
   return (
     <Screen contentStyle={styles.page}>
-      <UserHeader navigation={navigation} />
+      <UserHeader navigation={navigation} title="Move" />
       <StaggeredView delay={35} style={styles.head}><Text style={styles.kicker}>ACTIVITY TIMER</Text><Text style={styles.title}>Track movement</Text><Text style={styles.body}>Choose an activity and let the timer update today’s movement totals.</Text></StaggeredView>
 
       <StaggeredView delay={90}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activityTabs}>{activities.map((activity) => <Pressable key={activity.key} onPress={() => { if (!running) setSelected(activity); }} style={[styles.activityTab, selected.key === activity.key && styles.activityTabActive]}><Ionicons name={activity.icon} size={19} color={selected.key === activity.key ? colors.white : colors.tealDark} /><Text style={[styles.activityTabText, selected.key === activity.key && styles.activityTabTextActive]}>{activity.label}</Text></Pressable>)}</ScrollView></StaggeredView>
