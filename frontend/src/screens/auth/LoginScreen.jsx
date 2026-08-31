@@ -9,11 +9,13 @@ import GoogleButton from '../../components/auth/GoogleButton';
 import StaggeredView from '../../components/auth/StaggeredView';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import { signIn } from '../../store/slices/authSlice';
+import useGoogleSignIn from '../../hooks/useGoogleSignIn';
 import { colors, fonts, radius, type } from '../../theme';
 
 export default function LoginScreen({ navigation }) {
   const dispatch = useDispatch();
   const auth = useSelector((state) => state.auth);
+  const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn();
   const [email, setEmail] = useState('user@wellnest.app');
   const [password, setPassword] = useState('password');
   const submit = () => dispatch(signIn({ email, password }));
@@ -30,9 +32,9 @@ export default function LoginScreen({ navigation }) {
             {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
             <PrimaryButton title={auth.status === 'loading' ? 'Signing in…' : 'Sign in'} onPress={submit} disabled={!email || !password || auth.status === 'loading'} />
             <AuthDivider />
-            <GoogleButton onPress={submit} />
+            <GoogleButton onPress={startGoogleSignIn} disabled={!googleReady || auth.status === 'loading'} loading={auth.status === 'loading'} />
             <Text style={styles.demo}>Admin preview: admin@wellnest.app / password</Text>
-            <Pressable onPress={() => navigation.navigate('Register')}><Text style={styles.register}>New to Arjun Nutrition? <Text style={styles.strong}>Create account</Text></Text></Pressable>
+            <Pressable onPress={() => navigation.navigate('Register')}><Text style={styles.register}>New to Mr_Care? <Text style={styles.strong}>Create account</Text></Text></Pressable>
           </StaggeredView>
         </ScrollView>
       </KeyboardAvoidingView>

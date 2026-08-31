@@ -6,6 +6,7 @@ Public endpoints:
 
 - `POST /auth/register`
 - `POST /auth/login`
+- `POST /auth/google`
 
 Authenticated member endpoints:
 
@@ -25,4 +26,3 @@ Admin endpoints require a JWT with the `ADMIN` role:
 - `GET /admin/missed-items`
 
 The interactive OpenAPI UI is served at `http://localhost:8080/swagger-ui.html`.
-

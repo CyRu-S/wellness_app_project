@@ -9,6 +9,9 @@ import PrimaryButton from '../../components/common/PrimaryButton';
 import { colors, fonts, radius, type } from '../../theme';
 
 export default function OnboardingScreen({ navigation }) {
+  const today = new Date();
+  const date = today.toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
+  const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
@@ -16,15 +19,15 @@ export default function OnboardingScreen({ navigation }) {
           <AmbientBackground />
           <StaggeredView delay={30} style={styles.topline}>
             <BrandMark light />
-            <Text style={styles.step}>01 / 02</Text>
+            <View style={styles.dateBlock}><Text style={styles.weekday}>{weekday}</Text><Text style={styles.date}>{date}</Text></View>
           </StaggeredView>
           <View style={styles.logoStage}>
-            <Text style={styles.posterWord}>RHYTHM</Text>
-            <AnimatedLogo size={248} halo={false} />
+            <Text style={styles.posterWord}>CARE</Text>
+            <AnimatedLogo size={212} halo />
           </View>
           <StaggeredView delay={220} style={styles.posterFooter}>
             <View style={styles.goldLine} />
-            <Text style={styles.mantra}>PERSONAL NUTRITION{`\n`}FOR REAL LIFE</Text>
+            <Text style={styles.mantra}>PERSONAL WELLNESS{`\n`}FOR REAL LIFE</Text>
           </StaggeredView>
         </View>
 
@@ -49,9 +52,9 @@ const styles = StyleSheet.create({
   page: { flexGrow: 1, backgroundColor: colors.paper },
   poster: { minHeight: 440, backgroundColor: colors.ink, overflow: 'hidden', paddingHorizontal: 24, paddingTop: 15, paddingBottom: 32 },
   topline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  step: { ...type.label, color: '#77AEB1', fontSize: 9 },
+  dateBlock: { alignItems: 'flex-end' }, weekday: { color: colors.white, fontFamily: fonts.semibold, fontSize: 12 }, date: { color: '#9ED0CC', fontFamily: fonts.medium, fontSize: 10, marginTop: 2 },
   logoStage: { minHeight: 292, alignItems: 'center', justifyContent: 'center' },
-  posterWord: { position: 'absolute', color: 'rgba(255,255,255,0.035)', fontFamily: fonts.bold, fontSize: 64, letterSpacing: 5 },
+  posterWord: { position: 'absolute', color: 'rgba(255,255,255,0.045)', fontFamily: fonts.bold, fontSize: 78, letterSpacing: 9 },
   posterFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   goldLine: { width: 30, height: 1, backgroundColor: colors.gold },
   mantra: { ...type.label, color: '#A7D3D4', fontSize: 9, lineHeight: 15 },

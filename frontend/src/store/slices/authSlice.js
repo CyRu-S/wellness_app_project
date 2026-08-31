@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { login as loginApi, register as registerApi } from '../../services/api/authApi';
+import { googleLogin, login as loginApi, register as registerApi } from '../../services/api/authApi';
 
 const initialState = { user: null, token: null, hasOnboarded: false, status: 'idle', error: null, source: null };
 
@@ -47,11 +47,17 @@ export const register = createAsyncThunk('auth/register', async (profile) => {
   }
 });
 
+export const signInWithGoogle = createAsyncThunk('auth/signInWithGoogle', async ({ idToken }) => {
+  const response = await googleLogin(idToken);
+  return { ...response, source: 'google' };
+});
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
     finishOnboarding: (state) => { state.hasOnboarded = true; },
+    setAuthError: (state, action) => { state.error = action.payload; state.status = action.payload ? 'error' : 'idle'; },
     signOut: (state) => { state.user = null; state.token = null; state.status = 'idle'; state.error = null; state.source = null; },
     updateProfile: (state, action) => {
       if (state.user) state.user = { ...state.user, ...action.payload };
@@ -59,8 +65,8 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addMatcher((action) => action.type === signIn.pending.type || action.type === register.pending.type, (state) => { state.status = 'loading'; state.error = null; })
-      .addMatcher((action) => action.type === signIn.fulfilled.type || action.type === register.fulfilled.type, (state, action) => {
+      .addMatcher((action) => [signIn.pending.type, register.pending.type, signInWithGoogle.pending.type].includes(action.type), (state) => { state.status = 'loading'; state.error = null; })
+      .addMatcher((action) => [signIn.fulfilled.type, register.fulfilled.type, signInWithGoogle.fulfilled.type].includes(action.type), (state, action) => {
         const { token, source, ...user } = action.payload;
         const isAdmin = user.role === 'ADMIN' || user.email?.toLowerCase() === 'admin@wellnest.app';
         state.user = isAdmin ? {
@@ -73,9 +79,9 @@ const authSlice = createSlice({
         state.source = source;
         state.status = 'authenticated';
       })
-      .addMatcher((action) => action.type === signIn.rejected.type || action.type === register.rejected.type, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Authentication failed'; });
+      .addMatcher((action) => [signIn.rejected.type, register.rejected.type, signInWithGoogle.rejected.type].includes(action.type), (state, action) => { state.status = 'error'; state.error = action.error.message || 'Authentication failed'; });
   },
 });
 
-export const { finishOnboarding, signOut, updateProfile } = authSlice.actions;
+export const { finishOnboarding, setAuthError, signOut, updateProfile } = authSlice.actions;
 export default authSlice.reducer;

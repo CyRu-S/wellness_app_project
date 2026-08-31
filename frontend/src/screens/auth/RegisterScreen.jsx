@@ -11,9 +11,9 @@ import { register } from '../../store/slices/authSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
 const goals = [
-  ['Feel energised', 'flash-outline'],
-  ['Build habits', 'repeat-outline'],
-  ['Manage weight', 'analytics-outline'],
+  ['Weight loss', 'trending-down-outline'],
+  ['Weight gain', 'trending-up-outline'],
+  ['Healthy lifestyle', 'leaf-outline'],
 ];
 
 function SectionLabel({ number, children }) {
@@ -71,7 +71,7 @@ export default function RegisterScreen({ navigation }) {
 
             <StaggeredView delay={330} style={styles.footer}>
               {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
-              <PrimaryButton title={auth.status === 'loading' ? 'Creating profile…' : 'Create my profile'} disabled={!name || !email || password.length < 8 || auth.status === 'loading'} onPress={submit} />
+              <PrimaryButton title={auth.status === 'loading' ? 'Signing you up…' : 'Sign up'} icon="person-add-outline" disabled={!name || !email || password.length < 8 || auth.status === 'loading'} onPress={submit} />
               <Text style={styles.legal}>By continuing, you agree to the <Text style={styles.legalStrong}>Terms</Text> and <Text style={styles.legalStrong}>Privacy Policy</Text>.</Text>
             </StaggeredView>
           </View>

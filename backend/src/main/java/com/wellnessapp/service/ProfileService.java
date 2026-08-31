@@ -1,6 +1,7 @@
 package com.wellnessapp.service;
 import com.wellnessapp.dto.profile.ProfileResponse;
 import com.wellnessapp.dto.profile.BodyMetricsRequest;
+import com.wellnessapp.dto.profile.UpdateProfileRequest;
 import com.wellnessapp.entity.*;
 import com.wellnessapp.exception.ConflictException;
 import com.wellnessapp.exception.NotFoundException;
@@ -20,6 +21,19 @@ import java.time.Instant;
     public ProfileResponse get(String email) {
         User user = user(email);
         return response(user, profiles.findByUserId(user.getId()).orElse(null));
+    }
+
+    @Transactional
+    public ProfileResponse update(String email, UpdateProfileRequest request) {
+        User user = user(email);
+        UserProfile profile = profiles.findByUserId(user.getId())
+                .orElseGet(() -> UserProfile.builder().user(user).build());
+        user.setFullName(request.name().trim());
+        profile.setDietaryPreferences(request.dietaryPreferences() == null
+                ? null
+                : request.dietaryPreferences().trim());
+        users.save(user);
+        return response(user, profiles.save(profile));
     }
 
     @Transactional

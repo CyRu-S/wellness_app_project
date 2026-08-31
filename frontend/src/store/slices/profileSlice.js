@@ -1,8 +1,12 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { getProfile, updateBodyMetrics as updateBodyMetricsApi } from '../../services/api/profileApi';
+import { getProfile, updateBodyMetrics as updateBodyMetricsApi, updateProfileDetails } from '../../services/api/profileApi';
 
 export const BODY_UPDATE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const initialProfileState = {
+  name: '',
+  email: '',
+  goal: null,
+  dietaryPreferences: '',
   bodyMetrics: { heightCm: 174, weightKg: 72.4, waistCm: 84, bodyFatPercent: 19.2 },
   lastBodyMetricsUpdatedAt: null,
   status: 'idle',
@@ -21,6 +25,11 @@ export const saveBodyMetrics = createAsyncThunk('profile/saveBodyMetrics', async
   return updateBodyMetricsApi(token, metrics);
 });
 
+export const saveProfileDetails = createAsyncThunk('profile/saveDetails', async ({ token, details }, { getState }) => {
+  if (getState().auth?.source === 'demo') return { ...getState().profile, ...details, source: 'demo' };
+  return updateProfileDetails(token, details);
+});
+
 const profileSlice = createSlice({
   name: 'profile',
   initialState: initialProfileState,
@@ -32,7 +41,11 @@ const profileSlice = createSlice({
       .addCase(loadProfile.fulfilled, (state, action) => {
         state.status = 'idle';
         if (!action.payload) return;
-        const { heightCm, weightKg, waistCm, bodyFatPercent, lastBodyMetricsUpdatedAt } = action.payload;
+        const { name, email, goal, dietaryPreferences, heightCm, weightKg, waistCm, bodyFatPercent, lastBodyMetricsUpdatedAt } = action.payload;
+        state.name = name ?? state.name;
+        state.email = email ?? state.email;
+        state.goal = goal ?? state.goal;
+        state.dietaryPreferences = dietaryPreferences ?? '';
         state.bodyMetrics = {
           heightCm: heightCm ?? state.bodyMetrics.heightCm,
           weightKg: weightKg ?? state.bodyMetrics.weightKg,
@@ -50,6 +63,16 @@ const profileSlice = createSlice({
         state.status = 'saved';
       })
       .addCase(saveBodyMetrics.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not update body details'; });
+    builder
+      .addCase(saveProfileDetails.pending, (state) => { state.status = 'saving'; state.error = null; })
+      .addCase(saveProfileDetails.fulfilled, (state, action) => {
+        state.name = action.payload.name ?? state.name;
+        state.email = action.payload.email ?? state.email;
+        state.goal = action.payload.goal ?? state.goal;
+        state.dietaryPreferences = action.payload.dietaryPreferences ?? '';
+        state.status = 'saved';
+      })
+      .addCase(saveProfileDetails.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not update profile'; });
   },
 });
 
