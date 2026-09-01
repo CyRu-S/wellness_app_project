@@ -1,13 +1,14 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl';
-import { selectAdminMembers, selectAdminSummary } from '../../store/slices/adminSlice';
+import { loadAdminMembers, selectAdminMembers, selectAdminSummary } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
+import { profileImageSource } from '../../utils/profilePhoto';
 
 function PulseMetric({ value, label, last, stacked }) {
   return (
@@ -21,9 +22,11 @@ function PulseMetric({ value, label, last, stacked }) {
   );
 }
 
-function MemberCard({ member, onPress }) {
+function MemberCard({ member, onPress, token }) {
   const needsAttention = member.attentionLevel === 'NEEDS_ATTENTION';
   const active = member.status === 'ACTIVE';
+  const [imageFailed, setImageFailed] = useState(false);
+  const avatarSource = imageFailed ? null : profileImageSource(member.profileImageUrl, token);
 
   return (
     <Pressable
@@ -40,7 +43,7 @@ function MemberCard({ member, onPress }) {
       >
         <View style={styles.identityRow}>
           <View style={[styles.avatar, needsAttention && styles.avatarAttention]}>
-            <Text style={[styles.avatarText, needsAttention && styles.avatarTextAttention]}>{member.initials}</Text>
+            {avatarSource ? <Image source={avatarSource} resizeMode="cover" onError={() => setImageFailed(true)} style={styles.avatarImage} /> : <Text style={[styles.avatarText, needsAttention && styles.avatarTextAttention]}>{member.initials}</Text>}
           </View>
           <View style={styles.identityCopy}>
             <Text numberOfLines={1} style={styles.memberName}>{member.name}</Text>
@@ -80,11 +83,18 @@ function MemberCard({ member, onPress }) {
 }
 
 export default function AdminMembersScreen({ navigation }) {
+  const dispatch = useDispatch();
   const members = useSelector(selectAdminMembers);
   const summary = useSelector(selectAdminSummary);
+  const token = useSelector((state) => state.auth.token);
+  const membersStatus = useSelector((state) => state.admin.membersStatus);
   const { width, fontScale } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
+
+  useEffect(() => {
+    if (membersStatus === 'idle') dispatch(loadAdminMembers());
+  }, [dispatch, membersStatus]);
 
   const visibleMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -161,7 +171,7 @@ export default function AdminMembersScreen({ navigation }) {
 
       <View style={styles.list}>
         {visibleMembers.map((member) => (
-          <MemberCard key={member.id} member={member} onPress={() => navigation.navigate('UserDetails', { id: member.id })} />
+          <MemberCard key={member.id} member={member} token={token} onPress={() => navigation.navigate('UserDetails', { id: member.id })} />
         ))}
         {visibleMembers.length === 0 && (
           <View style={styles.empty}>
@@ -214,6 +224,7 @@ const styles = StyleSheet.create({
   memberCard: { overflow: 'hidden', padding: 15, borderTopLeftRadius: 22, borderTopRightRadius: 32, borderBottomRightRadius: 22, borderBottomLeftRadius: 32, borderWidth: 1, borderColor: adminColors.line },
   identityRow: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 46, height: 46, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 17 },
   avatarAttention: { backgroundColor: adminColors.coralSoft },
   avatarText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 13 },
   avatarTextAttention: { color: adminColors.coral },

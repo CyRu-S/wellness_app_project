@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
@@ -11,6 +11,7 @@ import { setTimelineRemindersEnabled } from '../../store/slices/notificationSlic
 import { loadProfile } from '../../store/slices/profileSlice';
 import { getUserPreferences, setUserPreferences } from '../../services/storage/userPreferences';
 import { colors, fonts, radius, shadows, type } from '../../theme';
+import { profileImageSource } from '../../utils/profilePhoto';
 
 export default function ProfileScreen({ navigation }) {
   const dispatch = useDispatch();
@@ -34,12 +35,13 @@ export default function ProfileScreen({ navigation }) {
   ];
   const displayName = user?.name || profile.name || 'Member';
   const goal = profile.goal || 'Build energy through steady nutrition and movement.';
+  const avatarSource = profileImageSource(profile.profileImageUrl || user?.profileImageUrl, token, profile.profileImageVersion);
 
   return (
     <Screen>
       <UserHeader navigation={navigation} title="Profile" showNotifications={false} />
       <StaggeredView delay={40} style={styles.head}>
-        <View style={styles.avatar}><Text style={styles.initial}>{displayName[0]?.toUpperCase()}</Text><View style={styles.status} /></View>
+        <View style={styles.avatar}>{avatarSource ? <Image source={avatarSource} resizeMode="cover" style={styles.avatarImage} /> : <Text style={styles.initial}>{displayName[0]?.toUpperCase()}</Text>}<View style={styles.status} /></View>
         <View style={styles.identity}><Text style={styles.kicker}>YOUR PROFILE</Text><Text numberOfLines={2} style={styles.title}>{displayName}</Text><Text style={styles.email}>{user?.email}</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Edit profile name" onPress={() => navigation.navigate('EditProfile')} style={({ pressed }) => [styles.edit, pressed && styles.pressed]}><Ionicons name="pencil" size={18} color={colors.tealDark} /></Pressable>
       </StaggeredView>
@@ -75,6 +77,7 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', gap: 15, alignItems: 'center', marginTop: 26 },
   avatar: { width: 78, height: 78, borderRadius: 39, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 39 },
   initial: { color: colors.accent, fontFamily: fonts.bold, fontSize: 32 },
   status: { position: 'absolute', right: 2, bottom: 4, width: 15, height: 15, borderRadius: 8, backgroundColor: colors.accent, borderWidth: 3, borderColor: colors.paper },
   identity: { flex: 1, minWidth: 0 },

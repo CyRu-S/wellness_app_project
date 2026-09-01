@@ -21,6 +21,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -113,6 +114,38 @@ class MemberAccessApiIntegrationTests {
                 .andExpect(jsonPath("$.member.bmi").isNumber())
                 .andExpect(jsonPath("$.today.member.id").value(aarav.getId()))
                 .andExpect(jsonPath("$.retentionDays").value(21));
+    }
+
+    @Test
+    void memberCanUploadProfilePhotoAndAdministratorCanViewIt() throws Exception {
+        User aarav = user("user@mr-care.app");
+        String userToken = token(aarav.getEmail(), "ROLE_USER");
+        String adminToken = token("admin@mr-care.app", "ROLE_ADMIN");
+        MockMultipartFile image = new MockMultipartFile(
+                "image", "avatar.png", MediaType.IMAGE_PNG_VALUE,
+                new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1});
+
+        mvc.perform(multipart("/api/profile/photo")
+                        .file(image)
+                        .with(request -> { request.setMethod("PUT"); return request; })
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profileImageUrl").value("/api/profile/photo"));
+
+        mvc.perform(get("/api/profile/photo")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG));
+
+        mvc.perform(get("/api/admin/users/{memberId}/profile-photo", aarav.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG));
+
+        mvc.perform(get("/api/admin/users")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + aarav.getId() + ")].profileImageUrl").value(hasItem("/api/admin/users/" + aarav.getId() + "/profile-photo")));
     }
 
     private User user(String email) { return users.findByEmailIgnoreCase(email).orElseThrow(); }

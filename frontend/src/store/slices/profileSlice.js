@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { getProfile, updateBodyMetrics as updateBodyMetricsApi, updateProfileDetails } from '../../services/api/profileApi';
+import { getProfile, updateBodyMetrics as updateBodyMetricsApi, updateProfileDetails, uploadProfilePhoto } from '../../services/api/profileApi';
+import { setDemoProfilePhoto } from '../../services/storage/profilePhotoStorage';
 
 export const BODY_UPDATE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const initialProfileState = {
@@ -7,6 +8,8 @@ const initialProfileState = {
   email: '',
   goal: null,
   dietaryPreferences: '',
+  profileImageUrl: null,
+  profileImageVersion: null,
   bodyMetrics: { heightCm: 174, weightKg: 72.4, waistCm: 84, bodyFatPercent: 19.2 },
   lastBodyMetricsUpdatedAt: null,
   status: 'idle',
@@ -30,6 +33,16 @@ export const saveProfileDetails = createAsyncThunk('profile/saveDetails', async 
   return updateProfileDetails(token, details);
 });
 
+export const saveProfilePhoto = createAsyncThunk('profile/savePhoto', async ({ token, photo }, { getState }) => {
+  const auth = getState().auth;
+  if (auth?.source === 'demo') {
+    const profileImageUrl = await setDemoProfilePhoto(auth.user, photo.persistentUri || photo.uri);
+    return { profileImageUrl, profileImageVersion: Date.now(), source: 'demo', userId: auth.user?.id, email: auth.user?.email };
+  }
+  const response = await uploadProfilePhoto(token, photo);
+  return { ...response, profileImageVersion: Date.now(), userId: auth.user?.id, email: auth.user?.email };
+});
+
 const profileSlice = createSlice({
   name: 'profile',
   initialState: initialProfileState,
@@ -41,7 +54,7 @@ const profileSlice = createSlice({
       .addCase(loadProfile.fulfilled, (state, action) => {
         state.status = 'idle';
         if (!action.payload) return;
-        const { name, email, goal, dietaryPreferences, heightCm, weightKg, waistCm, bodyFatPercent, lastBodyMetricsUpdatedAt } = action.payload;
+        const { name, email, goal, dietaryPreferences, heightCm, weightKg, waistCm, bodyFatPercent, lastBodyMetricsUpdatedAt, profileImageUrl } = action.payload;
         state.name = name ?? state.name;
         state.email = email ?? state.email;
         state.goal = goal ?? state.goal;
@@ -53,6 +66,7 @@ const profileSlice = createSlice({
           bodyFatPercent: bodyFatPercent ?? state.bodyMetrics.bodyFatPercent,
         };
         state.lastBodyMetricsUpdatedAt = lastBodyMetricsUpdatedAt || null;
+        state.profileImageUrl = profileImageUrl || null;
       })
       .addCase(loadProfile.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not load body details'; })
       .addCase(saveBodyMetrics.pending, (state) => { state.status = 'saving'; state.error = null; })
@@ -73,6 +87,14 @@ const profileSlice = createSlice({
         state.status = 'saved';
       })
       .addCase(saveProfileDetails.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not update profile'; });
+    builder
+      .addCase(saveProfilePhoto.pending, (state) => { state.status = 'saving'; state.error = null; })
+      .addCase(saveProfilePhoto.fulfilled, (state, action) => {
+        state.profileImageUrl = action.payload.profileImageUrl;
+        state.profileImageVersion = action.payload.profileImageVersion || Date.now();
+        state.status = 'saved';
+      })
+      .addCase(saveProfilePhoto.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not update profile photo'; });
   },
 });
 

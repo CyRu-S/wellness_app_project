@@ -14,6 +14,7 @@ public record ProfileResponse(
         Double waistCm,
         Double bodyFatPercent,
         Instant lastBodyMetricsUpdatedAt,
-        Integer waterGoalMl
+        Integer waterGoalMl,
+        String profileImageUrl
 ) {}
 

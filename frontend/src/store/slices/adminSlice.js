@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   adminApprovals,
   adminAttention,
@@ -9,6 +9,17 @@ import {
   adminPreferences,
   adminSummary,
 } from '../../data/adminDemoData';
+import { getAdminUsers } from '../../services/api/adminApi';
+import { getDemoProfilePhotos } from '../../services/storage/profilePhotoStorage';
+
+export const loadAdminMembers = createAsyncThunk('admin/loadMembers', async (_, { getState }) => {
+  const auth = getState().auth;
+  if (auth?.source === 'demo' || auth?.token === 'demo-token') {
+    return { source: 'demo', photos: await getDemoProfilePhotos() };
+  }
+  if (!auth?.token) throw new Error('Please sign in again to continue.');
+  return { source: 'api', users: await getAdminUsers(auth.token) };
+});
 
 const initialState = {
   summary: adminSummary,
@@ -19,6 +30,8 @@ const initialState = {
   memberMealPlans: adminMemberMealPlans,
   memberMealPostHistory: adminMemberMealPostHistory,
   preferences: adminPreferences,
+  membersStatus: 'idle',
+  membersError: null,
   lastApprovalDecision: null,
 };
 
@@ -89,6 +102,60 @@ const adminSlice = createSlice({
       const member = state.members.find((item) => item.id === memberId);
       if (member) member.plan = planName;
     },
+  },
+  extraReducers: (builder) => {
+    const applyPhoto = (state, action) => {
+      const payload = action.payload;
+      if (!payload?.profileImageUrl) return;
+      const member = state.members.find((item) => item.id === (payload.userId ?? payload.id) || item.email?.toLowerCase() === payload.email?.toLowerCase())
+        || state.members.find((item) => item.id === 1);
+      if (member) member.profileImageUrl = payload.profileImageUrl;
+    };
+    builder
+      .addCase('auth/signOut', (state) => { state.membersStatus = 'idle'; state.membersError = null; })
+      .addCase('auth/register/fulfilled', applyPhoto)
+      .addCase('profile/savePhoto/fulfilled', applyPhoto)
+      .addCase(loadAdminMembers.pending, (state) => { state.membersStatus = 'loading'; state.membersError = null; })
+      .addCase(loadAdminMembers.fulfilled, (state, action) => {
+        if (action.payload.source === 'demo') {
+          state.members.forEach((member) => {
+            member.profileImageUrl = action.payload.photos[`id:${member.id}`]
+              || action.payload.photos[`email:${member.email?.toLowerCase()}`]
+              || member.profileImageUrl
+              || null;
+          });
+        } else {
+          state.members = action.payload.users
+            .filter((user) => user.role === 'USER')
+            .map((user, index) => {
+              const existing = state.members.find((member) => member.email?.toLowerCase() === user.email?.toLowerCase())
+                || state.members[index];
+              return {
+                ...(existing || {}),
+                id: user.id,
+                name: user.name,
+                initials: user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+                email: user.email,
+                status: user.status,
+                lastActiveAt: user.status === 'ACTIVE' ? 'Active member' : user.status.toLowerCase(),
+                plan: existing?.plan || 'Wellness starter',
+                adherence: existing?.adherence ?? 0,
+                meals: existing?.meals ?? 0,
+                hydration: existing?.hydration ?? 0,
+                streak: existing?.streak ?? 0,
+                attentionLevel: existing?.attentionLevel || 'NONE',
+                attentionReason: existing?.attentionReason || '',
+                profileImageUrl: user.profileImageUrl || null,
+              };
+            });
+          state.summary.totalMembers = state.members.length;
+        }
+        state.membersStatus = 'succeeded';
+      })
+      .addCase(loadAdminMembers.rejected, (state, action) => {
+        state.membersStatus = 'failed';
+        state.membersError = action.error.message || 'Unable to load members.';
+      });
   },
 });
 

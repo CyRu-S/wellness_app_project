@@ -25,7 +25,8 @@ public record AdminMemberJournalResponse(
             Double bodyFatPercent,
             Double bmi,
             Instant lastBodyMetricsUpdatedAt,
-            Integer waterGoalMl
+            Integer waterGoalMl,
+            String profileImageUrl
     ) {}
 
     public record HistoryDay(LocalDate date, List<HistoryPost> posts) {}

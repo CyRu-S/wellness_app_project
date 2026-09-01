@@ -88,7 +88,10 @@ public class AdminMemberJournalService {
                 profile == null ? null : profile.getBodyFatPercent(),
                 bmi(height, weight),
                 profile == null ? null : profile.getLastBodyMetricsUpdatedAt(),
-                profile == null ? 2000 : profile.getWaterGoalMl());
+                profile == null ? 2000 : profile.getWaterGoalMl(),
+                profile != null && profile.getPhotoMediaKey() != null
+                        ? "/api/admin/users/" + user.getId() + "/profile-photo"
+                        : null);
     }
 
     private Double bmi(Integer heightCm, Double weightKg) {

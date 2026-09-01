@@ -1,5 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { googleLogin, login as loginApi, register as registerApi } from '../../services/api/authApi';
+import { uploadProfilePhoto } from '../../services/api/profileApi';
+import { getDemoProfilePhoto, setDemoProfilePhoto } from '../../services/storage/profilePhotoStorage';
 
 const initialState = { user: null, token: null, hasOnboarded: false, status: 'idle', error: null, source: null };
 
@@ -32,18 +34,31 @@ const demoLogin = ({ email }) => {
 };
 
 export const signIn = createAsyncThunk('auth/signIn', async (credentials) => {
-  if (isDemoAccount(credentials)) return demoLogin(credentials);
+  if (isDemoAccount(credentials)) {
+    const account = demoLogin(credentials);
+    return { ...account, profileImageUrl: await getDemoProfilePhoto(account) };
+  }
   const response = await loginApi(credentials);
   return { ...response, source: 'api' };
 });
 
 export const register = createAsyncThunk('auth/register', async (profile) => {
+  let response;
   try {
-    const response = await registerApi({ name: profile.name, email: profile.email, password: profile.password });
-    return { ...response, source: 'api' };
+    response = await registerApi({ name: profile.name, email: profile.email, password: profile.password });
   } catch (error) {
     if (!demoModeEnabled) throw error;
-    return { token: 'demo-token', id: 1, name: profile.name, email: profile.email, role: 'USER', source: 'demo' };
+    const demoAccount = { token: 'demo-token', id: 1, name: profile.name, email: profile.email, role: 'USER', source: 'demo' };
+    if (!profile.photo?.persistentUri) return demoAccount;
+    const profileImageUrl = await setDemoProfilePhoto(demoAccount, profile.photo.persistentUri);
+    return { ...demoAccount, profileImageUrl };
+  }
+  if (!profile.photo?.uri) return { ...response, source: 'api' };
+  try {
+    const updated = await uploadProfilePhoto(response.token, profile.photo);
+    return { ...response, profileImageUrl: updated.profileImageUrl, source: 'api' };
+  } catch {
+    return { ...response, source: 'api' };
   }
 });
 

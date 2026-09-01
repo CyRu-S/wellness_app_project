@@ -36,6 +36,7 @@ import {
 } from '../../store/slices/adminMemberJournalSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 import { formatJournalClock, formatJournalDate, mealImageUri, protectedImageSource } from '../../utils/memberJournal';
+import { profileImageSource } from '../../utils/profilePhoto';
 
 const TIME_PATTERN = /^(0?[1-9]|1[0-2]):[0-5]\d\s?(AM|PM)$/i;
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Snack', 'Dinner', 'Herbalife product'];
@@ -472,6 +473,7 @@ export default function UserDetailsScreen({ route, navigation }) {
   const [editingPlan, setEditingPlan] = useState(false);
   const [editingWaterGoal, setEditingWaterGoal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const member = useMemo(
     () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name) || members[0],
     [members, route.params],
@@ -480,6 +482,7 @@ export default function UserDetailsScreen({ route, navigation }) {
   const journalRequest = useSelector((state) => selectAdminMemberJournalRequest(state, member.id));
   const waterGoalRequest = useSelector((state) => selectAdminMemberWaterGoalRequest(state, member.id));
   const profileMember = useMemo(() => ({ ...member, ...(journal?.member || {}), id: member.id, initials: member.initials }), [journal?.member, member]);
+  const memberAvatarSource = avatarFailed ? null : profileImageSource(profileMember.profileImageUrl, token);
   const storedPlan = memberPlans[member.id];
   const plan = useMemo(() => {
     if (member.id !== 1) return storedPlan;
@@ -531,6 +534,8 @@ export default function UserDetailsScreen({ route, navigation }) {
     dispatch(loadAdminMemberJournal({ memberId: member.id, email: member.email }));
   }, [dispatch, member.email, member.id]);
 
+  useEffect(() => { setAvatarFailed(false); }, [profileMember.profileImageUrl]);
+
   const retryJournal = () => dispatch(loadAdminMemberJournal({ memberId: member.id, email: member.email }));
   const journalLoading = journalRequest.status === 'loading' || journalRequest.status === 'idle';
 
@@ -559,7 +564,7 @@ export default function UserDetailsScreen({ route, navigation }) {
         <LinearGradient colors={['#064E55', '#08767B', '#0B9295']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.identity}>
           <View pointerEvents="none" style={styles.identityOrb} />
           <View style={styles.identityTop}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{member.initials}</Text></View>
+            <View style={styles.avatar}>{memberAvatarSource ? <Image source={memberAvatarSource} resizeMode="cover" onError={() => setAvatarFailed(true)} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{member.initials}</Text>}</View>
             <View style={styles.identityCopy}>
               <Text numberOfLines={2} style={styles.memberName}>{profileMember.name}</Text>
               <Text numberOfLines={1} style={styles.memberEmail}>{profileMember.email}</Text>
@@ -620,6 +625,7 @@ const styles = StyleSheet.create({
   identityOrb: { position: 'absolute', width: 220, height: 220, right: -88, top: -104, borderRadius: 110, backgroundColor: 'rgba(180,255,242,0.1)' },
   identityTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatar: { width: 58, height: 58, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 20 },
   avatarText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 16 },
   identityCopy: { flex: 1, minWidth: 0 },
   memberName: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 25, lineHeight: 30, letterSpacing: -0.7 },
