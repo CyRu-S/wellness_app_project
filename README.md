@@ -87,4 +87,4 @@ Backend configuration:
 ## Contributors
 
 - [Arpan Dutta (@CyRu-S)](https://github.com/CyRu-S)
-- [@sreeswathi418-ops](https://github.com/sreeswathi418-ops)
+- [A.V.S Swathi Sree (@sreeswathi418-ops)](https://github.com/sreeswathi418-ops)
