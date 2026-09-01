@@ -83,3 +83,8 @@ Backend configuration:
 - `backend/` - Spring Boot API
 - `docs/` - API, schema and workflow notes
 - `docker-compose.yml` - local PostgreSQL
+
+## Contributors
+
+- [Arpan Dutta (@CyRu-S)](https://github.com/CyRu-S)
+- [@sreeswathi418-ops](https://github.com/sreeswathi418-ops)
