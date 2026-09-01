@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.Map;
 @RestControllerAdvice public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class) ResponseEntity<?> notFound(NotFoundException ex) { return error(HttpStatus.NOT_FOUND, ex.getMessage()); }
+    @ExceptionHandler(BadRequestException.class) ResponseEntity<?> badRequest(BadRequestException ex) { return error(HttpStatus.BAD_REQUEST, ex.getMessage()); }
     @ExceptionHandler(ConflictException.class) ResponseEntity<?> conflict(ConflictException ex) { return error(HttpStatus.CONFLICT, ex.getMessage()); }
     @ExceptionHandler(BadCredentialsException.class) ResponseEntity<?> credentials() { return error(HttpStatus.UNAUTHORIZED, "Invalid email or password"); }
     @ExceptionHandler(MethodArgumentNotValidException.class) ResponseEntity<?> validation(MethodArgumentNotValidException ex) { String message = ex.getBindingResult().getFieldErrors().stream().findFirst().map(error -> error.getField() + ": " + error.getDefaultMessage()).orElse("Validation failed"); return error(HttpStatus.BAD_REQUEST, message); }

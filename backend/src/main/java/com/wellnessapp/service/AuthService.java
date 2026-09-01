@@ -10,10 +10,11 @@ import org.springframework.security.authentication.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.UUID;
 
 @Service @RequiredArgsConstructor
 public class AuthService {
-    private final UserRepository users; private final PasswordEncoder encoder; private final AuthenticationManager authenticationManager; private final JwtTokenProvider tokens;
+    private final UserRepository users; private final PasswordEncoder encoder; private final AuthenticationManager authenticationManager; private final JwtTokenProvider tokens; private final GoogleIdentityService googleIdentities;
     public AuthResponse login(LoginRequest request) {
         var authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.email(), request.password()));
         User user = users.findByEmailIgnoreCase(request.email()).orElseThrow();
@@ -25,6 +26,17 @@ public class AuthService {
         var authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.email(), request.password()));
         return response(user, tokens.generate(authentication));
     }
+    @Transactional public AuthResponse google(GoogleLoginRequest request) {
+        var identity = googleIdentities.verify(request.idToken());
+        User user = users.findByEmailIgnoreCase(identity.email()).orElseGet(() -> users.save(User.builder()
+                .fullName(identity.name())
+                .email(identity.email())
+                .passwordHash(encoder.encode(UUID.randomUUID().toString()))
+                .role(User.Role.USER)
+                .status(User.Status.ACTIVE)
+                .build()));
+        if (user.getStatus() != User.Status.ACTIVE) throw new BadCredentialsException("This account is not active");
+        return response(user, tokens.generate(user.getEmail(), "ROLE_" + user.getRole().name()));
+    }
     private AuthResponse response(User user, String token) { return new AuthResponse(token, user.getId(), user.getFullName(), user.getEmail(), user.getRole().name()); }
 }
-

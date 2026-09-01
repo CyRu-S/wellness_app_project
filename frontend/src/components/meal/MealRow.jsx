@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../theme';
+import { colors, fonts } from '../../theme';
 
 export default function MealRow({ meal, onPress }) {
   return (
@@ -21,10 +21,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line, gap: 14 },
   pressed: { opacity: 0.55 },
   time: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
-  timeText: { color: colors.ink, fontSize: 11, fontWeight: '800' },
+  timeText: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 11 },
   copy: { flex: 1 },
-  type: { color: colors.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7 },
-  name: { color: colors.ink, fontSize: 16, fontWeight: '700', marginTop: 2 },
-  meta: { color: colors.muted, fontSize: 13, marginTop: 3 },
+  type: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.7 },
+  name: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16, marginTop: 2 },
+  meta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 13, marginTop: 3 },
 });
-

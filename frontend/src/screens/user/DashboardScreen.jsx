@@ -1,40 +1,95 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
-import ProgressRing from '../../components/dashboard/ProgressRing';
-import SectionHeader from '../../components/common/SectionHeader';
+import StaggeredView from '../../components/auth/StaggeredView';
+import AnimatedNumber from '../../components/common/AnimatedNumber';
+import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
 import Screen from '../../components/common/Screen';
-import { drinkWater } from '../../store/slices/dashboardSlice';
-import { colors, radius, type } from '../../theme';
+import HydrationMeter from '../../components/dashboard/HydrationMeter';
+import ProgressRing from '../../components/dashboard/ProgressRing';
+import MealSchedule, { getMealStatus } from '../../components/meal/MealSchedule';
+import UserHeader from '../../components/user/UserHeader';
+import { drinkWater, refreshDashboard } from '../../store/slices/dashboardSlice';
+import { colors, fonts, radius, shadows, type } from '../../theme';
+
+const greeting = () => {
+  const hour = new Date().getHours();
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+};
 
 export default function DashboardScreen({ navigation }) {
   const user = useSelector((state) => state.auth.user);
   const dashboard = useSelector((state) => state.dashboard);
+  const meals = useSelector((state) => state.meals);
+  const activity = useSelector((state) => state.activity);
   const dispatch = useDispatch();
+  useFocusEffect(useCallback(() => { dispatch(refreshDashboard()); }, [dispatch]));
+  const firstName = user?.name?.split(' ')[0] || 'there';
+  const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
+  const nextMeal = meals.items.find((meal) => !meal.consumed);
+  const loggedMeals = meals.items.filter((meal) => meal.consumed).length;
+  const hydration = Math.round((dashboard.waterGlasses / dashboard.waterTarget) * 100);
+  const latestActivity = dashboard.lastActivity || activity.history[0];
+  const openTimeline = () => navigation.getParent()?.navigate('Log', { screen: 'TodayTimeline' });
   return (
-    <Screen>
-      <View style={styles.top}><View><Text style={styles.date}>SATURDAY · 15 AUG</Text><Text style={styles.greeting}>Good morning,{`\n`}{user?.name}.</Text></View><Pressable onPress={() => navigation.navigate('Notifications')} style={styles.icon}><Ionicons name="notifications-outline" size={22} color={colors.ink} /><View style={styles.dot} /></Pressable></View>
-      <View style={styles.focus}>
-        <View style={styles.focusCopy}><Text style={styles.focusLabel}>TODAY’S FOCUS</Text><Text style={styles.focusTitle}>Steady energy</Text><Text style={styles.focusText}>Two rituals left to complete your daily plan.</Text><Pressable onPress={() => navigation.navigate('Plan')}><Text style={styles.link}>View daily plan →</Text></Pressable></View>
-        <ProgressRing value={dashboard.completion} />
-      </View>
-      <View style={styles.metrics}>
-        <View style={styles.metric}><Text style={styles.metricValue}>{dashboard.calories.toLocaleString()}</Text><Text style={styles.metricLabel}>kcal today</Text></View>
-        <View style={styles.divider} />
-        <View style={styles.metric}><Text style={styles.metricValue}>{dashboard.activeMinutes}</Text><Text style={styles.metricLabel}>active min</Text></View>
-        <View style={styles.divider} />
-        <View style={styles.metric}><Text style={styles.metricValue}>{dashboard.streak}</Text><Text style={styles.metricLabel}>day streak</Text></View>
-      </View>
-      <View style={styles.section}><SectionHeader eyebrow="HYDRATION" title={`${dashboard.waterGlasses} of ${dashboard.waterTarget} glasses`} action="Add glass" onPress={() => dispatch(drinkWater())} /><View style={styles.waterTrack}>{Array.from({ length: dashboard.waterTarget }).map((_, index) => <View key={index} style={[styles.water, index < dashboard.waterGlasses && styles.waterFilled]} />)}</View></View>
-      <View style={styles.section}><SectionHeader eyebrow="UP NEXT" title="Lunch at 1:00 PM" action="See meals" onPress={() => navigation.navigate('Meals')} /><Pressable onPress={() => navigation.navigate('Meals')} style={styles.next}><View style={styles.foodIcon}><Ionicons name="leaf" size={23} color={colors.ink} /></View><View style={styles.nextCopy}><Text style={styles.nextTitle}>Green grain power bowl</Text><Text style={styles.nextMeta}>520 kcal · 31g protein</Text></View><Ionicons name="arrow-forward" size={21} color={colors.ink} /></Pressable></View>
+    <Screen contentStyle={styles.screen}>
+      <UserHeader navigation={navigation} title="Today" />
+      <StaggeredView delay={40} style={styles.intro}>
+        <Text style={styles.eyebrow}>YOUR DAILY RHYTHM</Text>
+        <Text style={styles.greeting}>{greeting()}, <Text style={styles.name}>{firstName}.</Text></Text>
+        <Text style={styles.introCopy}>Your nutrition, hydration and movement are synced below.</Text>
+      </StaggeredView>
+
+      <StaggeredView delay={110} style={styles.heroShell}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open today’s timeline" onPress={openTimeline} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
+          <PrimaryTealCardBackground />
+          <View style={styles.heroTop}><Text style={styles.heroLabel}>TODAY’S PLAN</Text><View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>IN PROGRESS</Text></View></View>
+          <View style={styles.heroBody}>
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroTitle}>A steady day,{`\n`}in progress.</Text>
+              <View style={styles.nutritionLine}><View><AnimatedNumber value={dashboard.calories} style={styles.nutritionValue} /><Text style={styles.nutritionLabel}>KCAL LOGGED</Text></View><View style={styles.heroRule} /><View><Text style={styles.nutritionValue}>{dashboard.protein}g</Text><Text style={styles.nutritionLabel}>PROTEIN</Text></View></View>
+            </View>
+            <ProgressRing value={dashboard.completion} label="complete" size={120} />
+          </View>
+          <View style={styles.heroActions}><View style={styles.nextStatus}><Ionicons name="time-outline" size={17} color={colors.accent} /><View><Text style={styles.nextLabel}>NEXT CHECK-IN</Text><Text style={styles.nextValue}>{nextMeal ? `${nextMeal.time} · ${nextMeal.name}` : 'Timeline complete'}</Text></View></View><View style={styles.textAction}><Text style={styles.textActionText}>Details</Text><Ionicons name="arrow-forward" size={15} color={colors.white} /></View></View>
+        </Pressable>
+      </StaggeredView>
+
+      <StaggeredView delay={170} style={styles.quickStats}>
+        <View style={styles.quickStat}><Text style={styles.quickValue}>{loggedMeals}/{meals.items.length}</Text><Text style={styles.quickLabel}>MEALS TODAY</Text></View><View style={styles.statRule} />
+        <View style={styles.quickStat}><Text style={styles.quickValue}>{hydration}%</Text><Text style={styles.quickLabel}>HYDRATION</Text></View><View style={styles.statRule} />
+        <View style={styles.quickStat}><Text style={styles.quickValue}>{dashboard.streak}</Text><Text style={styles.quickLabel}>DAY STREAK</Text></View>
+      </StaggeredView>
+
+      {dashboard.lastMeal ? <StaggeredView delay={40} style={styles.success}><View style={styles.successIcon}><Ionicons name="checkmark" size={17} color={colors.white} /></View><View style={styles.successCopy}><Text style={styles.successTitle}>{dashboard.lastMeal.name} added</Text><Text style={styles.successMeta}>+{dashboard.lastMeal.calories} kcal · Dashboard updated now</Text></View><Ionicons name="sparkles-outline" size={18} color={colors.tealMid} /></StaggeredView> : null}
+      {overdue.length ? <StaggeredView delay={210} style={styles.alert}><Ionicons name="alert-circle" size={20} color={colors.danger} /><View style={styles.alertCopy}><Text style={styles.alertTitle}>{overdue.length} timeline check-in{overdue.length > 1 ? 's' : ''} overdue</Text><Text style={styles.alertMeta}>Open Log when you are ready to add the photo.</Text></View></StaggeredView> : null}
+
+      <StaggeredView delay={240} style={styles.section}>
+        <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>DAILY MEAL PLAN</Text><Text style={styles.sectionTitle}>{meals.planName}</Text><Text style={styles.sectionMeta}>Assigned by {meals.consultant}</Text></View></View>
+        <MealSchedule items={meals.items} compact showPhotoAction={false} />
+      </StaggeredView>
+      <StaggeredView delay={310} style={styles.section}><HydrationMeter value={dashboard.waterGlasses} target={dashboard.waterTarget} onAdd={() => dispatch(drinkWater())} /></StaggeredView>
+      <StaggeredView delay={370} style={styles.section}>
+        <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>MOVEMENT</Text><Text style={styles.sectionTitle}>Today’s activity</Text></View><Pressable onPress={() => navigation.navigate('Move')}><Text style={styles.allLink}>Start timer</Text></Pressable></View>
+        <View style={styles.activitySummary}><View style={styles.activityIcon}><Ionicons name="walk" size={24} color={colors.tealDark} /></View><View style={styles.activityCopy}><Text style={styles.activityName}>{latestActivity?.activity || 'No activity logged'}</Text><Text style={styles.activityMeta}>{latestActivity ? `${latestActivity.minutes} min · ${latestActivity.calories} kcal burned` : 'Start a guided activity to update this section'}</Text></View><View><AnimatedNumber value={dashboard.activeMinutes} style={styles.activityValue} suffix="m" /><Text style={styles.activityLabel}>TODAY</Text></View></View>
+      </StaggeredView>
     </Screen>
   );
 }
-const styles = StyleSheet.create({
-  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 10 }, date: { ...type.label, color: colors.moss }, greeting: { ...type.h1, color: colors.ink, marginTop: 7 }, icon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }, dot: { position: 'absolute', top: 10, right: 10, width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
-  focus: { minHeight: 230, backgroundColor: colors.ink, borderRadius: radius.lg, marginTop: 28, padding: 22, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' }, focusCopy: { flex: 1, paddingRight: 8 }, focusLabel: { ...type.label, color: '#AAC0B4' }, focusTitle: { color: colors.white, fontSize: 28, fontWeight: '800', letterSpacing: -0.7, marginTop: 6 }, focusText: { color: '#C1CEC7', lineHeight: 20, marginTop: 7, maxWidth: 175 }, link: { color: colors.accent, fontWeight: '800', marginTop: 20 },
-  metrics: { flexDirection: 'row', paddingVertical: 26, justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line }, metric: { flex: 1, alignItems: 'center' }, metricValue: { color: colors.ink, fontSize: 23, fontWeight: '800' }, metricLabel: { color: colors.muted, fontSize: 12, marginTop: 3 }, divider: { width: 1, height: 34, backgroundColor: colors.line },
-  section: { marginTop: 30 }, waterTrack: { flexDirection: 'row', gap: 7, marginTop: 16 }, water: { flex: 1, height: 12, borderRadius: 6, backgroundColor: colors.line }, waterFilled: { backgroundColor: colors.moss }, next: { flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 14, paddingVertical: 13 }, foodIcon: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }, nextCopy: { flex: 1 }, nextTitle: { color: colors.ink, fontSize: 16, fontWeight: '800' }, nextMeta: { color: colors.muted, fontSize: 13, marginTop: 3 },
-});
 
+const styles = StyleSheet.create({
+  screen: { paddingHorizontal: 20 }, intro: { marginTop: 26 }, eyebrow: { ...type.label, color: colors.tealMid, fontSize: 11 },
+  greeting: { color: colors.ink, fontFamily: fonts.regular, fontSize: 32, lineHeight: 38, letterSpacing: -1, marginTop: 7 }, name: { fontFamily: fonts.semibold }, introCopy: { color: colors.muted, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, marginTop: 6 },
+  heroShell: { borderRadius: radius.xl, marginTop: 22, backgroundColor: colors.tealDark, ...shadows.soft }, hero: { minHeight: 302, borderRadius: radius.xl, padding: 21, overflow: 'hidden', backgroundColor: colors.tealDark }, heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, heroLabel: { ...type.label, color: '#C9ECE8', fontSize: 11 },
+  live: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.12)', paddingVertical: 7, paddingHorizontal: 10 }, liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent }, liveText: { ...type.label, color: '#E1F3F0', fontSize: 10, letterSpacing: 0.9 },
+  heroBody: { minHeight: 165, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, heroCopy: { flex: 1, paddingRight: 8 }, heroTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 23, lineHeight: 29, letterSpacing: -0.5 },
+  nutritionLine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 }, nutritionValue: { color: colors.white, fontFamily: fonts.semibold, fontSize: 20 }, nutritionLabel: { ...type.label, color: '#C1DDD8', fontSize: 10, letterSpacing: 0.8, marginTop: 3 }, heroRule: { width: 1, height: 34, backgroundColor: 'rgba(255,255,255,0.2)' },
+  heroActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }, nextStatus: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9, paddingRight: 10 }, nextLabel: { ...type.label, color: '#C1DDD8', fontSize: 10, letterSpacing: 0.75 }, nextValue: { color: colors.white, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18, marginTop: 3, maxWidth: 175 }, textAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 }, textActionText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 13 }, pressed: { opacity: 0.65, transform: [{ scale: 0.98 }] },
+  quickStats: { minHeight: 98, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', backgroundColor: colors.surface, borderRadius: radius.md, marginTop: 14, ...shadows.soft }, quickStat: { flex: 1, alignItems: 'center' }, quickValue: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 21 }, quickLabel: { ...type.label, color: colors.muted, fontSize: 10, letterSpacing: 0.7, marginTop: 4 }, statRule: { width: 1, height: 37, backgroundColor: colors.line },
+  success: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: colors.accentSoft, borderRadius: radius.md, padding: 14, marginTop: 14 }, successIcon: { width: 29, height: 29, borderRadius: 15, backgroundColor: colors.tealMid, alignItems: 'center', justifyContent: 'center' }, successCopy: { flex: 1 }, successTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14 }, successMeta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 },
+  alert: { flexDirection: 'row', alignItems: 'center', gap: 10, borderLeftWidth: 3, borderLeftColor: colors.danger, backgroundColor: '#FFF4F2', borderRadius: radius.sm, padding: 13, marginTop: 14 }, alertCopy: { flex: 1 }, alertTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 13 }, alertMeta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  section: { marginTop: 32 }, sectionHead: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }, sectionTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 21, marginTop: 5 }, sectionMeta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 4 }, allLink: { color: colors.tealMid, fontFamily: fonts.semibold, fontSize: 12 },
+  activitySummary: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 15, paddingVertical: 18, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, activityIcon: { width: 50, height: 50, borderRadius: 17, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }, activityCopy: { flex: 1 }, activityName: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16 }, activityMeta: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, marginTop: 4 }, activityValue: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 22, textAlign: 'right' }, activityLabel: { ...type.label, color: colors.muted, fontSize: 10, textAlign: 'right' },
+});

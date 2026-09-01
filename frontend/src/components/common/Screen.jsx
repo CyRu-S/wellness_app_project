@@ -1,21 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Animated, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import useReducedMotion from '../../hooks/useReducedMotion';
 import { colors } from '../../theme';
 
 export default function Screen({ children, scroll = true, contentStyle, style }) {
-  const [fade] = useState(() => new Animated.Value(0));
-  const [lift] = useState(() => new Animated.Value(12));
+  const reduceMotion = useReducedMotion();
+  const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 360, useNativeDriver: true }),
-      Animated.spring(lift, { toValue: 0, speed: 18, bounciness: 3, useNativeDriver: true }),
-    ]).start();
-  }, [fade, lift]);
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: reduceMotion ? 160 : 280,
+      useNativeDriver: true,
+    }).start();
+  }, [progress, reduceMotion]);
 
   const content = (
-    <Animated.View style={[styles.content, contentStyle, { opacity: fade, transform: [{ translateY: lift }] }]}>
+    <Animated.View style={[styles.content, contentStyle, {
+      opacity: progress,
+      transform: [{ translateY: reduceMotion ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+    }]}
+    >
       {children}
     </Animated.View>
   );
@@ -31,5 +37,5 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
   fill: { flex: 1 },
   scroll: { flexGrow: 1 },
-  content: { flex: 1, paddingHorizontal: 22, paddingBottom: 36 },
+  content: { flex: 1, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 },
 });

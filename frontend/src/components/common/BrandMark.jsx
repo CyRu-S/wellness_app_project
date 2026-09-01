@@ -1,26 +1,23 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '../../theme';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { colors, fonts } from '../../theme';
 
-export default function BrandMark({ compact = false, light = false }) {
+const logo = require('../../../assets/images/arjun-nutrition-logo.png');
+
+export default function BrandMark({ compact = false, light = false, size = 42 }) {
   return (
     <View style={styles.row}>
-      <View style={[styles.mark, light && styles.markLight]}>
-        <View style={styles.seedOne} />
-        <View style={styles.seedTwo} />
-      </View>
-      {!compact && <Text style={[styles.name, light && styles.nameLight]}>wellnest</Text>}
+      <View style={[styles.logoFrame, { width: size, height: size, borderRadius: size / 2 }]}><Image accessibilityLabel="Arjun Nutrition logo" source={logo} style={styles.logo} resizeMode="contain" /></View>
+      {!compact && <Text style={[styles.name, size < 40 && styles.nameSmall, light && styles.nameLight]}>Mr_Care</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  mark: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.ink, overflow: 'hidden' },
-  markLight: { backgroundColor: colors.surface },
-  seedOne: { position: 'absolute', width: 16, height: 10, borderRadius: 12, backgroundColor: colors.accent, left: 5, top: 9, transform: [{ rotate: '-35deg' }] },
-  seedTwo: { position: 'absolute', width: 15, height: 9, borderRadius: 12, backgroundColor: colors.moss, right: 4, bottom: 7, transform: [{ rotate: '-35deg' }] },
-  name: { color: colors.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.7 },
+  logoFrame: { overflow: 'hidden', backgroundColor: colors.ink, borderWidth: 1, borderColor: 'rgba(216,170,66,0.52)', shadowColor: colors.ink, shadowOpacity: 0.2, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  logo: { width: '100%', height: '100%' },
+  name: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 0.2 },
+  nameSmall: { fontSize: 14 },
   nameLight: { color: colors.surface },
 });
-
