@@ -32,13 +32,13 @@ public class AppConfig {
     @ConditionalOnProperty(name = "app.demo.seed-enabled", havingValue = "true", matchIfMissing = true)
     CommandLineRunner seedDemoData() {
         return args -> {
-            User aarav = users.findByEmailIgnoreCase("user@wellnest.app").orElseGet(this::seedPrimaryMember);
+            User aarav = users.findByEmailIgnoreCase("user@mr-care.app").orElseGet(this::seedPrimaryMember);
             if (!"Aarav Mehta".equals(aarav.getFullName())) {
                 aarav.setFullName("Aarav Mehta");
                 aarav = users.save(aarav);
             }
-            User admin = users.findByEmailIgnoreCase("admin@wellnest.app").orElseGet(() -> users.save(User.builder()
-                    .fullName("Arpan Admin").email("admin@wellnest.app").passwordHash(encoder.encode("password"))
+            User admin = users.findByEmailIgnoreCase("admin@mr-care.app").orElseGet(() -> users.save(User.builder()
+                    .fullName("Arpan Admin").email("admin@mr-care.app").passwordHash(encoder.encode("password"))
                     .role(User.Role.ADMIN).status(User.Status.ACTIVE).build()));
             if (!"Arpan Admin".equals(admin.getFullName())) {
                 admin.setFullName("Arpan Admin");
@@ -64,7 +64,7 @@ public class AppConfig {
 
     private User seedPrimaryMember() {
         LocalDate today = LocalDate.now(applicationZoneId);
-        User user = users.save(User.builder().fullName("Aarav Mehta").email("user@wellnest.app")
+        User user = users.save(User.builder().fullName("Aarav Mehta").email("user@mr-care.app")
                 .passwordHash(encoder.encode("password")).role(User.Role.USER).status(User.Status.ACTIVE).build());
         profiles.save(UserProfile.builder().user(user).goal("Build energy through steady nutrition and movement.")
                 .heightCm(175).weightKg(72.5).waistCm(84.0).bodyFatPercent(19.2)

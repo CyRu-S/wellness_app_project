@@ -37,9 +37,9 @@ class MemberAccessApiIntegrationTests {
 
     @Test
     void adminCanGrantAndUserCanReadButCannotAdminister() throws Exception {
-        User aarav = user("user@wellnest.app");
+        User aarav = user("user@mr-care.app");
         User kavya = user("kavya.menon@example.com");
-        String adminToken = token("admin@wellnest.app", "ROLE_ADMIN");
+        String adminToken = token("admin@mr-care.app", "ROLE_ADMIN");
         String userToken = token(aarav.getEmail(), "ROLE_USER");
 
         mvc.perform(put("/api/admin/member-access/{viewerId}", aarav.getId())
@@ -69,7 +69,7 @@ class MemberAccessApiIntegrationTests {
 
     @Test
     void reactNativeStyleTextMetadataPartCreatesMealPost() throws Exception {
-        User aarav = user("user@wellnest.app");
+        User aarav = user("user@mr-care.app");
         Long mealId = meals.findByUserIdAndMealDateOrderByMealTime(
                 aarav.getId(), LocalDate.now(applicationZoneId)).getFirst().getId();
         byte[] metadata = objectMapper.writeValueAsBytes(Map.of(
@@ -98,9 +98,9 @@ class MemberAccessApiIntegrationTests {
 
     @Test
     void onlyAdministratorsCanOpenMemberJournals() throws Exception {
-        User aarav = user("user@wellnest.app");
+        User aarav = user("user@mr-care.app");
         String userToken = token(aarav.getEmail(), "ROLE_USER");
-        String adminToken = token("admin@wellnest.app", "ROLE_ADMIN");
+        String adminToken = token("admin@mr-care.app", "ROLE_ADMIN");
 
         mvc.perform(get("/api/admin/users/{memberId}/journal", aarav.getId())
                         .header("Authorization", "Bearer " + userToken))

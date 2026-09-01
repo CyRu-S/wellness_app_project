@@ -214,7 +214,7 @@ export default function AdminDashboardScreen({ navigation }) {
             </Pressable>
             <View>
               <Text style={styles.date}>{getDateLabel()}</Text>
-              <Text style={styles.deskLabel}>WELLNEST ADMIN DESK</Text>
+              <Text style={styles.deskLabel}>Mr_Care ADMIN DESK</Text>
             </View>
           </View>
         </View>

@@ -3,7 +3,7 @@ import { googleLogin, login as loginApi, register as registerApi } from '../../s
 
 const initialState = { user: null, token: null, hasOnboarded: false, status: 'idle', error: null, source: null };
 
-const DEMO_EMAILS = new Set(['user@wellnest.app', 'admin@wellnest.app']);
+const DEMO_EMAILS = new Set(['user@mr-care.app', 'admin@mr-care.app']);
 const useApiDemoAccounts = process.env.EXPO_PUBLIC_USE_API_DEMO_ACCOUNTS === 'true';
 const demoModeEnabled = !useApiDemoAccounts && process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK !== 'true';
 
@@ -15,7 +15,7 @@ const isDemoAccount = ({ email, password }) => (
 
 const demoLogin = ({ email }) => {
   const normalizedEmail = email.trim().toLowerCase();
-  const isAdmin = normalizedEmail === 'admin@wellnest.app';
+  const isAdmin = normalizedEmail === 'admin@mr-care.app';
 
   return {
     token: 'demo-token',
@@ -25,7 +25,7 @@ const demoLogin = ({ email }) => {
     role: isAdmin ? 'ADMIN' : 'USER',
     ...(isAdmin && {
       phone: '+91 98765 43210',
-      clubName: 'Wellnest Collective',
+      clubName: 'Mr_Care Collective',
     }),
     source: 'demo',
   };
@@ -68,12 +68,12 @@ const authSlice = createSlice({
       .addMatcher((action) => [signIn.pending.type, register.pending.type, signInWithGoogle.pending.type].includes(action.type), (state) => { state.status = 'loading'; state.error = null; })
       .addMatcher((action) => [signIn.fulfilled.type, register.fulfilled.type, signInWithGoogle.fulfilled.type].includes(action.type), (state, action) => {
         const { token, source, ...user } = action.payload;
-        const isAdmin = user.role === 'ADMIN' || user.email?.toLowerCase() === 'admin@wellnest.app';
+        const isAdmin = user.role === 'ADMIN' || user.email?.toLowerCase() === 'admin@mr-care.app';
         state.user = isAdmin ? {
           ...user,
           name: 'Arpan',
           phone: user.phone || '+91 98765 43210',
-          clubName: user.clubName || 'Wellnest Collective',
+          clubName: user.clubName || 'Mr_Care Collective',
         } : user;
         state.token = token;
         state.source = source;

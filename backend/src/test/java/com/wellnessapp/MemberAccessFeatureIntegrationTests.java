@@ -34,25 +34,25 @@ class MemberAccessFeatureIntegrationTests {
 
     @Test
     void replacesUnlimitedAssignmentsDeduplicatesAndRevokesAtomically() {
-        User aarav = user("user@wellnest.app");
+        User aarav = user("user@mr-care.app");
         User kavya = user("kavya.menon@example.com");
         User rohan = user("rohan.das@example.com");
 
         var assigned = memberAccess.replaceAssignments(
-                "admin@wellnest.app", aarav.getId(), new ReplaceMemberAccessRequest(List.of(kavya.getId(), rohan.getId(), kavya.getId())));
+                "admin@mr-care.app", aarav.getId(), new ReplaceMemberAccessRequest(List.of(kavya.getId(), rohan.getId(), kavya.getId())));
         assertThat(assigned.assignedMembers()).extracting(item -> item.id()).containsExactly(kavya.getId(), rohan.getId());
         assertThat(memberAccess.sharedMembers(aarav.getEmail()).members()).hasSize(2);
 
         var revoked = memberAccess.replaceAssignments(
-                "admin@wellnest.app", aarav.getId(), new ReplaceMemberAccessRequest(List.of()));
+                "admin@mr-care.app", aarav.getId(), new ReplaceMemberAccessRequest(List.of()));
         assertThat(revoked.assignedMembers()).isEmpty();
         assertThat(memberAccess.sharedMembers(aarav.getEmail()).members()).isEmpty();
     }
 
     @Test
     void preventsSelfAccessAndRejectsNonUserSubjects() {
-        User aarav = user("user@wellnest.app");
-        User admin = user("admin@wellnest.app");
+        User aarav = user("user@mr-care.app");
+        User admin = user("admin@mr-care.app");
 
         assertThatThrownBy(() -> memberAccess.replaceAssignments(
                 admin.getEmail(), aarav.getId(), new ReplaceMemberAccessRequest(List.of(aarav.getId()))))
@@ -64,13 +64,13 @@ class MemberAccessFeatureIntegrationTests {
 
     @Test
     void hidesUngrantedMembersAndReturnsOnlyTodaysOperationalSnapshot() {
-        User aarav = user("user@wellnest.app");
+        User aarav = user("user@mr-care.app");
         User kavya = user("kavya.menon@example.com");
 
         assertThatThrownBy(() -> memberAccess.sharedMemberToday(aarav.getEmail(), kavya.getId()))
                 .isInstanceOf(NotFoundException.class);
 
-        memberAccess.replaceAssignments("admin@wellnest.app", aarav.getId(), new ReplaceMemberAccessRequest(List.of(kavya.getId())));
+        memberAccess.replaceAssignments("admin@mr-care.app", aarav.getId(), new ReplaceMemberAccessRequest(List.of(kavya.getId())));
         var today = memberAccess.sharedMemberToday(aarav.getEmail(), kavya.getId());
         assertThat(today.member().name()).isEqualTo("Kavya Menon");
         assertThat(today.date()).isEqualTo(LocalDate.now(applicationZoneId));
@@ -81,9 +81,9 @@ class MemberAccessFeatureIntegrationTests {
 
     @Test
     void suspendedViewersAndSubjectsImmediatelyLoseAccess() {
-        User aarav = user("user@wellnest.app");
+        User aarav = user("user@mr-care.app");
         User kavya = user("kavya.menon@example.com");
-        memberAccess.replaceAssignments("admin@wellnest.app", aarav.getId(), new ReplaceMemberAccessRequest(List.of(kavya.getId())));
+        memberAccess.replaceAssignments("admin@mr-care.app", aarav.getId(), new ReplaceMemberAccessRequest(List.of(kavya.getId())));
 
         aarav.setStatus(User.Status.SUSPENDED);
         users.saveAndFlush(aarav);
@@ -100,18 +100,18 @@ class MemberAccessFeatureIntegrationTests {
 
     @Test
     void enforcesWeeklyBodyMetricUpdates() {
-        var updated = profiles.updateBodyMetrics("user@wellnest.app", new BodyMetricsRequest(176, 71.8, 82.0, 18.5));
+        var updated = profiles.updateBodyMetrics("user@mr-care.app", new BodyMetricsRequest(176, 71.8, 82.0, 18.5));
         assertThat(updated.waistCm()).isEqualTo(82.0);
         assertThat(updated.lastBodyMetricsUpdatedAt()).isNotNull();
 
         assertThatThrownBy(() -> profiles.updateBodyMetrics(
-                "user@wellnest.app", new BodyMetricsRequest(176, 71.5, 81.0, 18.0)))
+                "user@mr-care.app", new BodyMetricsRequest(176, 71.5, 81.0, 18.0)))
                 .isInstanceOf(ConflictException.class);
     }
 
     @Test
     void storesIdempotentMealPostAndProtectsItsImage() {
-        User aarav = user("user@wellnest.app");
+        User aarav = user("user@mr-care.app");
         User kavya = user("kavya.menon@example.com");
         Long plannedMealId = meals.findByUserIdAndMealDateOrderByMealTime(
                 aarav.getId(), LocalDate.now(applicationZoneId)).getFirst().getId();
@@ -127,9 +127,9 @@ class MemberAccessFeatureIntegrationTests {
         assertThat(mealPosts.image(aarav.getEmail(), created.id()).contentType()).isEqualTo("image/png");
         assertThatThrownBy(() -> mealPosts.image(kavya.getEmail(), created.id())).isInstanceOf(NotFoundException.class);
 
-        memberAccess.replaceAssignments("admin@wellnest.app", kavya.getId(), new ReplaceMemberAccessRequest(List.of(aarav.getId())));
+        memberAccess.replaceAssignments("admin@mr-care.app", kavya.getId(), new ReplaceMemberAccessRequest(List.of(aarav.getId())));
         assertThat(mealPosts.image(kavya.getEmail(), created.id()).resource().exists()).isTrue();
-        assertThat(mealPosts.image("admin@wellnest.app", created.id()).resource().exists()).isTrue();
+        assertThat(mealPosts.image("admin@mr-care.app", created.id()).resource().exists()).isTrue();
     }
 
     private User user(String email) {

@@ -16,7 +16,7 @@ export default function LoginScreen({ navigation }) {
   const dispatch = useDispatch();
   const auth = useSelector((state) => state.auth);
   const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn();
-  const [email, setEmail] = useState('user@wellnest.app');
+  const [email, setEmail] = useState('user@mr-care.app');
   const [password, setPassword] = useState('password');
   const submit = () => dispatch(signIn({ email, password }));
   return (
@@ -33,7 +33,7 @@ export default function LoginScreen({ navigation }) {
             <PrimaryButton title={auth.status === 'loading' ? 'Signing in…' : 'Sign in'} onPress={submit} disabled={!email || !password || auth.status === 'loading'} />
             <AuthDivider />
             <GoogleButton onPress={startGoogleSignIn} disabled={!googleReady || auth.status === 'loading'} loading={auth.status === 'loading'} />
-            <Text style={styles.demo}>Admin preview: admin@wellnest.app / password</Text>
+            <Text style={styles.demo}>Admin preview: admin@mr-care.app / password</Text>
             <Pressable onPress={() => navigation.navigate('Register')}><Text style={styles.register}>New to Mr_Care? <Text style={styles.strong}>Create account</Text></Text></Pressable>
           </StaggeredView>
         </ScrollView>

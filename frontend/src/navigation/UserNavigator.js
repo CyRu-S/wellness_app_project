@@ -6,7 +6,6 @@ import UserTabBar from '../components/user/UserTabBar';
 import DashboardScreen from '../screens/user/DashboardScreen';
 import MealsScreen from '../screens/user/MealsScreen';
 import MealDetailsScreen from '../screens/user/MealDetailsScreen';
-import MealLogScreen from '../screens/user/MealLogScreen';
 import MealCaptureScreen from '../screens/user/MealCaptureScreen';
 import ActivityTimerScreen from '../screens/user/ActivityTimerScreen';
 import NotificationsScreen from '../screens/user/NotificationsScreen';
@@ -23,8 +22,8 @@ import { colors } from '../theme';
 
 const Tab = createBottomTabNavigator(); const Stack = createNativeStackNavigator();
 const header = { headerStyle: { backgroundColor: colors.paper }, headerShadowVisible: false, headerTintColor: colors.ink, headerTitle: '', animation: 'slide_from_right', animationDuration: 280, gestureEnabled: true };
-function HomeStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} /><Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} /><Stack.Screen name="Meals" component={MealsScreen} options={{ headerShown: false }} /><Stack.Screen name="MealDetails" component={MealDetailsScreen} options={{ headerShown: false }} /><Stack.Screen name="MealLog" component={MealLogScreen} options={{ headerShown: false }} /><Stack.Screen name="MealCapture" component={MealCaptureScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
-function LogStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="MealLogHome" component={MealLogScreen} options={{ headerShown: false }} /><Stack.Screen name="MealCapture" component={MealCaptureScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
+function HomeStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} /><Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} /></Stack.Navigator>; }
+function LogStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="TodayTimeline" component={MealsScreen} options={{ headerShown: false }} /><Stack.Screen name="MealDetails" component={MealDetailsScreen} options={{ headerShown: false }} /><Stack.Screen name="MealCapture" component={MealCaptureScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
 function ProfileStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ headerShown: false }} /><Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} /><Stack.Screen name="BodyDetails" component={BodyDetailsScreen} options={{ headerShown: false }} /><Stack.Screen name="HealthPreferences" component={HealthPreferencesScreen} options={{ headerShown: false }} /><Stack.Screen name="PrivacyData" component={PrivacyDataScreen} options={{ headerShown: false }} /></Stack.Navigator>; }
 function SharedStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="SharedMembers" component={SharedMembersScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedMemberToday" component={SharedMemberTodayScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedPhoto" component={SharedPhotoScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
 export default function UserNavigator() {

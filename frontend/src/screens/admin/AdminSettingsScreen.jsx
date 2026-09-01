@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -83,6 +83,11 @@ export default function AdminSettingsScreen({ navigation }) {
   const comingNext = (title) => Alert.alert(title, 'This destination is planned for the next admin release.');
   const changePreference = (key, value) => dispatch(setPreference({ key, value }));
   const confirmSignOut = () => {
+    if (Platform.OS === 'web') {
+      if (globalThis.confirm?.('Sign out of admin?\n\nYou will return to the login screen.')) dispatch(signOut());
+      return;
+    }
+
     Alert.alert(
       'Sign out of admin?',
       'You will return to the login screen.',
@@ -111,7 +116,7 @@ export default function AdminSettingsScreen({ navigation }) {
         <View style={styles.profileCopy}>
           <Text style={styles.profileEyebrow}>ADMIN PROFILE</Text>
           <Text numberOfLines={1} style={styles.profileName}>{admin?.name || 'Arpan'}</Text>
-          <Text numberOfLines={1} style={styles.profileClub}>{admin?.clubName || 'Wellnest Collective'}</Text>
+          <Text numberOfLines={1} style={styles.profileClub}>{admin?.clubName || 'Mr_Care Collective'}</Text>
         </View>
       </View>
 
@@ -175,7 +180,7 @@ export default function AdminSettingsScreen({ navigation }) {
         <Text style={styles.logoutText}>Sign out of admin</Text>
         <Ionicons name="arrow-forward" size={18} color={adminColors.coral} />
       </Pressable>
-      <Text style={styles.version}>Wellnest Admin · Prototype 0.2</Text>
+      <Text style={styles.version}>Mr_Care Admin · Prototype 0.2</Text>
     </AdminScreen>
   );
 }

@@ -4,13 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import Screen from '../../components/common/Screen';
-import AmbientBackground from '../../components/common/AmbientBackground';
+import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
 import UserHeader from '../../components/user/UserHeader';
 import { signOut } from '../../store/slices/authSlice';
 import { setTimelineRemindersEnabled } from '../../store/slices/notificationSlice';
 import { loadProfile } from '../../store/slices/profileSlice';
 import { getUserPreferences, setUserPreferences } from '../../services/storage/userPreferences';
-import { colors, fonts, radius, type } from '../../theme';
+import { colors, fonts, radius, shadows, type } from '../../theme';
 
 export default function ProfileScreen({ navigation }) {
   const dispatch = useDispatch();
@@ -66,7 +66,7 @@ export default function ProfileScreen({ navigation }) {
         ))}
       </StaggeredView>
 
-      <StaggeredView delay={285} style={styles.trust}><AmbientBackground light /><Ionicons name="lock-closed" size={20} color={colors.accent} /><Text style={styles.trustLabel}>PRIVATE BY DEFAULT</Text><Text style={styles.trustTitle}>Your wellbeing data stays yours.</Text><Text style={styles.trustCopy}>Meal photos, plan progress and activity details are visible only to you and your assigned coach.</Text></StaggeredView>
+      <StaggeredView delay={285} style={styles.trust}><PrimaryTealCardBackground /><Ionicons name="lock-closed" size={20} color="#BFECE5" /><Text style={styles.trustLabel}>PRIVATE BY DEFAULT</Text><Text style={styles.trustTitle}>Your wellbeing data stays yours.</Text><Text style={styles.trustCopy}>Meal photos, plan progress and activity details are visible only to you and your assigned coach.</Text></StaggeredView>
       <Pressable accessibilityRole="button" onPress={() => dispatch(signOut())} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Ionicons name="log-out-outline" size={20} color={colors.danger} /><Text style={styles.logoutText}>Sign out</Text></Pressable>
     </Screen>
   );
@@ -102,8 +102,8 @@ const styles = StyleSheet.create({
   rowText: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16, lineHeight: 21 },
   rowMeta: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, marginTop: 3 },
   pressed: { opacity: 0.65, transform: [{ scale: 0.985 }] },
-  trust: { marginTop: 29, minHeight: 194, backgroundColor: colors.tealDark, borderRadius: radius.lg, padding: 22, overflow: 'hidden' },
-  trustLabel: { color: colors.accent, fontFamily: fonts.semibold, fontSize: 11, lineHeight: 15, letterSpacing: 1.2, marginTop: 16 },
+  trust: { marginTop: 29, minHeight: 194, backgroundColor: colors.tealDark, borderRadius: radius.xl, padding: 22, overflow: 'hidden', ...shadows.soft },
+  trustLabel: { color: '#C9ECE8', fontFamily: fonts.semibold, fontSize: 11, lineHeight: 15, letterSpacing: 1.2, marginTop: 16 },
   trustTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 21, lineHeight: 28, marginTop: 6, maxWidth: 285 },
   trustCopy: { color: '#C7E5E1', fontFamily: fonts.medium, fontSize: 13, lineHeight: 20, marginTop: 8, maxWidth: 315 },
   logout: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 18, justifyContent: 'center' },

@@ -1,12 +1,11 @@
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
-import AmbientBackground from '../../components/common/AmbientBackground';
 import AnimatedNumber from '../../components/common/AnimatedNumber';
+import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
 import Screen from '../../components/common/Screen';
 import HydrationMeter from '../../components/dashboard/HydrationMeter';
 import ProgressRing from '../../components/dashboard/ProgressRing';
@@ -33,6 +32,7 @@ export default function DashboardScreen({ navigation }) {
   const loggedMeals = meals.items.filter((meal) => meal.consumed).length;
   const hydration = Math.round((dashboard.waterGlasses / dashboard.waterTarget) * 100);
   const latestActivity = dashboard.lastActivity || activity.history[0];
+  const openTimeline = () => navigation.getParent()?.navigate('Log', { screen: 'TodayTimeline' });
   return (
     <Screen contentStyle={styles.screen}>
       <UserHeader navigation={navigation} title="Today" />
@@ -42,18 +42,19 @@ export default function DashboardScreen({ navigation }) {
         <Text style={styles.introCopy}>Your nutrition, hydration and movement are synced below.</Text>
       </StaggeredView>
 
-      <StaggeredView delay={110} style={styles.hero}>
-        <LinearGradient colors={[colors.tealDark, '#0D8A80']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-        <AmbientBackground light />
-        <View style={styles.heroTop}><Text style={styles.heroLabel}>TODAY’S PLAN</Text><View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>IN PROGRESS</Text></View></View>
-        <View style={styles.heroBody}>
-          <View style={styles.heroCopy}>
-            <Text style={styles.heroTitle}>A steady day,{`\n`}in progress.</Text>
-            <View style={styles.nutritionLine}><View><AnimatedNumber value={dashboard.calories} style={styles.nutritionValue} /><Text style={styles.nutritionLabel}>KCAL LOGGED</Text></View><View style={styles.heroRule} /><View><Text style={styles.nutritionValue}>{dashboard.protein}g</Text><Text style={styles.nutritionLabel}>PROTEIN</Text></View></View>
+      <StaggeredView delay={110} style={styles.heroShell}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open today’s timeline" onPress={openTimeline} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
+          <PrimaryTealCardBackground />
+          <View style={styles.heroTop}><Text style={styles.heroLabel}>TODAY’S PLAN</Text><View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>IN PROGRESS</Text></View></View>
+          <View style={styles.heroBody}>
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroTitle}>A steady day,{`\n`}in progress.</Text>
+              <View style={styles.nutritionLine}><View><AnimatedNumber value={dashboard.calories} style={styles.nutritionValue} /><Text style={styles.nutritionLabel}>KCAL LOGGED</Text></View><View style={styles.heroRule} /><View><Text style={styles.nutritionValue}>{dashboard.protein}g</Text><Text style={styles.nutritionLabel}>PROTEIN</Text></View></View>
+            </View>
+            <ProgressRing value={dashboard.completion} label="complete" size={120} />
           </View>
-          <ProgressRing value={dashboard.completion} label="complete" size={120} />
-        </View>
-        <View style={styles.heroActions}><View style={styles.nextStatus}><Ionicons name="time-outline" size={17} color={colors.accent} /><View><Text style={styles.nextLabel}>NEXT CHECK-IN</Text><Text style={styles.nextValue}>{nextMeal ? `${nextMeal.time} · ${nextMeal.name}` : 'Timeline complete'}</Text></View></View><Pressable onPress={() => navigation.navigate('Meals')} style={({ pressed }) => [styles.textAction, pressed && styles.pressed]}><Text style={styles.textActionText}>Details</Text><Ionicons name="arrow-forward" size={15} color={colors.white} /></Pressable></View>
+          <View style={styles.heroActions}><View style={styles.nextStatus}><Ionicons name="time-outline" size={17} color={colors.accent} /><View><Text style={styles.nextLabel}>NEXT CHECK-IN</Text><Text style={styles.nextValue}>{nextMeal ? `${nextMeal.time} · ${nextMeal.name}` : 'Timeline complete'}</Text></View></View><View style={styles.textAction}><Text style={styles.textActionText}>Details</Text><Ionicons name="arrow-forward" size={15} color={colors.white} /></View></View>
+        </Pressable>
       </StaggeredView>
 
       <StaggeredView delay={170} style={styles.quickStats}>
@@ -81,7 +82,7 @@ export default function DashboardScreen({ navigation }) {
 const styles = StyleSheet.create({
   screen: { paddingHorizontal: 20 }, intro: { marginTop: 26 }, eyebrow: { ...type.label, color: colors.tealMid, fontSize: 11 },
   greeting: { color: colors.ink, fontFamily: fonts.regular, fontSize: 32, lineHeight: 38, letterSpacing: -1, marginTop: 7 }, name: { fontFamily: fonts.semibold }, introCopy: { color: colors.muted, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, marginTop: 6 },
-  hero: { minHeight: 302, borderRadius: radius.lg, marginTop: 22, padding: 21, overflow: 'hidden', ...shadows.raised }, heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, heroLabel: { ...type.label, color: '#CBE8E3', fontSize: 11 },
+  heroShell: { borderRadius: radius.xl, marginTop: 22, backgroundColor: colors.tealDark, ...shadows.soft }, hero: { minHeight: 302, borderRadius: radius.xl, padding: 21, overflow: 'hidden', backgroundColor: colors.tealDark }, heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, heroLabel: { ...type.label, color: '#C9ECE8', fontSize: 11 },
   live: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.12)', paddingVertical: 7, paddingHorizontal: 10 }, liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent }, liveText: { ...type.label, color: '#E1F3F0', fontSize: 10, letterSpacing: 0.9 },
   heroBody: { minHeight: 165, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, heroCopy: { flex: 1, paddingRight: 8 }, heroTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 23, lineHeight: 29, letterSpacing: -0.5 },
   nutritionLine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 }, nutritionValue: { color: colors.white, fontFamily: fonts.semibold, fontSize: 20 }, nutritionLabel: { ...type.label, color: '#C1DDD8', fontSize: 10, letterSpacing: 0.8, marginTop: 3 }, heroRule: { width: 1, height: 34, backgroundColor: 'rgba(255,255,255,0.2)' },

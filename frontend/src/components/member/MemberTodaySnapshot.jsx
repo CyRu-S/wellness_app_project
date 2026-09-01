@@ -2,7 +2,7 @@ import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import AmbientBackground from '../common/AmbientBackground';
+import PrimaryTealCardBackground from '../common/PrimaryTealCardBackground';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import {
   formatJournalClock,
@@ -22,8 +22,7 @@ function SummaryHero({ name, title, date, summary }) {
   const completed = numeric(summary.completedMeals);
   return (
     <View style={styles.hero}>
-      <LinearGradient colors={[colors.tealDark, '#0C8B80']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      <AmbientBackground light />
+      <PrimaryTealCardBackground />
       <Text style={styles.heroLabel}>TODAY’S WELLNESS SNAPSHOT</Text>
       <Text numberOfLines={2} style={styles.heroName}>{title || name}</Text>
       <Text style={styles.heroDate}>{formatJournalDate(date)}</Text>
@@ -166,14 +165,14 @@ export default function MemberTodaySnapshot({
 }
 
 const styles = StyleSheet.create({
-  hero: { minHeight: 263, borderRadius: radius.lg, marginTop: 19, padding: 22, overflow: 'hidden', ...shadows.raised },
-  heroLabel: { ...type.label, color: '#BDE7DF', fontSize: 8, zIndex: 2 },
+  hero: { minHeight: 263, borderRadius: radius.xl, marginTop: 19, padding: 22, overflow: 'hidden', backgroundColor: colors.tealDark, ...shadows.soft },
+  heroLabel: { ...type.label, color: '#C9ECE8', fontSize: 8, zIndex: 2 },
   heroName: { color: colors.white, fontFamily: fonts.semibold, fontSize: 31, lineHeight: 35, letterSpacing: -0.9, marginTop: 18, zIndex: 2 },
-  heroDate: { color: '#BBD9D5', fontFamily: fonts.regular, fontSize: 11, marginTop: 5, zIndex: 2 },
+  heroDate: { color: '#CFEAE7', fontFamily: fonts.regular, fontSize: 11, marginTop: 5, zIndex: 2 },
   heroMetrics: { flexDirection: 'row', alignItems: 'center', marginTop: 29, paddingTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.16)', zIndex: 2 },
   heroMetric: { flex: 1 },
   heroValue: { color: colors.white, fontFamily: fonts.semibold, fontSize: 20 },
-  heroMetricLabel: { ...type.label, color: '#BBD9D5', fontSize: 6, marginTop: 4 },
+  heroMetricLabel: { ...type.label, color: '#CFEAE7', fontSize: 6, marginTop: 4 },
   heroDivider: { width: 1, height: 31, backgroundColor: 'rgba(255,255,255,0.16)', marginHorizontal: 12 },
   accessNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: radius.md, backgroundColor: colors.accentSoft, padding: 14, marginTop: 14 },
   accessNoteText: { flex: 1, color: colors.inkSoft, fontFamily: fonts.regular, fontSize: 10, lineHeight: 16 },

@@ -35,7 +35,7 @@ class AdminMemberJournalIntegrationTests {
 
     @Test
     void returnsProfileTodayAndOnlyThePreviousTwentyOneDaysGroupedByDate() {
-        User member = user("user@wellnest.app");
+        User member = user("user@mr-care.app");
         LocalDate today = LocalDate.now(clock.withZone(applicationZoneId));
         MealPost yesterday = post(member, today.minusDays(1).atTime(8, 15).atZone(applicationZoneId).toInstant(), "journal-yesterday", true);
         post(member, today.minusDays(22).atTime(8, 15).atZone(applicationZoneId).toInstant(), "journal-expired", true);
@@ -55,12 +55,12 @@ class AdminMemberJournalIntegrationTests {
     @Test
     void rejectsUnknownAndAdministratorAccountsAsMembers() {
         assertThatThrownBy(() -> journals.get(999999L)).isInstanceOf(NotFoundException.class);
-        assertThatThrownBy(() -> journals.get(user("admin@wellnest.app").getId())).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> journals.get(user("admin@mr-care.app").getId())).isInstanceOf(NotFoundException.class);
     }
 
     @Test
     void updatesTheMemberWaterGoalAndReflectsItInTheirDashboard() {
-        User member = user("user@wellnest.app");
+        User member = user("user@mr-care.app");
 
         var updated = journals.updateWaterGoal(member.getId(), new UpdateMemberWaterGoalRequest(2750));
 
@@ -72,7 +72,7 @@ class AdminMemberJournalIntegrationTests {
 
     @Test
     void rejectsWaterGoalsThatAreNotInTwoHundredFiftyMillilitreSteps() {
-        User member = user("user@wellnest.app");
+        User member = user("user@mr-care.app");
         assertThatThrownBy(() -> journals.updateWaterGoal(member.getId(), new UpdateMemberWaterGoalRequest(2600)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("250 ml");

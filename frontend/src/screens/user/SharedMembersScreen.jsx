@@ -9,11 +9,10 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
-import AmbientBackground from '../../components/common/AmbientBackground';
+import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
 import UserHeader from '../../components/user/UserHeader';
 import { loadSharedMembers } from '../../store/slices/memberAccessSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
@@ -139,8 +138,7 @@ export default function SharedMembersScreen({ navigation }) {
       </StaggeredView>
 
       <StaggeredView delay={95} style={styles.hero}>
-        <LinearGradient colors={[colors.tealDark, '#0C8B80']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-        <AmbientBackground light />
+        <PrimaryTealCardBackground />
         <View style={styles.heroCopy}>
           <Text style={styles.heroLabel}>TODAY’S SHARED VIEW</Text>
           <Text style={styles.heroCount}>{String(total).padStart(2, '0')}</Text>
@@ -195,12 +193,12 @@ const styles = StyleSheet.create({
   eyebrow: { ...type.label, color: colors.tealMid, fontSize: 11 },
   title: { ...type.display, color: colors.ink, marginTop: 5 },
   introCopy: { color: colors.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, marginTop: 7, maxWidth: 345 },
-  hero: { minHeight: 210, borderRadius: radius.lg, marginTop: 23, padding: 22, overflow: 'hidden', flexDirection: 'row', alignItems: 'flex-end', ...shadows.raised },
+  hero: { minHeight: 210, borderRadius: radius.xl, marginTop: 23, padding: 22, overflow: 'hidden', flexDirection: 'row', alignItems: 'flex-end', backgroundColor: colors.tealDark, ...shadows.soft },
   heroCopy: { flex: 1, zIndex: 2 },
-  heroLabel: { ...type.label, color: '#BDE7DF', fontSize: 11 },
+  heroLabel: { ...type.label, color: '#C9ECE8', fontSize: 11 },
   heroCount: { color: colors.white, fontFamily: fonts.semibold, fontSize: 53, lineHeight: 58, letterSpacing: -2, marginTop: 13 },
   heroTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 18, lineHeight: 23 },
-  heroText: { color: '#BBD9D5', fontFamily: fonts.regular, fontSize: 11, lineHeight: 17, maxWidth: 225, marginTop: 8 },
+  heroText: { color: '#CFEAE7', fontFamily: fonts.regular, fontSize: 11, lineHeight: 17, maxWidth: 225, marginTop: 8 },
   heroMark: { width: 82, height: 82, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.13)', zIndex: 2, marginBottom: 16 },
   heroMarkText: { ...type.label, color: '#DDF4EF', fontSize: 10, marginTop: 7 },
   sectionHead: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 31, marginBottom: 13 },

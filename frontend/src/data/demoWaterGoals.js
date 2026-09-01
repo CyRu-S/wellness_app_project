@@ -1,6 +1,6 @@
 import { storage } from '../services/storage/asyncStorage';
 
-const STORAGE_KEY = 'wellnest.demo.water-goals.v1';
+const STORAGE_KEY = 'mr-care.demo.water-goals.v1';
 const defaults = { 1: 2500, 2: 2250, 3: 2750, 4: 2000, 5: 3000 };
 
 async function readGoals() {

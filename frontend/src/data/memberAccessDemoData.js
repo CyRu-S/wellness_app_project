@@ -6,7 +6,7 @@ import { storage } from '../services/storage/asyncStorage';
 
 const demoMealPhoto = require('../../assets/shake.png');
 
-export const MEMBER_ACCESS_DEMO_STORAGE_KEY = 'wellnest.demo.member-access.v1';
+export const MEMBER_ACCESS_DEMO_STORAGE_KEY = 'mr-care.demo.member-access.v1';
 
 const defaultDemoAccess = {
   assignments: {

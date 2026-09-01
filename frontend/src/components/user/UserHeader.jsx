@@ -48,7 +48,7 @@ export default function UserHeader({ navigation, title = 'Today', showNotificati
           </Pressable>
           <View style={styles.brandCopy}>
             <Text style={styles.date}>{getDateLabel()}</Text>
-            <Text style={styles.deskLabel}>WELLNEST MEMBER DESK</Text>
+            <Text style={styles.deskLabel}>Mr_Care MEMBER DESK</Text>
           </View>
         </View>
         {showNotifications ? (

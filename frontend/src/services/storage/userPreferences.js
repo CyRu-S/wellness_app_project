@@ -1,6 +1,6 @@
 import { storage } from './asyncStorage';
 
-const KEY = 'wellnest:user-preferences';
+const KEY = 'mr-care:user-preferences';
 const defaults = { timelineReminders: true };
 
 export const getUserPreferences = async () => {

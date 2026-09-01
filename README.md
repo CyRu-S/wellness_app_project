@@ -53,8 +53,8 @@ The backend verifies the Google token signature, issuer, expiry, audience, and v
 
 Demo accounts (both use `password`):
 
-- Member: `user@wellnest.app`
-- Admin: `admin@wellnest.app`
+- Member: `user@mr-care.app`
+- Admin: `admin@mr-care.app`
 
 By default those two accounts use instant, test-only local data. Access assignments made by the demo admin persist on the device and appear in the demo member's Shared tab.
 
@@ -68,7 +68,7 @@ npm start -- --clear
 
 Set `EXPO_PUBLIC_DISABLE_DEMO_FALLBACK=true` for a production-style client build. Production authorization is always enforced by the backend; demo access is only a local UI test mode.
 
-For an end-to-end photo permission check, sign in once as `kavya.menon@example.com` with `password` and post a meal. Then sign in as the admin, grant Aarav access to Kavya, and return to `user@wellnest.app`; Kavya's post will be available from Shared.
+For an end-to-end photo permission check, sign in once as `kavya.menon@example.com` with `password` and post a meal. Then sign in as the admin, grant Aarav access to Kavya, and return to `user@mr-care.app`; Kavya's post will be available from Shared.
 
 Backend configuration:
 
