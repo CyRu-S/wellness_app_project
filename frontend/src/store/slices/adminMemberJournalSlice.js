@@ -1,29 +1,18 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { getDemoAdminMemberJournal } from '../../data/adminMemberJournalDemoData';
-import { setDemoWaterGoal } from '../../data/demoWaterGoals';
-import { getAdminMemberJournal, getAdminUsers, updateAdminMemberWaterGoal } from '../../services/api/adminApi';
+import { getAdminMemberJournal, updateAdminMemberWaterGoal } from '../../services/api/adminApi';
 
 const initialState = { byMemberId: {}, requests: {}, waterGoalRequests: {} };
 const idleRequest = { status: 'idle', error: null };
 
 export const loadAdminMemberJournal = createAsyncThunk(
   'adminMemberJournal/load',
-  async ({ memberId, email }, { getState, rejectWithValue }) => {
+  async ({ memberId }, { getState, rejectWithValue }) => {
     const auth = getState().auth || {};
     const requestedId = Number(memberId);
     try {
-      if (auth.source === 'demo' || auth.token === 'demo-token') {
-        return { requestedId, data: await getDemoAdminMemberJournal(requestedId) };
-      }
+
       if (!auth.token) throw new Error('Please sign in again to continue.');
-      const users = await getAdminUsers(auth.token);
-      const account = users.find((user) => user.role === 'USER' && user.email?.toLowerCase() === email?.toLowerCase());
-      if (!account) {
-        const error = new Error('Member account not found');
-        error.status = 404;
-        throw error;
-      }
-      return { requestedId, data: await getAdminMemberJournal(auth.token, account.id) };
+      return { requestedId, data: await getAdminMemberJournal(auth.token, requestedId) };
     } catch (error) {
       return rejectWithValue({ requestedId, message: error.message || 'Unable to load member journal.', status: error.status || null });
     }
@@ -32,23 +21,13 @@ export const loadAdminMemberJournal = createAsyncThunk(
 
 export const saveAdminMemberWaterGoal = createAsyncThunk(
   'adminMemberJournal/saveWaterGoal',
-  async ({ memberId, email, waterGoalMl }, { getState, rejectWithValue }) => {
+  async ({ memberId, waterGoalMl }, { getState, rejectWithValue }) => {
     const auth = getState().auth || {};
     const requestedId = Number(memberId);
     try {
-      if (auth.source === 'demo' || auth.token === 'demo-token') {
-        await setDemoWaterGoal(requestedId, waterGoalMl);
-        return { requestedId, member: { waterGoalMl } };
-      }
+
       if (!auth.token) throw new Error('Please sign in again to continue.');
-      const users = await getAdminUsers(auth.token);
-      const account = users.find((user) => user.role === 'USER' && user.email?.toLowerCase() === email?.toLowerCase());
-      if (!account) {
-        const error = new Error('Member account not found');
-        error.status = 404;
-        throw error;
-      }
-      return { requestedId, member: await updateAdminMemberWaterGoal(auth.token, account.id, waterGoalMl) };
+      return { requestedId, member: await updateAdminMemberWaterGoal(auth.token, requestedId, waterGoalMl) };
     } catch (error) {
       return rejectWithValue({ requestedId, message: error.message || 'Unable to update the water goal.', status: error.status || null });
     }
@@ -63,24 +42,28 @@ const slice = createSlice({
     builder
       .addCase('auth/signOut', () => initialState)
       .addCase(loadAdminMemberJournal.pending, (state, action) => {
-        state.requests[action.meta.arg.memberId] = { status: 'loading', error: null };
+        state.requests[action.meta.arg.memberId] = { requestId: action.meta.requestId, status: 'loading', error: null };
       })
       .addCase(loadAdminMemberJournal.fulfilled, (state, action) => {
+        if (state.requests[action.payload.requestedId]?.requestId !== action.meta.requestId) return;
         state.byMemberId[action.payload.requestedId] = action.payload.data;
         state.requests[action.payload.requestedId] = { status: 'succeeded', error: null };
       })
       .addCase(loadAdminMemberJournal.rejected, (state, action) => {
         const requestedId = action.payload?.requestedId ?? action.meta.arg.memberId;
+        if (state.requests[requestedId]?.requestId !== action.meta.requestId) return;
         state.requests[requestedId] = {
           status: 'failed',
           error: { message: action.payload?.message || action.error?.message || 'Unable to load member journal.', status: action.payload?.status || null },
         };
       })
       .addCase(saveAdminMemberWaterGoal.pending, (state, action) => {
+        state.requests[action.meta.arg.memberId] = { status: 'idle', error: null };
         state.waterGoalRequests[action.meta.arg.memberId] = { status: 'saving', error: null };
       })
       .addCase(saveAdminMemberWaterGoal.fulfilled, (state, action) => {
         const { requestedId, member } = action.payload;
+        state.requests[requestedId] = { status: 'succeeded', error: null };
         if (state.byMemberId[requestedId]) {
           state.byMemberId[requestedId].member = { ...state.byMemberId[requestedId].member, ...member };
         }

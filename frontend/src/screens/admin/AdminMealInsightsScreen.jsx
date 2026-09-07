@@ -9,6 +9,7 @@ import AdminScreen from '../../components/admin/AdminScreen';
 import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl';
 import { selectAdminMealInsights, selectAdminSummary, setInsightRange } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
+import { groupMealFollowUps } from '../../utils/mealFollowUps';
 
 const mealIcons = {
   breakfast: 'sunny-outline',
@@ -75,6 +76,7 @@ export default function AdminMealInsightsScreen({ navigation }) {
   const dispatch = useDispatch();
   const insights = useSelector(selectAdminMealInsights);
   const summary = useSelector(selectAdminSummary);
+  const missingMembers = useMemo(() => groupMealFollowUps(insights.missingMembers), [insights.missingMembers]);
   const { width, fontScale } = useWindowDimensions();
   const range = insights.ranges[insights.selectedRange];
   const totalMembers = summary.totalMembers;
@@ -193,14 +195,14 @@ export default function AdminMealInsightsScreen({ navigation }) {
 
       <View style={styles.sectionHeading}>
         <View><Text style={styles.sectionEyebrow}>FOLLOW-UP JOURNAL</Text><Text style={styles.sectionTitle}>Late or missing</Text></View>
-        <Text style={styles.sectionMeta}>{insights.missingMembers.length} members</Text>
+        <Text style={styles.sectionMeta}>{missingMembers.length} {missingMembers.length === 1 ? 'member' : 'members'}</Text>
       </View>
       <View style={styles.memberList}>
-        {insights.missingMembers.map((member, index) => (
+        {missingMembers.map((member, index) => (
           <FollowUpRow
             key={member.memberId}
             member={member}
-            last={index === insights.missingMembers.length - 1}
+            last={index === missingMembers.length - 1}
             onPress={() => navigation.navigate('UserDetails', { id: member.memberId })}
           />
         ))}

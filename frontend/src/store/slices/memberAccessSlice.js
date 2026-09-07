@@ -1,11 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
-  getDemoAdminMemberAccess,
-  getDemoSharedMemberToday,
-  getDemoSharedMembers,
-  replaceDemoMemberAccess,
-} from '../../data/memberAccessDemoData';
-import {
   getAdminMemberAccess,
   getSharedMemberToday,
   getSharedMembers,
@@ -15,6 +9,7 @@ import {
 const idleRequest = { status: 'idle', error: null };
 
 export const memberAccessInitialState = {
+  overviewReadId: null,
   source: null,
   overview: { totalGrants: 0, viewersWithAccess: 0, viewers: [] },
   shared: { total: 0, members: [] },
@@ -36,7 +31,7 @@ export const memberAccessInitialState = {
 const accessContext = (getState) => {
   const auth = getState().auth || {};
   return {
-    source: auth.source === 'demo' || auth.token === 'demo-token' ? 'demo' : 'api',
+    source: 'api',
     token: auth.token,
     userId: auth.user?.id,
   };
@@ -50,7 +45,6 @@ export const loadAdminMemberAccess = createAsyncThunk(
   'memberAccess/loadAdminOverview',
   async (_, { getState }) => {
     const context = accessContext(getState);
-    if (context.source === 'demo') return { source: 'demo', data: await getDemoAdminMemberAccess() };
     requireApiToken(context.token);
     return { source: 'api', data: await getAdminMemberAccess(context.token) };
   },
@@ -61,15 +55,9 @@ export const replaceMemberAccessAssignments = createAsyncThunk(
   async ({ viewerId, memberIds }, { getState }) => {
     const context = accessContext(getState);
     const normalizedMemberIds = [...new Set(memberIds.map(Number))].filter(Number.isFinite);
-    let data;
-    if (context.source === 'demo') {
-      data = await replaceDemoMemberAccess(viewerId, normalizedMemberIds);
-    } else {
-      requireApiToken(context.token);
-      await replaceAdminMemberAccess(context.token, viewerId, normalizedMemberIds);
-      data = await getAdminMemberAccess(context.token);
-    }
-    return { source: context.source, viewerId: Number(viewerId), data };
+    requireApiToken(context.token);
+    const viewer = await replaceAdminMemberAccess(context.token, viewerId, normalizedMemberIds);
+    return { source: context.source, viewerId: Number(viewerId), viewer };
   },
 );
 
@@ -78,9 +66,6 @@ export const loadSharedMembers = createAsyncThunk(
   async (_, { getState, rejectWithValue }) => {
     const context = accessContext(getState);
     try {
-      if (context.source === 'demo') {
-        return { source: 'demo', data: await getDemoSharedMembers(context.userId) };
-      }
       requireApiToken(context.token);
       return { source: 'api', data: await getSharedMembers(context.token) };
     } catch (error) {
@@ -97,9 +82,8 @@ export const loadSharedMemberToday = createAsyncThunk(
   async (memberId, { getState, rejectWithValue }) => {
     const context = accessContext(getState);
     try {
-      const data = context.source === 'demo'
-        ? await getDemoSharedMemberToday(context.userId, memberId)
-        : await (requireApiToken(context.token), getSharedMemberToday(context.token, memberId));
+      requireApiToken(context.token);
+      const data = await getSharedMemberToday(context.token, memberId);
       return { source: context.source, memberId: Number(memberId), data };
     } catch (error) {
       return rejectWithValue({
@@ -135,24 +119,36 @@ const memberAccessSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase('auth/signOut', () => memberAccessInitialState)
-      .addCase(loadAdminMemberAccess.pending, (state) => {
+      .addCase(loadAdminMemberAccess.pending, (state, action) => {
+        state.overviewReadId = action.meta.requestId;
         state.overviewRequest = { status: 'loading', error: null };
       })
       .addCase(loadAdminMemberAccess.fulfilled, (state, action) => {
+        if (state.overviewReadId !== action.meta.requestId || state.saveRequest.status === 'loading') return;
+        state.overviewReadId = null;
         state.source = action.payload.source;
         state.overview = action.payload.data;
         state.overviewRequest = { status: 'succeeded', error: null };
       })
       .addCase(loadAdminMemberAccess.rejected, (state, action) => {
+        if (state.overviewReadId !== action.meta.requestId) return;
+        state.overviewReadId = null;
         state.overviewRequest = { status: 'failed', error: errorMessage(action, 'Unable to load member access.') };
       })
       .addCase(replaceMemberAccessAssignments.pending, (state) => {
+        state.overviewReadId = null;
         state.saveRequest = { status: 'loading', error: null };
         state.lastSavedViewerId = null;
       })
       .addCase(replaceMemberAccessAssignments.fulfilled, (state, action) => {
+        state.overviewReadId = null;
         state.source = action.payload.source;
-        state.overview = action.payload.data;
+        const viewer = action.payload.viewer;
+        const index = state.overview.viewers.findIndex((row) => row.id === viewer.id);
+        if (index < 0) state.overview.viewers.push(viewer);
+        else state.overview.viewers[index] = viewer;
+        state.overview.totalGrants = state.overview.viewers.reduce((sum, row) => sum + row.assignedCount, 0);
+        state.overview.viewersWithAccess = state.overview.viewers.filter((row) => row.assignedCount > 0).length;
         state.saveRequest = { status: 'succeeded', error: null };
         state.lastSavedViewerId = action.payload.viewerId;
       })
@@ -182,9 +178,10 @@ const memberAccessSlice = createSlice({
         state.sharedTodayStatus = 'loading';
         state.sharedTodayError = null;
         state.errorStatus = null;
-        state.todayRequest = { status: 'loading', error: null, memberId: Number(action.meta.arg), revoked: false };
+        state.todayRequest = { requestId: action.meta.requestId, status: 'loading', error: null, memberId: Number(action.meta.arg), revoked: false };
       })
       .addCase(loadSharedMemberToday.fulfilled, (state, action) => {
+        if (state.todayRequest.requestId !== action.meta.requestId) return;
         state.source = action.payload.source;
         state.todayByMemberId[action.payload.memberId] = action.payload.data;
         state.sharedToday = action.payload.data;
@@ -194,6 +191,7 @@ const memberAccessSlice = createSlice({
         state.todayRequest = { status: 'succeeded', error: null, memberId: action.payload.memberId, revoked: false };
       })
       .addCase(loadSharedMemberToday.rejected, (state, action) => {
+        if (state.todayRequest.requestId !== action.meta.requestId) return;
         const payload = action.payload || {};
         const message = payload.message || action.error?.message || 'Unable to load this member.';
         state.sharedTodayStatus = 'failed';

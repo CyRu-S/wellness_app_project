@@ -1,15 +1,18 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import MealSchedule, { getMealStatus } from '../../components/meal/MealSchedule';
 import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
+import SyncFeedback from '../../components/common/SyncFeedback';
+import { postMeal } from '../../store/slices/mealSlice';
 import Screen from '../../components/common/Screen';
 import UserHeader from '../../components/user/UserHeader';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
 export default function MealsScreen({ navigation }) {
+  const dispatch = useDispatch();
   const meals = useSelector((state) => state.meals);
   const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
   const logged = meals.items.filter((meal) => meal.consumed).length;
@@ -17,12 +20,13 @@ export default function MealsScreen({ navigation }) {
   return (
     <Screen>
       <UserHeader navigation={navigation} title="Today’s Timeline" />
+      <SyncFeedback label="Meal" pending={!!meals.pendingPost} error={meals.postError} onRetry={() => meals.failedPost && dispatch(postMeal(meals.failedPost))} />
       <StaggeredView delay={35} style={styles.head}><Text style={styles.kicker}>PERSONALISED NUTRITION</Text><Text style={styles.title}>Today’s Timeline</Text><Text style={styles.body}>Your assigned meals, times, and photo check-ins in one place.</Text></StaggeredView>
       <StaggeredView delay={110} style={styles.summary}>
         <PrimaryTealCardBackground />
-        <View style={styles.summaryTop}><View><Text style={styles.summaryLabel}>CURRENT PLAN</Text><Text style={styles.summaryTitle}>{meals.planName}</Text><Text style={styles.coach}>Assigned by {meals.consultant}</Text></View><Text style={styles.count}>{logged}/{meals.items.length}</Text></View>
-        <View style={styles.progress}><View style={[styles.progressFill, { width: `${(logged / meals.items.length) * 100}%` }]} /></View>
-        <View style={styles.summaryFoot}><Text style={styles.summaryMeta}>{overdue.length ? `${overdue.length} overdue check-in${overdue.length > 1 ? 's' : ''}` : 'All check-ins are on time'}</Text><Pressable onPress={() => navigation.navigate('MealCapture', { category: 'meal' })} style={styles.logButton}><Ionicons name="add" size={17} color={colors.white} /><Text style={styles.logButtonText}>Log entry</Text></Pressable></View>
+        <View style={styles.summaryTop}><View><Text style={styles.summaryLabel}>CURRENT PLAN</Text><Text style={styles.summaryTitle}>{meals.planName || 'No plan assigned yet'}</Text><Text style={styles.coach}>{meals.consultant ? `Assigned by ${meals.consultant}` : 'Your admin will create your meal schedule.'}</Text></View><Text style={styles.count}>{logged}/{meals.items.length}</Text></View>
+        <View style={styles.progress}><View style={[styles.progressFill, { width: `${meals.items.length ? (logged / meals.items.length) * 100 : 0}%` }]} /></View>
+        <View style={styles.summaryFoot}><Text style={styles.summaryMeta}>{overdue.length ? `${overdue.length} overdue check-in${overdue.length > 1 ? 's' : ''}` : meals.items.length ? 'All check-ins are on time' : 'Waiting for your plan'}</Text><Pressable disabled={!!meals.pendingPost || !meals.items.some((meal) => !meal.consumed)} onPress={() => navigation.navigate('MealCapture', { category: 'meal', targetMealId: meals.items.find((meal) => !meal.consumed)?.id })} style={styles.logButton}><Ionicons name="add" size={17} color={colors.white} /><Text style={styles.logButtonText}>Log entry</Text></Pressable></View>
       </StaggeredView>
       {overdue.length ? <StaggeredView delay={150} style={styles.alert}><Ionicons name="alert-circle-outline" size={19} color={colors.danger} /><View style={styles.alertCopy}><Text style={styles.alertTitle}>{overdue[0].type} photo is overdue</Text><Text style={styles.alertText}>Scheduled for {overdue[0].time}. Upload now or add a note.</Text></View><Pressable onPress={() => openMeal(overdue[0])}><Ionicons name="camera" size={18} color={colors.danger} /></Pressable></StaggeredView> : null}
       <StaggeredView delay={210} style={styles.schedule}><View style={styles.scheduleHead}><Text style={styles.scheduleLabel}>TODAY’S SCHEDULE</Text><Text style={styles.scheduleDate}>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</Text></View><MealSchedule items={meals.items} onLog={openMeal} /></StaggeredView>

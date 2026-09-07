@@ -3,7 +3,7 @@ import { Animated, Text } from 'react-native';
 
 export default function AnimatedNumber({ value, formatter = (number) => Math.round(number).toLocaleString(), style, suffix = '' }) {
   const previous = useRef(value);
-  const motion = useRef(new Animated.Value(value)).current;
+  const [motion] = useState(() => new Animated.Value(value));
   const [display, setDisplay] = useState(value);
 
   useEffect(() => {

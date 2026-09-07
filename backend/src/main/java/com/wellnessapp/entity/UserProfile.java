@@ -15,6 +15,7 @@ public class UserProfile {
     @Column(name = "height_cm") private Integer heightCm;
     @Column(name = "weight_kg") private Double weightKg;
     @Column(name = "waist_cm") private Double waistCm;
+    @Column private Integer age;
     @Column(name = "body_fat_percent") private Double bodyFatPercent;
     @Column(name = "last_body_metrics_updated_at") private Instant lastBodyMetricsUpdatedAt;
     @Column(name = "dietary_preferences", length = 500) private String dietaryPreferences;

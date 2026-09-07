@@ -1,8 +1,32 @@
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8080/api';
+import { Platform } from 'react-native';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'web' ? 'http://localhost:8080/api' : 'http://10.0.2.2:8080/api');
 const configuredTimeout = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS);
-const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 5000;
+const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 20000;
 
-export async function request(path, options = {}) {
+// Share simultaneous reads (focus + live sync), but never cache settled data or
+// replay a write. A write invalidates older reads for subsequent callers.
+const inFlightReads = new Map();
+let readGeneration = 0;
+
+export function request(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  const isRead = method === 'GET';
+  if (!isRead) { readGeneration += 1; inFlightReads.clear(); }
+  if (isRead && !options.signal) {
+    const key = JSON.stringify([readGeneration, path, options.headers || {}]);
+    if (inFlightReads.has(key)) return inFlightReads.get(key);
+    const promise = performRequest(path, options).finally(() => {
+      if (inFlightReads.get(key) === promise) inFlightReads.delete(key);
+    });
+    inFlightReads.set(key, promise);
+    return promise;
+  }
+  return performRequest(path, options).finally(() => {
+    if (!isRead) { readGeneration += 1; inFlightReads.clear(); }
+  });
+}
+
+async function performRequest(path, options = {}) {
   const controller = new AbortController();
   const upstreamSignal = options.signal;
   let timedOut = false;
@@ -28,7 +52,9 @@ export async function request(path, options = {}) {
       error.status = response.status;
       throw error;
     }
-    return response.status === 204 ? null : response.json();
+    if (response.status === 204) return null;
+    const body = await response.text();
+    return body ? JSON.parse(body) : null;
   } catch (error) {
     if (timedOut) throw new Error(`Request timed out after ${API_TIMEOUT_MS / 1000} seconds`);
     throw error;

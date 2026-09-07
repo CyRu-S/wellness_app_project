@@ -7,12 +7,6 @@
     "icon": "./assets/images/arjun-nutrition-logo.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/arjun-nutrition-logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#002E36"
-    },
     "android": {
       "package": "com.wellnessapp.mobile",
       "adaptiveIcon": {
@@ -28,6 +22,7 @@
       "bundler": "metro"
     },
     "plugins": [
+      ["expo-notifications", { "color": "#007077", "defaultChannel": "coach-nudges" }],
       "expo-font",
       [
         "expo-camera",
@@ -44,7 +39,13 @@
           "microphonePermission": false
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-status-bar",
+      ["expo-splash-screen", {
+        "image": "./assets/images/arjun-nutrition-logo.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#002E36"
+      }]
     ]
   }
 }

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
+import SyncFeedback from '../../components/common/SyncFeedback';
 import Screen from '../../components/common/Screen';
 import { saveProfileDetails } from '../../store/slices/profileSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
@@ -27,6 +28,7 @@ export default function HealthPreferencesScreen({ navigation }) {
   };
 
   const save = async () => {
+    if (saving) return;
     const dietaryPreferences = selected.includes('No preference') ? '' : selected.join(', ');
     try {
       await dispatch(saveProfileDetails({ token, details: { name: user?.name || profile.name, dietaryPreferences } })).unwrap();
@@ -42,6 +44,7 @@ export default function HealthPreferencesScreen({ navigation }) {
       <View style={styles.head}><Text style={styles.kicker}>NUTRITION PROFILE</Text><Text style={styles.title}>Make your plan fit you</Text><Text style={styles.body}>Select every preference that applies. Your coach can use these details when reviewing meals.</Text></View>
       <View style={styles.options}>{options.map((option) => { const active = selected.includes(option); return <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: active }} key={option} onPress={() => toggle(option)} style={({ pressed }) => [styles.option, active && styles.optionActive, pressed && styles.pressed]}><View style={[styles.check, active && styles.checkActive]}>{active ? <Ionicons name="checkmark" size={16} color={colors.white} /> : null}</View><Text style={[styles.optionText, active && styles.optionTextActive]}>{option}</Text></Pressable>; })}</View>
       <View style={styles.note}><Ionicons name="people-outline" size={20} color={colors.tealDark} /><Text style={styles.noteText}>These preferences support planning. They do not replace medical or allergy advice.</Text></View>
+      <SyncFeedback label="Preferences" pending={saving} error={profile.error} onRetry={save} />
       <Pressable accessibilityRole="button" disabled={saving} onPress={save} style={({ pressed }) => [styles.save, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.saveText}>{saving ? 'Saving…' : 'Save health preferences'}</Text><Ionicons name="checkmark" size={19} color={colors.white} /></Pressable>
     </Screen>
   );

@@ -18,6 +18,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 180)
     private String email;
     @Column(name = "password_hash", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordHash;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private Role role;
@@ -25,5 +26,6 @@ public class User {
     private Status status;
     @CreationTimestamp @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+    @Column(name = "last_seen_at") private Instant lastSeenAt;
 }
 

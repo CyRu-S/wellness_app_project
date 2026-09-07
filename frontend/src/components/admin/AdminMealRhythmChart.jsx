@@ -1,53 +1,29 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, Line, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { adminColors, adminFonts } from '../../theme/admin';
 
+import { normalizeChartData, createRhythmPaths } from '../../utils/chartData';
+
 const CHART_HEIGHT = 126;
 const TOP_GUTTER = 12;
 const BOTTOM_GUTTER = 13;
-const HORIZONTAL_GUTTER = 5;
-
-function createPaths(data, width, maxValue) {
-  if (!data.length || width <= 0) return { areaPath: '', linePath: '', points: [], peak: null };
-
-  const plotHeight = CHART_HEIGHT - TOP_GUTTER - BOTTOM_GUTTER;
-  const plotWidth = Math.max(0, width - HORIZONTAL_GUTTER * 2);
-  const step = data.length > 1 ? plotWidth / (data.length - 1) : 0;
-  const scaleMaximum = Math.max(maxValue, ...data.map((item) => item.value), 1);
-  const points = data.map((item, index) => ({
-    ...item,
-    x: HORIZONTAL_GUTTER + index * step,
-    y: TOP_GUTTER + plotHeight - (Math.max(0, Math.min(item.value, scaleMaximum)) / scaleMaximum) * plotHeight,
-  }));
-
-  let linePath = `M ${points[0].x} ${points[0].y}`;
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
-    const current = points[index];
-    const midpoint = (previous.x + current.x) / 2;
-    linePath += ` C ${midpoint} ${previous.y}, ${midpoint} ${current.y}, ${current.x} ${current.y}`;
-  }
-
-  const baseline = CHART_HEIGHT - BOTTOM_GUTTER;
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${baseline} L ${points[0].x} ${baseline} Z`;
-  const peak = points.reduce((highest, point) => (point.value > highest.value ? point : highest), points[0]);
-  return { areaPath, linePath, points, peak };
-}
 
 export default function AdminMealRhythmChart({
-  data,
+  data: rawData,
   label,
   accessible = true,
   maxValue = 100,
   valueUnit = 'percent',
   valueSuffix = '%',
 }) {
+  const data = useMemo(() => normalizeChartData(rawData), [rawData]);
+  const gradientId = useId().replace(/[^a-zA-Z0-9]/g, '');
   const reduceMotion = useReducedMotion();
-  const reveal = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const [reveal] = useState(() => new Animated.Value(reduceMotion ? 1 : 0));
   const [width, setWidth] = useState(0);
-  const chart = useMemo(() => createPaths(data, width, maxValue), [data, maxValue, width]);
+  const chart = useMemo(() => createRhythmPaths(data, width, maxValue), [data, maxValue, width]);
   const summary = data.map((item) => `${item.label}: ${item.value} ${valueUnit}`).join(', ');
 
   useEffect(() => {
@@ -58,6 +34,8 @@ export default function AdminMealRhythmChart({
       useNativeDriver: true,
     }).start();
   }, [data, reduceMotion, reveal]);
+
+  if (!data.length) return <View style={styles.empty}><Text style={styles.label}>No meal logs yet. Your chart will appear here.</Text></View>;
 
   return (
     <View
@@ -80,11 +58,11 @@ export default function AdminMealRhythmChart({
           <>
             <Svg width={width} height={CHART_HEIGHT} importantForAccessibility="no-hide-descendants">
               <Defs>
-                <SvgGradient id="mealRhythmFill" x1="0" y1="0" x2="0" y2="1">
+                <SvgGradient id={`mealRhythmFill${gradientId}`} x1="0" y1="0" x2="0" y2="1">
                   <Stop offset="0" stopColor={adminColors.teal} stopOpacity="0.28" />
                   <Stop offset="1" stopColor={adminColors.teal} stopOpacity="0.015" />
                 </SvgGradient>
-                <SvgGradient id="mealRhythmStroke" x1="0" y1="0" x2="1" y2="0">
+                <SvgGradient id={`mealRhythmStroke${gradientId}`} x1="0" y1="0" x2="1" y2="0">
                   <Stop offset="0" stopColor={adminColors.deepTeal} />
                   <Stop offset="1" stopColor="#19AFB0" />
                 </SvgGradient>
@@ -101,8 +79,8 @@ export default function AdminMealRhythmChart({
                   strokeDasharray="3 6"
                 />
               ))}
-              <Path d={chart.areaPath} fill="url(#mealRhythmFill)" />
-              <Path d={chart.linePath} fill="none" stroke="url(#mealRhythmStroke)" strokeWidth="4" strokeLinecap="round" />
+              <Path d={chart.areaPath} fill={`url(#mealRhythmFill${gradientId})`} />
+              <Path d={chart.linePath} fill="none" stroke={`url(#mealRhythmStroke${gradientId})`} strokeWidth="4" strokeLinecap="round" />
               {chart.points.map((point, index) => (
                 <Circle
                   key={`${point.label}-${index}`}
@@ -140,6 +118,7 @@ export default function AdminMealRhythmChart({
 }
 
 const styles = StyleSheet.create({
+  empty: { minHeight: CHART_HEIGHT + 27, justifyContent: 'center', alignItems: 'center', padding: 16 },
   wrap: { minHeight: CHART_HEIGHT + 27 },
   plot: { height: CHART_HEIGHT, marginHorizontal: 3 },
   peakBubble: { position: 'absolute', minWidth: 44, height: 27, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.deepTeal },

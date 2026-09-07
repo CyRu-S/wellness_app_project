@@ -130,7 +130,7 @@ class MemberAccessApiIntegrationTests {
                         .with(request -> { request.setMethod("PUT"); return request; })
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.profileImageUrl").value("/api/profile/photo"));
+                .andExpect(jsonPath("$.profileImageUrl").value(org.hamcrest.Matchers.startsWith("/api/profile/photo?v=")));
 
         mvc.perform(get("/api/profile/photo")
                         .header("Authorization", "Bearer " + userToken))

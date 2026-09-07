@@ -1,101 +1,64 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { getProfile, updateBodyMetrics as updateBodyMetricsApi, updateProfileDetails, uploadProfilePhoto } from '../../services/api/profileApi';
-import { setDemoProfilePhoto } from '../../services/storage/profilePhotoStorage';
 
 export const BODY_UPDATE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const initialProfileState = {
-  name: '',
-  email: '',
-  goal: null,
-  dietaryPreferences: '',
-  profileImageUrl: null,
-  profileImageVersion: null,
-  bodyMetrics: { heightCm: 174, weightKg: 72.4, waistCm: 84, bodyFatPercent: 19.2 },
-  lastBodyMetricsUpdatedAt: null,
-  status: 'idle',
-  error: null,
+  name: '', email: '', goal: null, dietaryPreferences: '', profileImageUrl: null, profileImageVersion: null,
+  bodyMetrics: { heightCm: null, weightKg: null, age: null, bodyFatPercent: null },
+  lastBodyMetricsUpdatedAt: null, status: 'idle', error: null, readId: null, writes: {},
 };
-
-export const loadProfile = createAsyncThunk('profile/load', async (token, { getState }) => {
-  if (getState().auth?.source === 'demo') return null;
-  return getProfile(token);
+export const loadProfile = createAsyncThunk('profile/load', (token) => getProfile(token), {
+  condition: (_, { getState }) => !getState().profile.readId && !Object.keys(getState().profile.writes).length,
 });
+const available = (kind) => ({ condition: (_, { getState }) => !getState().profile.writes[kind] });
+export const saveBodyMetrics = createAsyncThunk('profile/saveBodyMetrics', ({ token, metrics }) => updateBodyMetricsApi(token, metrics), available('metrics'));
+export const saveProfileDetails = createAsyncThunk('profile/saveDetails', ({ token, details }) => updateProfileDetails(token, details), available('details'));
+export const saveProfilePhoto = createAsyncThunk('profile/savePhoto', async ({ token, photo }) => ({
+  ...await uploadProfilePhoto(token, photo), profileImageVersion: Date.now(),
+}), available('photo'));
 
-export const saveBodyMetrics = createAsyncThunk('profile/saveBodyMetrics', async ({ token, metrics }, { getState }) => {
-  if (getState().auth?.source === 'demo') {
-    return { ...metrics, lastBodyMetricsUpdatedAt: new Date().toISOString(), source: 'demo' };
-  }
-  return updateBodyMetricsApi(token, metrics);
+function begin(state, action, kind, values) {
+  state.readId = null; state.status = 'saving'; state.error = null;
+  state.writes[kind] = { id: action.meta.requestId, previous: Object.fromEntries(Object.keys(values).map((key) => [key, state[key]])) };
+  Object.assign(state, values);
+}
+function finish(state, action, kind, values) {
+  const operation = state.writes[kind];
+  if (operation?.id !== action.meta.requestId) return;
+  Object.assign(state, values || operation.previous);
+  delete state.writes[kind]; state.readId = null;
+  if (!values) state.error = action.error.message || 'Could not save. Please retry.';
+  state.status = Object.keys(state.writes).length ? 'saving' : state.error ? 'error' : 'saved';
+}
+const metricsFrom = (payload) => Object.fromEntries(['heightCm', 'weightKg', 'age', 'bodyFatPercent'].map((key) => [key, payload[key] ?? null]));
+const detailsFrom = (payload) => ({ name: payload.name, dietaryPreferences: payload.dietaryPreferences ?? '' });
+
+const slice = createSlice({
+  name: 'profile', initialState: initialProfileState, reducers: {},
+  extraReducers: (builder) => builder
+    .addCase(loadProfile.pending, (state, action) => { state.readId = action.meta.requestId; if (!state.email) state.status = 'loading'; })
+    .addCase(loadProfile.fulfilled, (state, action) => {
+      if (state.readId !== action.meta.requestId) return;
+      state.readId = null;
+      if (!action.payload) return;
+      const payload = action.payload;
+      Object.assign(state, detailsFrom(payload), { email: payload.email, goal: payload.goal, profileImageUrl: payload.profileImageUrl || null,
+        lastBodyMetricsUpdatedAt: payload.lastBodyMetricsUpdatedAt || null, status: 'idle' });
+      const metrics = metricsFrom(payload);
+      if (Object.entries(metrics).some(([key, value]) => state.bodyMetrics[key] !== value)) state.bodyMetrics = metrics;
+    })
+    .addCase(loadProfile.rejected, (state, action) => {
+      if (state.readId !== action.meta.requestId) return;
+      state.readId = null; state.status = 'error'; state.error = action.error.message;
+    })
+    .addCase(saveBodyMetrics.pending, (state, action) => begin(state, action, 'metrics', { bodyMetrics: action.meta.arg.metrics }))
+    .addCase(saveBodyMetrics.fulfilled, (state, action) => finish(state, action, 'metrics', { bodyMetrics: metricsFrom(action.payload), lastBodyMetricsUpdatedAt: action.payload.lastBodyMetricsUpdatedAt }))
+    .addCase(saveBodyMetrics.rejected, (state, action) => finish(state, action, 'metrics'))
+    .addCase(saveProfileDetails.pending, (state, action) => begin(state, action, 'details', detailsFrom(action.meta.arg.details)))
+    .addCase(saveProfileDetails.fulfilled, (state, action) => finish(state, action, 'details', detailsFrom(action.payload)))
+    .addCase(saveProfileDetails.rejected, (state, action) => finish(state, action, 'details'))
+    .addCase(saveProfilePhoto.pending, (state, action) => begin(state, action, 'photo', { profileImageUrl: action.meta.arg.photo.uri, profileImageVersion: null }))
+    .addCase(saveProfilePhoto.fulfilled, (state, action) => finish(state, action, 'photo', { profileImageUrl: action.payload.profileImageUrl, profileImageVersion: action.payload.profileImageVersion }))
+    .addCase(saveProfilePhoto.rejected, (state, action) => finish(state, action, 'photo')),
 });
-
-export const saveProfileDetails = createAsyncThunk('profile/saveDetails', async ({ token, details }, { getState }) => {
-  if (getState().auth?.source === 'demo') return { ...getState().profile, ...details, source: 'demo' };
-  return updateProfileDetails(token, details);
-});
-
-export const saveProfilePhoto = createAsyncThunk('profile/savePhoto', async ({ token, photo }, { getState }) => {
-  const auth = getState().auth;
-  if (auth?.source === 'demo') {
-    const profileImageUrl = await setDemoProfilePhoto(auth.user, photo.persistentUri || photo.uri);
-    return { profileImageUrl, profileImageVersion: Date.now(), source: 'demo', userId: auth.user?.id, email: auth.user?.email };
-  }
-  const response = await uploadProfilePhoto(token, photo);
-  return { ...response, profileImageVersion: Date.now(), userId: auth.user?.id, email: auth.user?.email };
-});
-
-const profileSlice = createSlice({
-  name: 'profile',
-  initialState: initialProfileState,
-  reducers: {},
-  extraReducers: (builder) => {
-    builder
-      .addCase('auth/signOut', () => initialProfileState)
-      .addCase(loadProfile.pending, (state) => { state.status = 'loading'; state.error = null; })
-      .addCase(loadProfile.fulfilled, (state, action) => {
-        state.status = 'idle';
-        if (!action.payload) return;
-        const { name, email, goal, dietaryPreferences, heightCm, weightKg, waistCm, bodyFatPercent, lastBodyMetricsUpdatedAt, profileImageUrl } = action.payload;
-        state.name = name ?? state.name;
-        state.email = email ?? state.email;
-        state.goal = goal ?? state.goal;
-        state.dietaryPreferences = dietaryPreferences ?? '';
-        state.bodyMetrics = {
-          heightCm: heightCm ?? state.bodyMetrics.heightCm,
-          weightKg: weightKg ?? state.bodyMetrics.weightKg,
-          waistCm: waistCm ?? state.bodyMetrics.waistCm,
-          bodyFatPercent: bodyFatPercent ?? state.bodyMetrics.bodyFatPercent,
-        };
-        state.lastBodyMetricsUpdatedAt = lastBodyMetricsUpdatedAt || null;
-        state.profileImageUrl = profileImageUrl || null;
-      })
-      .addCase(loadProfile.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not load body details'; })
-      .addCase(saveBodyMetrics.pending, (state) => { state.status = 'saving'; state.error = null; })
-      .addCase(saveBodyMetrics.fulfilled, (state, action) => {
-        const { heightCm, weightKg, waistCm, bodyFatPercent, lastBodyMetricsUpdatedAt } = action.payload;
-        state.bodyMetrics = { heightCm, weightKg, waistCm, bodyFatPercent };
-        state.lastBodyMetricsUpdatedAt = lastBodyMetricsUpdatedAt;
-        state.status = 'saved';
-      })
-      .addCase(saveBodyMetrics.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not update body details'; });
-    builder
-      .addCase(saveProfileDetails.pending, (state) => { state.status = 'saving'; state.error = null; })
-      .addCase(saveProfileDetails.fulfilled, (state, action) => {
-        state.name = action.payload.name ?? state.name;
-        state.email = action.payload.email ?? state.email;
-        state.goal = action.payload.goal ?? state.goal;
-        state.dietaryPreferences = action.payload.dietaryPreferences ?? '';
-        state.status = 'saved';
-      })
-      .addCase(saveProfileDetails.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not update profile'; });
-    builder
-      .addCase(saveProfilePhoto.pending, (state) => { state.status = 'saving'; state.error = null; })
-      .addCase(saveProfilePhoto.fulfilled, (state, action) => {
-        state.profileImageUrl = action.payload.profileImageUrl;
-        state.profileImageVersion = action.payload.profileImageVersion || Date.now();
-        state.status = 'saved';
-      })
-      .addCase(saveProfilePhoto.rejected, (state, action) => { state.status = 'error'; state.error = action.error.message || 'Could not update profile photo'; });
-  },
-});
-
-export default profileSlice.reducer;
+export default slice.reducer;

@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
+import SyncFeedback from '../../components/common/SyncFeedback';
 import Screen from '../../components/common/Screen';
 import { BODY_UPDATE_INTERVAL_MS, loadProfile, saveBodyMetrics } from '../../store/slices/profileSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
@@ -20,25 +21,36 @@ export default function BodyDetailsScreen({ navigation }) {
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
   const profile = useSelector((state) => state.profile);
-  const [values, setValues] = useState(() => Object.fromEntries(Object.entries(profile.bodyMetrics).map(([key, value]) => [key, String(value)])));
+  const [values, setValues] = useState(() => Object.fromEntries(Object.entries(profile.bodyMetrics).map(([key, value]) => [key, value == null ? '' : String(value)])));
+  const [dirty, setDirty] = useState(false);
   const lastUpdated = profile.lastBodyMetricsUpdatedAt ? new Date(profile.lastBodyMetricsUpdatedAt) : null;
   const nextUpdate = lastUpdated ? new Date(lastUpdated.getTime() + BODY_UPDATE_INTERVAL_MS) : null;
-  const locked = !!nextUpdate && Date.now() < nextUpdate.getTime();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+  const locked = !!nextUpdate && now < nextUpdate.getTime();
   const loading = profile.status === 'loading';
   const saving = profile.status === 'saving';
 
   useEffect(() => { dispatch(loadProfile(token)); }, [dispatch, token]);
   useEffect(() => {
-    setValues(Object.fromEntries(Object.entries(profile.bodyMetrics).map(([key, value]) => [key, String(value)])));
-  }, [profile.bodyMetrics]);
+    if (dirty) return;
+    // Refresh the editable draft when server-confirmed measurements change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setValues(Object.fromEntries(Object.entries(profile.bodyMetrics).map(([key, value]) => [key, value == null ? '' : String(value)])));
+  }, [profile.bodyMetrics, dirty]);
 
-  const change = (key) => (value) => setValues((current) => ({ ...current, [key]: value }));
+  const change = (key) => (value) => { setDirty(true); setValues((current) => ({ ...current, [key]: value })); };
   const submit = async () => {
-    const metrics = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, Number(value)]));
-    const valid = metrics.heightCm >= 100 && metrics.heightCm <= 250 && metrics.weightKg >= 25 && metrics.weightKg <= 350 && metrics.waistCm >= 40 && metrics.waistCm <= 250 && metrics.bodyFatPercent >= 3 && metrics.bodyFatPercent <= 70;
+    if (saving || locked) return;
+    const metrics = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value.trim() === '' ? null : Number(value)]));
+    const valid = metrics.heightCm >= 100 && metrics.heightCm <= 250 && metrics.weightKg >= 25 && metrics.weightKg <= 350 && Number.isInteger(metrics.age) && metrics.age >= 1 && metrics.age <= 120 && (metrics.bodyFatPercent == null || (metrics.bodyFatPercent >= 3 && metrics.bodyFatPercent <= 70));
     if (!valid) { Alert.alert('Check your measurements', 'Enter realistic values in every field before saving.'); return; }
     try {
       await dispatch(saveBodyMetrics({ token, metrics })).unwrap();
+      setDirty(false);
       Alert.alert('Body details updated', 'Your next update will be available in seven days.');
     } catch (error) {
       Alert.alert('Update unavailable', error.message || 'Please try again later.');
@@ -47,6 +59,7 @@ export default function BodyDetailsScreen({ navigation }) {
 
   return (
     <Screen>
+      <SyncFeedback label="Measurements" pending={saving} error={profile.error} onRetry={submit} />
       <View style={styles.nav}><Pressable accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><Ionicons name="arrow-back" size={19} color={colors.ink} /></Pressable><Text style={styles.navTitle}>Personal details</Text><View style={styles.navSpace} /></View>
       <StaggeredView delay={40} style={styles.head}><Text style={styles.kicker}>BODY MEASUREMENTS</Text><Text style={styles.title}>Your weekly check-in</Text><Text style={styles.body}>Measurements can be updated once every seven days so progress stays consistent.</Text></StaggeredView>
 
@@ -56,10 +69,10 @@ export default function BodyDetailsScreen({ navigation }) {
       </StaggeredView>
 
       <StaggeredView delay={185} style={styles.form}>
-        <MetricField label="HEIGHT" unit="cm" value={values.heightCm} onChangeText={change('heightCm')} editable={!locked && !loading} />
-        <MetricField label="WEIGHT" unit="kg" value={values.weightKg} onChangeText={change('weightKg')} editable={!locked && !loading} />
-        <MetricField label="WAIST" unit="cm" value={values.waistCm} onChangeText={change('waistCm')} editable={!locked && !loading} />
-        <MetricField label="BODY FAT" unit="%" value={values.bodyFatPercent} onChangeText={change('bodyFatPercent')} editable={!locked && !loading} />
+        <MetricField label="HEIGHT" unit="cm" value={values.heightCm} onChangeText={change('heightCm')} editable={!locked && !loading && !saving} />
+        <MetricField label="WEIGHT" unit="kg" value={values.weightKg} onChangeText={change('weightKg')} editable={!locked && !loading && !saving} />
+        <MetricField label="AGE" unit="years" value={values.age} onChangeText={change('age')} editable={!locked && !loading && !saving} />
+        <MetricField label="BODY FAT" unit="%" value={values.bodyFatPercent} onChangeText={change('bodyFatPercent')} editable={!locked && !loading && !saving} />
       </StaggeredView>
 
       <Pressable disabled={locked || loading || saving} onPress={submit} style={({ pressed }) => [styles.save, (locked || loading || saving) && styles.saveDisabled, pressed && styles.pressed]}><Text style={styles.saveText}>{loading ? 'Checking availability…' : saving ? 'Saving…' : locked ? 'Locked until next week' : 'Save weekly update'}</Text><Ionicons name={locked ? 'lock-closed' : 'checkmark'} size={18} color={colors.white} /></Pressable>

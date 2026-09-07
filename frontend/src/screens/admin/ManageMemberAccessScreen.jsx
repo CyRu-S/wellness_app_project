@@ -86,6 +86,8 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
   useEffect(() => {
     if (!viewer || initializedViewerId === viewer.id) return;
     const ids = viewer.assignedMembers.map((member) => member.id);
+    // Initialize this member's editable selection once after the request completes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIds(ids);
     setBaselineIds(ids);
     setInitializedViewerId(viewer.id);

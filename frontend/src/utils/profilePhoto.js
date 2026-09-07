@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { API_URL } from '../services/api/client';
+import { preparePhotoUpload } from './preparePhotoUpload';
 
 const imageMimeType = (asset) => {
   if (asset?.mimeType) return asset.mimeType;
@@ -16,10 +17,11 @@ export async function chooseProfilePhoto() {
     allowsEditing: Platform.OS !== 'web',
     aspect: [1, 1],
     quality: 0.68,
-    base64: Platform.OS !== 'web',
+    base64: false,
   });
   const asset = result.canceled ? null : result.assets?.[0];
   if (!asset?.uri) return null;
+  if (Platform.OS !== 'web') return preparePhotoUpload(asset, 640);
   const mimeType = imageMimeType(asset);
   return {
     uri: asset.uri,
@@ -62,10 +64,10 @@ export function profileImageSource(value, token, version) {
   if (!value) return null;
   if (typeof value !== 'string') return value;
   let uri = value;
-  if (!/^(https?:|file:|data:|blob:)/i.test(value)) {
+  if (!/^(https?:|file:|content:|ph:|assets-library:|data:|blob:)/i.test(value)) {
     const origin = API_URL.replace(/\/api\/?$/, '');
     uri = value.startsWith('/api/') ? `${origin}${value}` : `${API_URL.replace(/\/$/, '')}/${value.replace(/^\//, '')}`;
   }
-  if (version && /^https?:/i.test(uri)) uri += `${uri.includes('?') ? '&' : '?'}v=${version}`;
-  return { uri, ...(token && /^https?:/i.test(uri) ? { headers: { Authorization: `Bearer ${token}` } } : {}) };
+  if (version && /^https?:/i.test(uri)) uri += `${uri.includes('?') ? '&' : '?'}photoVersion=${encodeURIComponent(version)}`;
+  return { uri, ...(token && uri.startsWith(`${API_URL.replace(/\/api\/?$/, '')}/api/`) ? { headers: { Authorization: `Bearer ${token}` } } : {}) };
 }

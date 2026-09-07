@@ -16,7 +16,6 @@ import {
   loadAdminMemberAccess,
   selectMemberAccessOverview,
   selectMemberAccessOverviewRequest,
-  selectMemberAccessSource,
 } from '../../store/slices/memberAccessSlice';
 import {
   adminColors,
@@ -118,7 +117,6 @@ export default function AdminMemberAccessScreen({ navigation }) {
   const dispatch = useDispatch();
   const overview = useSelector(selectMemberAccessOverview);
   const request = useSelector(selectMemberAccessOverviewRequest);
-  const source = useSelector(selectMemberAccessSource);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -155,7 +153,6 @@ export default function AdminMemberAccessScreen({ navigation }) {
               <Ionicons name="key-outline" size={17} color="#C9F3EB" />
               <Text style={styles.heroLabel}>ACCESS MAP</Text>
             </View>
-            {source === 'demo' ? <View style={styles.demoPill}><Text style={styles.demoText}>TEST DATA</Text></View> : null}
           </View>
           <Text style={styles.heroStatement}>A clear circle of care.</Text>
           <Text style={styles.heroCopy}>Members only see the people you place in their shared space.</Text>
@@ -240,8 +237,6 @@ const styles = StyleSheet.create({
   heroTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heroLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   heroLabel: { color: '#C9ECE8', fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 17, letterSpacing: 1.15 },
-  demoPill: { minHeight: 30, justifyContent: 'center', paddingHorizontal: 11, borderRadius: adminRadius.pill, backgroundColor: 'rgba(255,255,255,0.12)' },
-  demoText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 10, letterSpacing: 0.8 },
   heroStatement: { maxWidth: 250, color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 28, lineHeight: 34, letterSpacing: -0.8, marginTop: 25 },
   heroCopy: { maxWidth: 280, color: '#CFEAE7', fontFamily: adminFonts.regular, fontSize: 14, lineHeight: 21, marginTop: 7 },
   heroMetrics: { flex: 1, minHeight: 66, flexDirection: 'row', alignItems: 'flex-end', gap: 16, paddingTop: 18, marginTop: 18, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.18)' },

@@ -13,5 +13,6 @@ public class NotificationEvent {
     @Column(nullable = false, length = 500) private String body;
     @Column(name = "read_flag", nullable = false) private boolean read;
     @Column(name = "scheduled_at", nullable = false) private Instant scheduledAt;
+    @Column(name = "source_key", unique = true, length = 100) private String sourceKey;
 }
 

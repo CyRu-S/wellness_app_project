@@ -1,11 +1,18 @@
 frontend/node_modules/
 frontend/.expo/
 frontend/dist/
+frontend/dist-*/
 backend/target/
 .idea/
 .vscode/
 *.iml
 *.log
 .env
+**/application-local.properties
+backend/data/
+backend/backups/
+frontend/.env.local
+frontend/google-services.json
+**/*service-account*.json
 .DS_Store
 

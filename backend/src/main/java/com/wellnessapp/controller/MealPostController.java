@@ -23,6 +23,7 @@ public class MealPostController {
     private final MealPostService mealPosts;
     private final ObjectMapper objectMapper;
     private final Validator validator;
+    @GetMapping java.util.List<MealPostResponse> history(Authentication authentication) { return mealPosts.history(authentication.getName()); }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)

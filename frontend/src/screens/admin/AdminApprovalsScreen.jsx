@@ -9,7 +9,7 @@ import {
   approveRequest,
   declineRequest,
   selectAdminApprovals,
-  undoApprovalDecision,
+  clearApprovalNotice,
 } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 
@@ -71,18 +71,18 @@ export default function AdminApprovalsScreen({ navigation }) {
   const [expandedId, setExpandedId] = useState(requests[0]?.id ?? null);
   const oldestRequest = requests[requests.length - 1]?.requestedAt || 'None waiting';
 
-  const approve = (request) => {
-    dispatch(approveRequest(request.id));
-    setExpandedId(null);
+  const approve = async (request) => {
+    try { await dispatch(approveRequest(request.id)).unwrap(); setExpandedId(null); }
+    catch (error) { Alert.alert('Approval failed', error.message); }
   };
 
   const decline = (request) => {
     Alert.alert(
       `Decline ${request.name}?`,
-      'They will not be added to the club. You can undo this immediately afterwards.',
+      'They will not be added to the club. They will remain unable to sign in.',
       [
         { text: 'Keep request', style: 'cancel' },
-        { text: 'Decline', style: 'destructive', onPress: () => { dispatch(declineRequest(request.id)); setExpandedId(null); } },
+        { text: 'Decline', style: 'destructive', onPress: async () => { try { await dispatch(declineRequest(request.id)).unwrap(); setExpandedId(null); } catch (error) { Alert.alert('Decline failed', error.message); } } },
       ],
     );
   };
@@ -113,7 +113,7 @@ export default function AdminApprovalsScreen({ navigation }) {
             </View>
           </View>
           <View style={styles.heroFooter}>
-            <View style={styles.heroMetric}><Text style={styles.heroMetricValue}>24 min</Text><Text style={styles.heroMetricLabel}>average response</Text></View>
+            <View style={styles.heroMetric}><Text style={styles.heroMetricValue}>—</Text><Text style={styles.heroMetricLabel}>average response</Text></View>
             <View style={styles.heroDivider} />
             <View style={styles.heroMetric}><Text style={styles.heroMetricValue}>{oldestRequest}</Text><Text style={styles.heroMetricLabel}>oldest request</Text></View>
           </View>
@@ -129,7 +129,7 @@ export default function AdminApprovalsScreen({ navigation }) {
             <Text style={styles.noticeTitle}>{lastDecision.request.name}</Text>
             <Text style={styles.noticeText}>Request {lastDecision.decision}.</Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={() => dispatch(undoApprovalDecision())} style={styles.undoButton}><Text style={styles.undoText}>Undo</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => dispatch(clearApprovalNotice())} style={styles.undoButton}><Text style={styles.undoText}>Dismiss</Text></Pressable>
         </View>
       ) : null}
 

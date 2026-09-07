@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Image from '../../components/common/ProtectedImage';
+import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
+import SyncFeedback from '../../components/common/SyncFeedback';
 import Screen from '../../components/common/Screen';
 import ProfilePhotoCropper from '../../components/user/ProfilePhotoCropper';
-import { updateProfile } from '../../store/slices/authSlice';
 import { saveProfileDetails, saveProfilePhoto } from '../../store/slices/profileSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import { chooseProfilePhoto, profileImageSource } from '../../utils/profilePhoto';
@@ -15,6 +16,7 @@ export default function EditProfileScreen({ navigation }) {
   const token = useSelector((state) => state.auth.token);
   const profile = useSelector((state) => state.profile);
   const [name, setName] = useState(user?.name || profile.name || '');
+  const [nameDirty, setNameDirty] = useState(false);
   const [photo, setPhoto] = useState(null);
   const [cropCandidate, setCropCandidate] = useState(null);
   const [error, setError] = useState('');
@@ -23,7 +25,9 @@ export default function EditProfileScreen({ navigation }) {
   const currentPhoto = photo?.persistentUri || photo?.uri || profile.profileImageUrl || user?.profileImageUrl;
   const currentPhotoSource = profileImageSource(currentPhoto, token, profile.profileImageVersion);
 
-  useEffect(() => { setName(user?.name || profile.name || ''); }, [profile.name, user?.name]);
+  // Sync the draft after the profile first loads or a save updates the account name.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (!nameDirty) setName(user?.name || profile.name || ''); }, [profile.name, user?.name, nameDirty]);
 
   const selectPhoto = async () => {
     try {
@@ -37,13 +41,18 @@ export default function EditProfileScreen({ navigation }) {
 
   const save = async () => {
     const nextName = name.trim();
+    if (saving) return;
     if (nextName.length < 2) { setError('Enter at least 2 characters.'); return; }
     if (nextName.length > 120) { setError('Keep your profile name under 120 characters.'); return; }
     setSaveError('');
     try {
-      const photoResult = photo ? await dispatch(saveProfilePhoto({ token, photo })).unwrap() : null;
-      const result = await dispatch(saveProfileDetails({ token, details: { name: nextName, dietaryPreferences: profile.dietaryPreferences || '' } })).unwrap();
-      dispatch(updateProfile({ name: result.name || nextName, ...(photoResult?.profileImageUrl ? { profileImageUrl: photoResult.profileImageUrl } : {}) }));
+      // Upload and save independent fields together, without waiting for a poll.
+      const results = await Promise.allSettled([
+        ...(photo ? [dispatch(saveProfilePhoto({ token, photo })).unwrap()] : []),
+        dispatch(saveProfileDetails({ token, details: { name: nextName, dietaryPreferences: profile.dietaryPreferences || '' } })).unwrap(),
+      ]);
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure) throw failure.reason;
       navigation.goBack();
     } catch (saveFailure) {
       const message = saveFailure.message || 'Please try again.';
@@ -56,7 +65,7 @@ export default function EditProfileScreen({ navigation }) {
     <Screen contentStyle={styles.content}>
       <View style={styles.nav}><Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><Ionicons name="arrow-back" size={20} color={colors.ink} /></Pressable><Text style={styles.navTitle}>Edit profile</Text><View style={styles.navSpace} /></View>
       <View style={styles.head}><Text style={styles.kicker}>PROFILE NAME</Text><Text style={styles.title}>What should we call you?</Text><Text style={styles.body}>This name appears across your dashboard and is visible to your assigned coach.</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={currentPhoto ? 'Change profile photo' : 'Add profile photo'} onPress={selectPhoto} style={({ pressed }) => [styles.photoEditor, pressed && styles.pressed]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={currentPhoto ? 'Change profile photo' : 'Add profile photo'} disabled={saving} onPress={selectPhoto} style={({ pressed }) => [styles.photoEditor, pressed && styles.pressed]}>
         <View style={styles.avatar}>
           {currentPhotoSource ? <Image source={currentPhotoSource} resizeMode="cover" style={styles.avatarImage} /> : <Text style={styles.avatarInitial}>{(name || 'M')[0].toUpperCase()}</Text>}
           <View style={styles.camera}><Ionicons name="camera" size={17} color={colors.white} /></View>
@@ -66,11 +75,11 @@ export default function EditProfileScreen({ navigation }) {
       </Pressable>
       <View style={styles.form}>
         <Text style={styles.label}>FULL NAME</Text>
-        <View style={[styles.inputWrap, error && styles.inputError]}><Ionicons name="person-outline" size={20} color={error ? colors.danger : colors.tealMid} /><TextInput autoFocus accessibilityLabel="Full name" value={name} onChangeText={(value) => { setName(value); setError(''); }} autoCapitalize="words" autoCorrect={false} maxLength={120} returnKeyType="done" onSubmitEditing={save} style={styles.input} /></View>
+        <View style={[styles.inputWrap, error && styles.inputError]}><Ionicons name="person-outline" size={20} color={error ? colors.danger : colors.tealMid} /><TextInput autoFocus accessibilityLabel="Full name" editable={!saving} value={name} onChangeText={(value) => { setNameDirty(true); setName(value); setError(''); }} autoCapitalize="words" autoCorrect={false} maxLength={120} returnKeyType="done" onSubmitEditing={save} style={styles.input} /></View>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <View style={styles.readOnly}><Ionicons name="mail-outline" size={19} color={colors.tealMid} /><View><Text style={styles.readOnlyLabel}>EMAIL</Text><Text style={styles.readOnlyValue}>{user?.email}</Text></View></View>
       </View>
-      {saveError ? <Text accessibilityRole="alert" style={styles.saveError}>{saveError}</Text> : null}
+      <SyncFeedback label="Profile" pending={saving} error={saveError} onRetry={save} />
       <Pressable accessibilityRole="button" disabled={saving} onPress={save} style={({ pressed }) => [styles.save, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.saveText}>{saving ? 'Saving…' : 'Save profile'}</Text><Ionicons name="checkmark" size={19} color={colors.white} /></Pressable>
       <ProfilePhotoCropper photo={cropCandidate} onCancel={() => setCropCandidate(null)} onConfirm={(cropped) => { setPhoto(cropped); setCropCandidate(null); setSaveError(''); }} />
     </Screen>

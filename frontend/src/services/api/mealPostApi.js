@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { appendImage } from './imageUpload';
 import { request } from './client';
 
 const imageDetails = (uri) => {
@@ -13,12 +13,7 @@ export async function createMealPost(token, { imageUri, ...metadata }) {
   const image = imageDetails(imageUri);
   form.append('metadata', JSON.stringify(metadata));
 
-  if (Platform.OS === 'web') {
-    const imageResponse = await fetch(imageUri);
-    form.append('image', await imageResponse.blob(), image.name);
-  } else {
-    form.append('image', { uri: imageUri, ...image });
-  }
+  await appendImage(form, { uri: imageUri, fileName: image.name });
 
   return request('/meal-posts', {
     method: 'POST',

@@ -13,5 +13,6 @@ public class MissedEvent {
     @Column(name = "item_title", nullable = false, length = 160) private String itemTitle;
     @Column(name = "missed_at", nullable = false) private Instant missedAt;
     @Column(nullable = false) private boolean resolved;
+    @Column(name = "source_key", unique = true, length = 100) private String sourceKey;
 }
 

@@ -21,7 +21,7 @@ public record AdminMemberJournalResponse(
             String dietaryPreferences,
             Integer heightCm,
             Double weightKg,
-            Double waistCm,
+            Integer age,
             Double bodyFatPercent,
             Double bmi,
             Instant lastBodyMetricsUpdatedAt,

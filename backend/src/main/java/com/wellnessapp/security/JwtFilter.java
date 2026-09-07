@@ -21,11 +21,15 @@ public class JwtFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
             if (tokens.isValid(token) && SecurityContextHolder.getContext().getAuthentication() == null) {
+                try {
                 UserDetails details = userDetailsService.loadUserByUsername(tokens.username(token));
                 if (details.isEnabled() && details.isAccountNonLocked() && details.isAccountNonExpired()) {
                     var auth = new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities());
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
+                }
+                } catch (org.springframework.security.core.userdetails.UsernameNotFoundException ignored) {
+                    SecurityContextHolder.clearContext();
                 }
             }
         }

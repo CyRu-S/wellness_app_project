@@ -25,6 +25,7 @@ public class MemberAccessService {
     private final ActivitySessionRepository activities;
     private final Clock clock;
     private final ZoneId applicationZoneId;
+    private final PlanService plans;
 
     @Transactional(readOnly = true)
     public AdminMemberAccessResponse adminOverview() {
@@ -67,7 +68,7 @@ public class MemberAccessService {
         return viewerResponse(viewer, saved.stream().sorted(Comparator.comparing(item -> item.getSubject().getFullName())).toList());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public SharedMembersResponse sharedMembers(String viewerEmail) {
         User viewer = user(viewerEmail, "Account not found");
         if (!isEligible(viewer)) return new SharedMembersResponse(0, List.of());
@@ -81,7 +82,7 @@ public class MemberAccessService {
         return new SharedMembersResponse(members.size(), members);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public SharedMemberTodayResponse sharedMemberToday(String viewerEmail, Long memberId) {
         User viewer = user(viewerEmail, "Shared member not found");
         User subject = users.findById(memberId)
@@ -94,7 +95,7 @@ public class MemberAccessService {
         return buildToday(subject);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public SharedMemberTodayResponse adminMemberToday(Long memberId) {
         User subject = users.findById(memberId)
                 .filter(user -> user.getRole() == User.Role.USER)
@@ -104,15 +105,16 @@ public class MemberAccessService {
 
     public boolean canReadMember(User viewer, Long subjectId) {
         if (viewer.getStatus() != User.Status.ACTIVE) return false;
-        User subject = users.findById(subjectId).filter(this::isEligible).orElse(null);
+        User subject = users.findById(subjectId).filter(u -> u.getRole() == User.Role.USER).orElse(null);
         if (subject == null) return false;
         if (viewer.getRole() == User.Role.ADMIN) return true;
-        if (!isEligible(viewer)) return false;
+        if (!isEligible(viewer) || !isEligible(subject)) return false;
         return Objects.equals(viewer.getId(), subjectId)
                 || grants.existsByViewerIdAndSubjectId(viewer.getId(), subjectId);
     }
 
     private SharedMemberTodayResponse buildToday(User subject) {
+        plans.ensureDailyMeals(subject.getId());
         LocalDate date = LocalDate.now(clock.withZone(applicationZoneId));
         Instant start = date.atStartOfDay(applicationZoneId).toInstant();
         Instant end = date.plusDays(1).atStartOfDay(applicationZoneId).toInstant();

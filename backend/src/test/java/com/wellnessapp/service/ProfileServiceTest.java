@@ -41,7 +41,7 @@ class ProfileServiceTest {
         when(profiles.findByUserId(7L)).thenReturn(Optional.of(profile));
         when(clock.instant()).thenReturn(now);
 
-        BodyMetricsRequest request = new BodyMetricsRequest(174, 72.4, 84.0, 19.2);
+        BodyMetricsRequest request = new BodyMetricsRequest(174, 72.4, 28, 19.2);
 
         assertThrows(ConflictException.class, () -> service.updateBodyMetrics("member@example.com", request));
         verify(profiles, never()).save(any());

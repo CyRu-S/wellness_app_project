@@ -53,6 +53,8 @@ export default function AdminProfileScreen({ navigation }) {
   const [errors, setErrors] = useState({});
   const [saved, setSaved] = useState(false);
 
+  // Only refresh the form from the account while it is not being edited.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!editing) setForm(makeForm(admin)); }, [admin, editing]);
 
   const setField = (key, value) => {
