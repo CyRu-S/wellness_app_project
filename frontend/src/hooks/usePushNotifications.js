@@ -14,14 +14,15 @@ export default function usePushNotifications(navigationRef) {
   const pendingTap = useRef(null);
   const seenTap = useRef(null);
   const flushTap = useCallback(() => {
-    if (role === 'USER' && pendingTap.current && navigationRef.isReady()) {
+    if (['USER', 'ADMIN'].includes(role) && pendingTap.current && navigationRef.isReady()) {
       pendingTap.current = null;
-      navigationRef.navigate('Today', { screen: 'Notifications' });
+      if (role === 'ADMIN') navigationRef.navigate('AdminNotifications');
+      else navigationRef.navigate('Today', { screen: 'Notifications' });
     }
   }, [navigationRef, role]);
 
   useEffect(() => {
-    if (!token || role !== 'USER' || !userId) return undefined;
+    if (!token || !['USER', 'ADMIN'].includes(role) || !userId) return undefined;
     const s = beginPushSession(token, userId);
     activeSession.current = s;
     let stopped = false;

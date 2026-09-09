@@ -25,7 +25,7 @@ export default function useLiveSync() {
       try {
         const slowRefresh = force || Date.now() - lastSlowRefresh >= 30000;
         const actions = role === 'ADMIN'
-          ? [loadAdminMembers(), ...(slowRefresh ? [loadAdminMemberAccess()] : [])]
+          ? [loadAdminMembers(), loadNotifications(), ...(slowRefresh ? [loadAdminMemberAccess(), loadNotificationPreferences()] : [])]
           : [refreshDashboard(), loadMeals(), loadActivities(), loadNotifications(), ...(slowRefresh ? [loadPlan(), loadSharedMembers(), loadNotificationPreferences()] : [])];
         if (slowRefresh) { actions.push(loadProfile(token)); lastSlowRefresh = Date.now(); }
         await Promise.all(actions.map((action) => dispatch(action)));

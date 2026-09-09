@@ -17,12 +17,15 @@ public class PushQueueService {
     public boolean allowed(Long userId, PushDelivery.Kind kind) {
         return preferences.findById(userId).map(p -> switch (kind) {
             case MEAL -> p.isMealReminders(); case NUDGE -> p.isCoachNudges(); case TEST -> true;
-        }).orElse(true);
+            case SIGNUP -> p.isSignupAlerts(); case DEADLINE -> p.isDeadlineAlerts(); case DIGEST -> p.isDailyDigest();
+            case MEAL_POST, ACTIVITY -> p.isMemberUpdates(); case PLAN, ACCESS, APPROVAL -> p.isAccountUpdates();
+        }).orElse(kind != PushDelivery.Kind.DIGEST);
     }
 
     /** Called in the same transaction that creates the event; never sends over the network here. */
     @Transactional
     public void enqueue(NotificationEvent event, PushDelivery.Kind kind, Instant expiresAt) {
+        event.setKind(kind);
         if (event.getUser().getStatus() != User.Status.ACTIVE || !allowed(event.getUser().getId(), kind)) return;
         for (var device : devices.findByUserIdAndEnabledTrue(event.getUser().getId())) {
             var row = new PushDelivery();

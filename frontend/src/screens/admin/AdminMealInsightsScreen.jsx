@@ -4,10 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
 import AdminBarChart from '../../components/admin/AdminBarChart';
+import AdminMemberAvatar from '../../components/admin/AdminMemberAvatar';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl';
-import { selectAdminMealInsights, selectAdminSummary, setInsightRange } from '../../store/slices/adminSlice';
+import { selectAdminMealInsights, selectAdminMembers, selectAdminSummary, setInsightRange } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 import { groupMealFollowUps } from '../../utils/mealFollowUps';
 
@@ -16,7 +17,10 @@ const mealIcons = {
   lunch: 'restaurant-outline',
   snack: 'nutrition-outline',
   dinner: 'moon-outline',
+  'herbalife product': 'leaf-outline',
 };
+
+const mealTypeOrder = ['breakfast', 'lunch', 'snack', 'dinner', 'herbalife product'];
 
 const neutralMealGradients = {
   breakfast: ['#F1FBF9', '#D7F1EC'],
@@ -50,7 +54,7 @@ function MealCoverageCard({ meal, totalMembers, stacked }) {
   );
 }
 
-function FollowUpRow({ member, last, onPress }) {
+function FollowUpRow({ member, token, last, onPress }) {
   const urgent = member.severity === 'HIGH';
   return (
     <Pressable
@@ -59,7 +63,7 @@ function FollowUpRow({ member, last, onPress }) {
       onPress={onPress}
       style={({ pressed }) => [styles.memberRow, urgent && styles.memberRowUrgent, !last && styles.memberRowSpacing, pressed && styles.pressed]}
     >
-      <View style={styles.avatar}><Text style={styles.avatarText}>{member.initials}</Text></View>
+      <AdminMemberAvatar profileImageUrl={member.profileImageUrl} token={token} initials={member.initials} style={styles.avatar} imageStyle={styles.avatarImage} textStyle={styles.avatarText} />
       <View style={styles.memberCopy}>
         <View style={styles.memberTopline}>
           <Text numberOfLines={1} style={styles.memberName}>{member.name}</Text>
@@ -75,8 +79,18 @@ function FollowUpRow({ member, last, onPress }) {
 export default function AdminMealInsightsScreen({ navigation }) {
   const dispatch = useDispatch();
   const insights = useSelector(selectAdminMealInsights);
+  const members = useSelector(selectAdminMembers);
   const summary = useSelector(selectAdminSummary);
-  const missingMembers = useMemo(() => groupMealFollowUps(insights.missingMembers), [insights.missingMembers]);
+  const token = useSelector((state) => state.auth.token);
+  const missingMembers = useMemo(() => groupMealFollowUps(insights.missingMembers).map((item) => ({
+    ...item,
+    profileImageUrl: members.find((member) => String(member.id) === String(item.memberId))?.profileImageUrl,
+  })), [insights.missingMembers, members]);
+  const mealTypes = useMemo(() => [...insights.mealTypes].sort((left, right) => {
+    const leftIndex = mealTypeOrder.indexOf(String(left.id).toLowerCase());
+    const rightIndex = mealTypeOrder.indexOf(String(right.id).toLowerCase());
+    return (leftIndex < 0 ? mealTypeOrder.length : leftIndex) - (rightIndex < 0 ? mealTypeOrder.length : rightIndex);
+  }), [insights.mealTypes]);
   const { width, fontScale } = useWindowDimensions();
   const range = insights.ranges[insights.selectedRange];
   const totalMembers = summary.totalMembers;
@@ -188,7 +202,7 @@ export default function AdminMealInsightsScreen({ navigation }) {
         <Text style={styles.sectionMeta}>members</Text>
       </View>
       <View style={styles.mealTypes}>
-        {insights.mealTypes.map((meal) => (
+        {mealTypes.map((meal) => (
           <MealCoverageCard key={meal.id} meal={meal} totalMembers={totalMembers} stacked={stackedCoverage} />
         ))}
       </View>
@@ -202,6 +216,7 @@ export default function AdminMealInsightsScreen({ navigation }) {
           <FollowUpRow
             key={member.memberId}
             member={member}
+            token={token}
             last={index === missingMembers.length - 1}
             onPress={() => navigation.navigate('UserDetails', { id: member.memberId })}
           />
@@ -273,6 +288,7 @@ const styles = StyleSheet.create({
   memberRowUrgent: { backgroundColor: '#FFF9F7', borderColor: '#F2D6D1' },
   memberRowSpacing: { marginBottom: 10 },
   avatar: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  avatarImage: { borderRadius: 16 },
   avatarText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 12 },
   memberCopy: { flex: 1, minWidth: 0, paddingHorizontal: 10 },
   memberTopline: { flexDirection: 'row', alignItems: 'center', gap: 7 },

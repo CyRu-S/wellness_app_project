@@ -16,6 +16,7 @@ public class ReminderService {
     private final MissedEventRepository missed;
     private final NotificationRepository notifications;
     private final PushQueueService push;
+    private final WorkflowNotificationService notices;
     private final PlanService plans;
     private final Clock clock;
     private final ZoneId applicationZoneId;
@@ -38,7 +39,8 @@ public class ReminderService {
                     push.enqueue(notification, PushDelivery.Kind.MEAL, due.plusSeconds(3600));
                 }
                 if (clock.instant().isAfter(due.plusSeconds(3600)) && missed.findBySourceKey(key).isEmpty()) {
-                    missed.save(MissedEvent.builder().user(user).sourceKey(key).itemType("Meals").itemTitle(meal.getType() + " check-in is overdue").missedAt(due).build());
+                    var attention = missed.save(MissedEvent.builder().user(user).sourceKey(key).itemType("Meals").itemTitle(meal.getType() + " check-in is overdue").missedAt(due).build());
+                    notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "A member may need support", user.getFullName() + " has an overdue meal check-in. Open Attention to review it.");
                 }
             }
         }

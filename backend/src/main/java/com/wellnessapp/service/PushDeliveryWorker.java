@@ -15,6 +15,7 @@ public class PushDeliveryWorker {
     private final PushDeliveryRepository deliveries;
     private final MealRepository meals;
     private final MissedEventRepository missed;
+    private final UserRepository users;
     private final PushQueueService queue;
     private final ExpoPushClient expo;
     private final Clock clock;
@@ -36,6 +37,14 @@ public class PushDeliveryWorker {
                 return key != null && key.startsWith("nudge-") && missed.findById(Long.parseLong(key.substring(6)))
                         .map(m -> !m.isResolved()).orElse(false);
             }
+            if (d.getKind() == PushDelivery.Kind.SIGNUP) {
+                return key != null && key.startsWith("signup-") && users.findById(Long.parseLong(key.split("-")[1]))
+                        .map(u -> u.getStatus() == User.Status.PENDING).orElse(false);
+            }
+            if (d.getKind() == PushDelivery.Kind.DEADLINE) {
+                return key != null && key.startsWith("deadline-") && missed.findById(Long.parseLong(key.split("-")[1]))
+                        .map(m -> !m.isResolved()).orElse(false);
+            }
         } catch (NumberFormatException ignored) { return false; }
         return true;
     }
@@ -46,6 +55,11 @@ public class PushDeliveryWorker {
                     case MEAL -> "Your meal check-in is coming up. Open your timeline for details.";
                     case NUDGE -> "You have a reminder from your coach. Open Mr_Care to view it.";
                     case TEST -> "Phone notifications are connected.";
+                    case SIGNUP -> "A new membership request is ready to review.";
+                    case DEADLINE -> "A member may need support. Open Attention to review.";
+                    case DIGEST -> "Your morning club summary is ready.";
+                    case MEAL_POST, ACTIVITY -> "A member has a new check-in. Open your admin inbox.";
+                    case PLAN, ACCESS, APPROVAL -> "Your account has an update from your coach. Open Mr_Care to review.";
                 }, "sound", "default", "channelId", d.getKind() == PushDelivery.Kind.MEAL ? "meal-reminders" : "coach-nudges",
                 "ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()),
                 "data", Map.of("notificationId", d.getNotification().getId().toString(), "userId", d.getNotification().getUser().getId().toString(),

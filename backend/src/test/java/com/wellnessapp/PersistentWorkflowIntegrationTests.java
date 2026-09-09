@@ -31,6 +31,7 @@ class PersistentWorkflowIntegrationTests {
     @Autowired UserProfileRepository profiles;
     @Autowired MealRepository meals;
     @Autowired MealPostRepository posts;
+    @Autowired NotificationRepository notifications;
     @Autowired JwtTokenProvider tokens;
     @Autowired PlanService plans;
     @Autowired ReminderService reminders;
@@ -111,6 +112,8 @@ class PersistentWorkflowIntegrationTests {
         var metadata = new MockMultipartFile("metadata", "", "text/plain", json.writeValueAsBytes(Map.of("plannedMealId", meal.getId(), "mealType", "Breakfast", "mealName", "Oats and fruit", "calories", 450, "proteinGrams", 25, "carbsGrams", 60, "fatGrams", 12, "clientRequestId", "test-post")));
         for (int i = 0; i < 2; i++) mvc.perform(multipart("/api/meal-posts").file(metadata).file(new MockMultipartFile("image", "meal.png", "image/png", png)).header("Authorization", token(user))).andExpect(status().isCreated());
         assertThat(posts.count()).isEqualTo(1);
+        assertThat(notifications.findAll().stream().filter(n -> n.getKind() == PushDelivery.Kind.MEAL_POST).toList())
+                .hasSize(1).allMatch(n -> n.getUser().getRole() == User.Role.ADMIN);
         mvc.perform(post("/api/water").header("Authorization", token(user)).contentType(MediaType.APPLICATION_JSON).content("{\"amountMl\":250}")).andExpect(status().isCreated());
         mvc.perform(post("/api/activities").header("Authorization", token(user)).contentType(MediaType.APPLICATION_JSON).content("{\"activity\":\"Walk\",\"durationSeconds\":120}"))
                 .andExpect(status().isCreated());

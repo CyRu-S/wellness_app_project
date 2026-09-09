@@ -19,6 +19,7 @@ public class PlanService {
     private final MealItemRepository ingredients;
     private final Clock clock;
     private final ZoneId applicationZoneId;
+    private final WorkflowNotificationService notices;
 
     @Transactional
     public PlanResponse today(String email) {
@@ -61,6 +62,7 @@ public class PlanService {
                     .ingredients(String.join("\n", item.ingredients() == null ? List.of() : item.ingredients())).sortOrder(order++).build());
         }
         ensureDailyMeals(memberId);
+        notices.notify(user, PushDelivery.Kind.PLAN, "plan-" + plan.getId(), "Your meal plan was updated", "Your coach has assigned an updated meal plan. Open your daily plan to review it.");
         return memberPlan(memberId);
     }
 

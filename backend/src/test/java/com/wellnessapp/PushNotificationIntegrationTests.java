@@ -38,6 +38,12 @@ class PushNotificationIntegrationTests {
     @Autowired PushQueueService queue;
     @Autowired PushDeliveryWorker worker;
     @Autowired ReminderService reminders;
+    @Autowired WorkflowNotificationService notices;
+    @Autowired AuthService authentication;
+    @Autowired PlanService plans;
+    @Autowired ActivityService activity;
+    @Autowired MemberAccessService access;
+    @Autowired AdminWorkspaceService workspace;
     @Autowired JwtTokenProvider tokens;
     @MockitoBean ExpoPushClient expo;
     @MockitoBean Clock clock;
@@ -55,7 +61,14 @@ class PushNotificationIntegrationTests {
         when(clock.instant()).thenReturn(now);
         doAnswer(a -> Clock.fixed(now, a.getArgument(0))).when(clock).withZone(any());
     }
-    String auth(User user) { return "Bearer " + tokens.generate(user.getEmail(), "ROLE_USER"); }
+    String auth(User user) { return "Bearer " + tokens.generate(user.getEmail(), "ROLE_" + user.getRole().name()); }
+    User admin() {
+        return users.saveAndFlush(User.builder().email("push-admin@example.com").fullName("Push Admin").passwordHash("unused")
+                .role(User.Role.ADMIN).status(User.Status.ACTIVE).build());
+    }
+    long count(PushDelivery.Kind kind, User user) {
+        return events.findAll().stream().filter(e -> e.getKind() == kind && e.getUser().getId().equals(user.getId())).count();
+    }
     PushDelivery queuedTest() {
         accounts.register(member.getEmail(), pushToken, registration);
         var event = events.save(NotificationEvent.builder().user(member).title("Test").body("Private detail").scheduledAt(now).build());
@@ -149,5 +162,83 @@ class PushNotificationIntegrationTests {
         mvc.perform(post("/api/notifications/test").header("Authorization", auth(member))).andExpect(status().isAccepted());
         mvc.perform(post("/api/notifications/test").header("Authorization", auth(member))).andExpect(status().isTooManyRequests());
         assertThat(deliveries.count()).isEqualTo(1);
+    }
+    @Test void adminCanRegisterTestAndPersistAllPreferences() throws Exception {
+        var admin = admin();
+        mvc.perform(put("/api/notifications/devices").header("Authorization", auth(admin)).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("token", pushToken, "registrationId", registration)))).andExpect(status().isNoContent());
+        mvc.perform(put("/api/notifications/preferences").header("Authorization", auth(admin)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"mealReminders\":true,\"coachNudges\":true,\"signupAlerts\":false,\"deadlineAlerts\":false,\"dailyDigest\":true,\"memberUpdates\":false,\"accountUpdates\":false}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/notifications/preferences").header("Authorization", auth(admin)))
+                .andExpect(jsonPath("$.signupAlerts").value(false)).andExpect(jsonPath("$.deadlineAlerts").value(false))
+                .andExpect(jsonPath("$.dailyDigest").value(true)).andExpect(jsonPath("$.memberUpdates").value(false));
+        mvc.perform(post("/api/notifications/test").header("Authorization", auth(admin))).andExpect(status().isAccepted());
+        assertThat(deliveries.findAll()).allMatch(d -> d.getNotification().getUser().getId().equals(admin.getId()));
+    }
+    @Test void registrationNotifiesAdminAndApprovalCancelsStalePush() {
+        var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
+        authentication.register(new com.wellnessapp.dto.auth.RegisterRequest("Applicant", "applicant@example.com", "test-password", 25, 170, 65.0, "", ""));
+        var applicant = users.findByEmailIgnoreCase("applicant@example.com").orElseThrow();
+        assertThat(applicant.getStatus()).isEqualTo(User.Status.PENDING);
+        assertThat(count(PushDelivery.Kind.SIGNUP, admin)).isEqualTo(1);
+        workspace.decide(applicant.getId(), "APPROVE");
+        assertThat(count(PushDelivery.Kind.APPROVAL, applicant)).isEqualTo(1);
+        worker.sendPending();
+        assertThat(deliveries.findAll()).hasSize(1).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
+        verifyNoInteractions(expo);
+    }
+    @Test void overdueMealNotifiesAdminOnceAndResolutionCancelsDelivery() {
+        var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
+        var meal = meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
+                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
+        reminders.refresh(); reminders.refresh();
+        assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isEqualTo(1);
+        meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); worker.sendPending();
+        assertThat(deliveries.findAll()).hasSize(1).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
+        verifyNoInteractions(expo);
+    }
+    @Test void dailyDigestIsOptInAndOnlyOnceInTheMorningWindow() {
+        var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
+        advance(1800); notices.morningDigest(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isZero();
+        accounts.savePreferences(admin.getEmail(), true, true, true, true, true, true, true);
+        notices.morningDigest(); notices.morningDigest(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(1);
+        advance(3600); notices.morningDigest(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(1);
+        advance(23 * 3600); notices.morningDigest(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(2);
+    }
+    @Test void planAccessAndMovementCreateRecipientScopedNotices() {
+        var admin = admin(); accounts.register(member.getEmail(), pushToken, registration);
+        plans.save(member.getId(), new com.wellnessapp.dto.plan.SaveMealPlanRequest("Test plan", List.of(
+                new com.wellnessapp.dto.plan.SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 300, 10, List.of("Oats")))));
+        assertThat(count(PushDelivery.Kind.PLAN, member)).isEqualTo(1);
+        var subject = users.saveAndFlush(User.builder().email("shared@example.com").fullName("Shared").passwordHash("unused")
+                .role(User.Role.USER).status(User.Status.ACTIVE).build());
+        var grant = new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of(subject.getId()));
+        access.replaceAssignments(admin.getEmail(), member.getId(), grant);
+        access.replaceAssignments(admin.getEmail(), member.getId(), grant);
+        assertThat(count(PushDelivery.Kind.ACCESS, member)).isEqualTo(1);
+        access.replaceAssignments(admin.getEmail(), member.getId(), new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of()));
+        assertThat(count(PushDelivery.Kind.ACCESS, member)).isEqualTo(2);
+        activity.create(member.getEmail(), new com.wellnessapp.dto.activity.ActivityRequest("walk", 600, null));
+        assertThat(count(PushDelivery.Kind.ACTIVITY, admin)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.ACTIVITY, member)).isZero();
+    }
+    @Test void mutedCategoriesKeepInboxHistoryWithoutQueuingPush() {
+        var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
+        accounts.savePreferences(admin.getEmail(), true, true, false, false, false, false, true);
+        for (var kind : List.of(PushDelivery.Kind.SIGNUP, PushDelivery.Kind.DEADLINE, PushDelivery.Kind.ACTIVITY, PushDelivery.Kind.MEAL_POST)) {
+            notices.admins(kind, "muted-" + kind, "Test", "Details");
+            assertThat(count(kind, admin)).isEqualTo(1);
+        }
+        assertThat(deliveries.count()).isZero();
+    }
+    @Test void inboxAndReadEndpointCannotAccessAnotherAccountsNotifications() throws Exception {
+        var admin = admin(); notices.notify(admin, PushDelivery.Kind.TEST, "owner", "Admin only", "Private inbox detail");
+        var event = events.findAll().stream().filter(e -> e.getUser().getId().equals(admin.getId())).findFirst().orElseThrow();
+        mvc.perform(get("/api/notifications").header("Authorization", auth(member))).andExpect(content().json("[]"));
+        mvc.perform(patch("/api/notifications/" + event.getId() + "/read").header("Authorization", auth(member))).andExpect(status().isNotFound());
+        assertThat(event.isRead()).isFalse();
+        mvc.perform(patch("/api/notifications/" + event.getId() + "/read").header("Authorization", auth(admin))).andExpect(status().isNoContent());
+        assertThat(event.isRead()).isTrue();
     }
 }

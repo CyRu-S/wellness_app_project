@@ -1,18 +1,23 @@
 import React from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { loadNotificationPreferences, retryPushRegistration, saveNotificationPreferences, sendTestNotification } from '../../store/slices/notificationSlice';
+import { loadNotificationPreferences, notificationPreferences, retryPushRegistration, saveNotificationPreferences, sendTestNotification } from '../../store/slices/notificationSlice';
 import SyncFeedback from '../common/SyncFeedback';
 import { colors, fonts, radius } from '../../theme';
 
 export default function NotificationSettings() {
   const dispatch = useDispatch();
   const n = useSelector((state) => state.notifications);
-  const save = (key, value) => dispatch(saveNotificationPreferences({ mealReminders: n.timelineRemindersEnabled, coachNudges: n.coachNudgesEnabled, [key]: value }));
+  const admin = useSelector((state) => state.auth.user?.role === 'ADMIN');
+  const save = (key, value) => dispatch(saveNotificationPreferences({ ...notificationPreferences(n), [key]: value }));
+  const options = admin ? [['signupAlerts', 'Signup requests', n.signupAlerts], ['deadlineAlerts', 'Missed deadlines', n.deadlineAlerts],
+    ['dailyDigest', 'Morning digest (8 AM)', n.dailyDigest], ['memberUpdates', 'Meal & movement check-ins', n.memberUpdates]]
+    : [['mealReminders', 'Meal reminders', n.timelineRemindersEnabled], ['coachNudges', 'Admin / coach nudges', n.coachNudgesEnabled],
+      ['accountUpdates', 'Plan, access & account updates', n.accountUpdates]];
   const retry = () => dispatch(n.failedPreferences ? saveNotificationPreferences(n.failedPreferences) : loadNotificationPreferences());
   return <View style={styles.card}>
     <Text style={styles.title}>Reminders & notifications</Text>
-    {[['mealReminders', 'Meal reminders', n.timelineRemindersEnabled], ['coachNudges', 'Admin / coach nudges', n.coachNudgesEnabled]].map(([key, label, value]) =>
+    {options.map(([key, label, value]) =>
       <View key={key} style={styles.row}><Text style={styles.label}>{label}</Text><Switch accessibilityLabel={label} value={value}
         disabled={!n.preferencesLoaded || n.savingPreferences} onValueChange={(next) => save(key, next)}
         trackColor={{ false: colors.line, true: colors.accent }} thumbColor={colors.white} /></View>)}

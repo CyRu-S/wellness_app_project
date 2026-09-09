@@ -73,7 +73,6 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.quickStat}><Text style={styles.quickValue}>{dashboard.streak}</Text><Text style={styles.quickLabel}>DAY STREAK</Text></View>
       </StaggeredView>
 
-      {dashboard.lastMeal ? <StaggeredView delay={40} style={styles.success}><View style={styles.successIcon}><Ionicons name="checkmark" size={17} color={colors.white} /></View><View style={styles.successCopy}><Text style={styles.successTitle}>{dashboard.lastMeal.name} added</Text><Text style={styles.successMeta}>+{dashboard.lastMeal.nutrition?.calories} kcal · Dashboard updated now</Text></View><Ionicons name="sparkles-outline" size={18} color={colors.tealMid} /></StaggeredView> : null}
       {overdue.length ? <StaggeredView delay={210} style={styles.alert}><Ionicons name="alert-circle" size={20} color={colors.danger} /><View style={styles.alertCopy}><Text style={styles.alertTitle}>{overdue.length} timeline check-in{overdue.length > 1 ? 's' : ''} overdue</Text><Text style={styles.alertMeta}>Open Log when you are ready to add the photo.</Text></View></StaggeredView> : null}
 
       <StaggeredView delay={240} style={styles.section}>

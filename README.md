@@ -36,7 +36,7 @@ npx expo start --go --clear
 
 Use an SDK 57-compatible Expo Go client from [expo.dev/go](https://expo.dev/go). Stop any SDK 54 Metro server before starting the upgraded project. The migration follows [Expo's SDK upgrade guide](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/). Native photo uploads use Expo File objects for compatibility with the new fetch implementation.
 
-Web defaults to `http://localhost:8080/api`; Android emulators use `http://10.0.2.2:8080/api`. On a physical phone, set `EXPO_PUBLIC_API_URL` to the computer's LAN address (see `frontend/.env.example`). Both devices must be on the same network and port 8080 must be reachable. Restart Expo after changing environment settings.
+Web defaults to `http://localhost:8080/api`; Android emulators use `http://10.0.2.2:8080/api`. Use `EXPO_PUBLIC_WEB_API_URL` and `EXPO_PUBLIC_MOBILE_API_URL` when web and a physical phone need different addresses; the mobile value must use the computer's LAN address (see `frontend/.env.example`). `EXPO_PUBLIC_API_URL` remains the shared fallback. Both devices must be on the same network and port 8080 must be reachable. Restart Expo after changing environment settings.
 
 ## Persisted workflows
 

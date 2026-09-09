@@ -364,10 +364,6 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
       Alert.alert('Check the daily plan', 'Add a plan name, meal name, and time such as 8:00 AM for every meal.');
       return;
     }
-    if (items.some((item) => !Number.isInteger(Number(item.calories)) || Number(item.calories) < 0 || !Number.isInteger(Number(item.protein)) || Number(item.protein) < 0)) {
-      Alert.alert('Check nutrition values', 'Calories and protein must be non-negative whole numbers.');
-      return;
-    }
     setSaving(true);
     try { await onSave({
       planName: planName.trim(),
@@ -424,20 +420,14 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                   })}
                 </ScrollView>
                 <TextInput
-                  accessibilityLabel={`${meal.type} meal`}
+                  accessibilityLabel={`${meal.type} description`}
                   value={meal.name}
                   onChangeText={(value) => changeItem(index, 'name', value)}
-                  placeholder={`Describe ${meal.type.toLowerCase()}`}
+                  placeholder={`${meal.type} description`}
                   placeholderTextColor={adminColors.muted}
                   multiline
                   style={styles.mealInput}
                 />
-                <Text style={styles.inputLabel}>CALORIES (KCAL)</Text>
-                <TextInput accessibilityLabel={`${meal.type} calories`} keyboardType="numeric" value={String(meal.calories ?? 0)} onChangeText={(value) => changeItem(index, 'calories', value)} style={styles.mealInput} />
-                <Text style={styles.inputLabel}>PROTEIN (GRAMS)</Text>
-                <TextInput accessibilityLabel={`${meal.type} protein grams`} keyboardType="numeric" value={String(meal.protein ?? 0)} onChangeText={(value) => changeItem(index, 'protein', value)} style={styles.mealInput} />
-                <Text style={styles.inputLabel}>INGREDIENTS (ONE PER LINE)</Text>
-                <TextInput accessibilityLabel={`${meal.type} ingredients`} multiline value={(meal.ingredients || []).join('\n')} onChangeText={(value) => changeItem(index, 'ingredients', value.split('\n'))} style={styles.mealInput} />
               </View>
             ))}
             <Pressable accessibilityRole="button" onPress={addItem} style={({ pressed }) => [styles.addMealButton, pressed && styles.pressed]}>

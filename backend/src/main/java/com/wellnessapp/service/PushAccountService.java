@@ -21,18 +21,32 @@ public class PushAccountService {
     private final Clock clock;
     @Value("${app.push.enabled:false}") private boolean enabled;
     @Value("${app.schedulers.enabled:true}") private boolean schedulersEnabled;
-    public record Preferences(boolean mealReminders, boolean coachNudges, boolean pushAvailable) {}
+    public record Preferences(boolean mealReminders, boolean coachNudges, boolean pushAvailable,
+            boolean signupAlerts, boolean deadlineAlerts, boolean dailyDigest, boolean memberUpdates, boolean accountUpdates) {}
+    private Preferences response(NotificationPreferences p) {
+        return new Preferences(p.isMealReminders(), p.isCoachNudges(), enabled && schedulersEnabled,
+                p.isSignupAlerts(), p.isDeadlineAlerts(), p.isDailyDigest(), p.isMemberUpdates(), p.isAccountUpdates());
+    }
 
     private User user(String email) { return users.findByEmailIgnoreCase(email).orElseThrow(); }
     @Transactional(readOnly = true) public Preferences preferences(String email) {
-        return preferences.findById(user(email).getId()).map(p -> new Preferences(p.isMealReminders(), p.isCoachNudges(), enabled && schedulersEnabled))
-                .orElse(new Preferences(true, true, enabled && schedulersEnabled));
+        return response(preferences.findById(user(email).getId()).orElseGet(NotificationPreferences::new));
     }
     @Transactional public Preferences savePreferences(String email, boolean meals, boolean nudges) {
+        return savePreferences(email, meals, nudges, null, null, null, null, null);
+    }
+    @Transactional public Preferences savePreferences(String email, boolean meals, boolean nudges,
+            Boolean signup, Boolean deadline, Boolean digest, Boolean updates, Boolean account) {
         var user = user(email); users.lockById(user.getId()).orElseThrow();
         var row = preferences.findById(user.getId()).orElseGet(() -> { var p = new NotificationPreferences(); p.setUser(user); return p; });
-        row.setMealReminders(meals); row.setCoachNudges(nudges); preferences.save(row);
-        return new Preferences(meals, nudges, enabled && schedulersEnabled);
+        row.setMealReminders(meals); row.setCoachNudges(nudges);
+        if (signup != null) row.setSignupAlerts(signup);
+        if (deadline != null) row.setDeadlineAlerts(deadline);
+        if (digest != null) row.setDailyDigest(digest);
+        if (updates != null) row.setMemberUpdates(updates);
+        if (account != null) row.setAccountUpdates(account);
+        preferences.save(row);
+        return response(row);
     }
     @Transactional public void register(String email, String token, String registrationId) {
         var user = user(email); users.lockById(user.getId()).orElseThrow();

@@ -20,6 +20,17 @@ test('Expo Go explains the development build requirement and never calls push re
   assert.equal(result.status, 'unsupported'); assert.match(result.message, /development build/);
   assert.equal(await push.notificationModule(), null);
 });
+test('Android channels use the system sound without passing a custom filename or silencing them', async () => {
+  const channels = [];
+  const push = createPush({ native: { setNotificationChannelAsync: async (id, options) => {
+    channels.push(id);
+    assert.equal(Object.hasOwn(options, 'sound'), false);
+    assert.equal(options.importance, 4);
+  } } });
+  const result = await push.syncPushRegistration(push.beginPushSession('auth', 1));
+  assert.equal(result.status, 'enabled');
+  assert.deepEqual(channels, ['meal-reminders', 'coach-nudges']);
+});
 test('permission is requested only on explicit enable and token is bound to authenticated session', async () => {
   const requests = []; let prompts = 0;
   const push = createPush({ permission: { granted: false, canAskAgain: true },
@@ -94,4 +105,17 @@ test('meal reminders can be disabled without hiding coach nudges', () => {
     items: [{ id: 1, title: 'A reminder from your coach', scheduledAt: new Date().toISOString() }],
   } });
   assert.equal(result.length, 1); assert.equal(result[0].id, 'event-1');
+});
+
+test('the reminder timeline excludes notifications from previous days', () => {
+  const n = loadModule('../src/store/slices/notificationSlice.js', { '@reduxjs/toolkit': toolkit, '../../services/api/client': {} });
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  const result = n.selectTimelineNotifications({ meals: { items: [] }, notifications: {
+    timelineRemindersEnabled: true, coachNudgesEnabled: true,
+    items: [
+      { id: 1, title: 'A reminder from your coach', scheduledAt: yesterday.toISOString() },
+      { id: 2, title: 'A reminder from your coach', scheduledAt: new Date().toISOString() },
+    ],
+  } });
+  assert.equal(result.length, 1); assert.equal(result[0].id, 'event-2');
 });

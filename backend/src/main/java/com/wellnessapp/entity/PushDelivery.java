@@ -7,7 +7,7 @@ import java.time.Instant;
 @Entity @Table(name = "push_deliveries", uniqueConstraints = @UniqueConstraint(columnNames = {"notification_id", "device_id"}))
 @Getter @Setter @NoArgsConstructor
 public class PushDelivery {
-    public enum Kind { MEAL, NUDGE, TEST }
+    public enum Kind { MEAL, NUDGE, TEST, SIGNUP, DEADLINE, DIGEST, MEAL_POST, ACTIVITY, PLAN, ACCESS, APPROVAL }
     public enum Status { QUEUED, RECEIPT, DELIVERED, FAILED, CANCELLED }
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @ManyToOne(optional = false) @JoinColumn(name = "notification_id") private NotificationEvent notification;

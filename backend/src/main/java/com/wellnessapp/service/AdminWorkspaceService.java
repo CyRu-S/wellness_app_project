@@ -12,6 +12,7 @@ import java.util.*;
 
 @Service @RequiredArgsConstructor
 public class AdminWorkspaceService {
+    private final WorkflowNotificationService notices;
     private final UserRepository users;
     private final UserProfileRepository profiles;
     private final MealRepository meals;
@@ -119,6 +120,8 @@ public class AdminWorkspaceService {
         if (user.getStatus() != User.Status.PENDING) throw new ConflictException("This request has already been reviewed");
         user.setStatus(switch (decision) { case "APPROVE" -> User.Status.ACTIVE; case "DECLINE" -> User.Status.SUSPENDED; default -> throw new BadRequestException("Invalid decision"); });
         users.save(user);
+        if (user.getStatus() == User.Status.ACTIVE) notices.notify(user, PushDelivery.Kind.APPROVAL, "approval-" + user.getId(),
+                "Your membership is approved", "Your admin approved your registration. You can now use your member account.");
     }
     private int comparison(long current, long previous) { return previous == 0 ? 0 : (int) Math.round((current - previous) * 100.0 / previous); }
     private int streak(Long id) {

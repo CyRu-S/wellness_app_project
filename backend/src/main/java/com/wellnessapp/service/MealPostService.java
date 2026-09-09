@@ -25,6 +25,7 @@ public class MealPostService {
     private final MemberAccessService memberAccess;
     private final Clock clock;
     private final ZoneId applicationZoneId;
+    private final WorkflowNotificationService notices;
     @Transactional(readOnly = true)
     public java.util.List<MealPostResponse> history(String email) {
         var user = users.findByEmailIgnoreCase(email).orElseThrow();
@@ -81,6 +82,7 @@ public class MealPostService {
                 plannedMeal.setProteinGrams(request.proteinGrams());
                 meals.saveAndFlush(plannedMeal);
             }
+            notices.admins(PushDelivery.Kind.MEAL_POST, "meal-post-" + post.getId(), "New meal check-in", user.getFullName() + " posted a meal photo. Review it in their member profile.");
             return response(post);
         } catch (RuntimeException exception) {
             mediaStorage.deleteQuietly(stored.key());

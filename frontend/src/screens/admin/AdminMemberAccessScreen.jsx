@@ -12,6 +12,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
+import AdminMemberAvatar from '../../components/admin/AdminMemberAvatar';
+import { selectAdminMembers } from '../../store/slices/adminSlice';
 import {
   loadAdminMemberAccess,
   selectMemberAccessOverview,
@@ -38,7 +40,7 @@ const formatGrantTime = (value) => {
   return `Updated ${date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
 };
 
-function ViewerCard({ viewer, onPress }) {
+function ViewerCard({ viewer, token, onPress }) {
   const hasAccess = viewer.assignedCount > 0;
   const preview = viewer.assignedMembers.slice(0, 3);
   const remaining = Math.max(0, viewer.assignedCount - preview.length);
@@ -52,9 +54,7 @@ function ViewerCard({ viewer, onPress }) {
     >
       <View style={styles.viewerCard}>
         <View style={styles.viewerTopline}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initialsFor(viewer.name)}</Text>
-          </View>
+          <AdminMemberAvatar profileImageUrl={viewer.profileImageUrl} token={token} initials={initialsFor(viewer.name)} style={styles.avatar} imageStyle={styles.avatarImage} textStyle={styles.avatarText} />
           <View style={styles.viewerIdentity}>
             <Text numberOfLines={1} style={styles.viewerName}>{viewer.name}</Text>
             <Text style={styles.viewerMeta}>{formatGrantTime(viewer.lastGrantedAt)}</Text>
@@ -116,7 +116,9 @@ function LoadState({ request, onRetry }) {
 export default function AdminMemberAccessScreen({ navigation }) {
   const dispatch = useDispatch();
   const overview = useSelector(selectMemberAccessOverview);
+  const members = useSelector(selectAdminMembers);
   const request = useSelector(selectMemberAccessOverviewRequest);
+  const token = useSelector((state) => state.auth.token);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -125,12 +127,16 @@ export default function AdminMemberAccessScreen({ navigation }) {
 
   const visibleViewers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return overview.viewers;
-    return overview.viewers.filter((viewer) => (
+    const viewers = overview.viewers.map((viewer) => ({
+      ...viewer,
+      profileImageUrl: members.find((member) => String(member.id) === String(viewer.id))?.profileImageUrl,
+    }));
+    if (!normalized) return viewers;
+    return viewers.filter((viewer) => (
       viewer.name.toLowerCase().includes(normalized)
       || viewer.assignedMembers.some((member) => member.name.toLowerCase().includes(normalized))
     ));
-  }, [overview.viewers, query]);
+  }, [members, overview.viewers, query]);
 
   const ready = request.status === 'succeeded';
 
@@ -206,6 +212,7 @@ export default function AdminMemberAccessScreen({ navigation }) {
             <ViewerCard
               key={viewer.id}
               viewer={viewer}
+              token={token}
               onPress={() => navigation.navigate('ManageMemberAccess', { viewerId: viewer.id })}
             />
           ))}
@@ -255,6 +262,7 @@ const styles = StyleSheet.create({
   viewerCard: { overflow: 'hidden', padding: 15, borderTopLeftRadius: 22, borderTopRightRadius: 30, borderBottomRightRadius: 22, borderBottomLeftRadius: 30, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
   viewerTopline: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 48, height: 48, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  avatarImage: { borderRadius: 18 },
   avatarText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 14 },
   viewerIdentity: { flex: 1, minWidth: 0, paddingHorizontal: 11 },
   viewerName: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16, lineHeight: 21 },

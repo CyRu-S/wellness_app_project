@@ -10,4 +10,9 @@ public class NotificationPreferences {
     @OneToOne @MapsId @JoinColumn(name = "user_id") private User user;
     @Column(nullable = false) private boolean mealReminders = true;
     @Column(nullable = false) private boolean coachNudges = true;
+    @Column(nullable = false) private boolean signupAlerts = true;
+    @Column(nullable = false) private boolean deadlineAlerts = true;
+    @Column(nullable = false) private boolean dailyDigest;
+    @Column(nullable = false) private boolean memberUpdates = true;
+    @Column(nullable = false) private boolean accountUpdates = true;
 }

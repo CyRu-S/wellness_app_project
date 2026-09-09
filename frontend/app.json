@@ -22,7 +22,13 @@
       "bundler": "metro"
     },
     "plugins": [
-      ["expo-notifications", { "color": "#007077", "defaultChannel": "coach-nudges" }],
+      [
+        "expo-notifications",
+        {
+          "color": "#007077",
+          "defaultChannel": "coach-nudges"
+        }
+      ],
       "expo-font",
       [
         "expo-camera",
@@ -41,11 +47,20 @@
       ],
       "expo-web-browser",
       "expo-status-bar",
-      ["expo-splash-screen", {
-        "image": "./assets/images/arjun-nutrition-logo.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#002E36"
-      }]
-    ]
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/arjun-nutrition-logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#002E36"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "071d37f0-59b8-478e-a6e7-dc22b79abd8b"
+      }
+    },
+    "owner": "arpan2005"
   }
 }

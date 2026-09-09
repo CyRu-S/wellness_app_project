@@ -49,7 +49,9 @@ export function syncPushRegistration(s, askPermission = false, devicePushToken) 
     if (unsupported) return { status: 'unsupported', message: unsupported };
     const Notifications = await notificationModule();
     for (const [id, name] of [['meal-reminders', 'Meal reminders'], ['coach-nudges', 'Coach nudges']]) {
-      await Notifications.setNotificationChannelAsync(id, { name, importance: Notifications.AndroidImportance.HIGH, sound: 'default' });
+      // Omit sound to use Android's default. SDK 57 validates a supplied string
+      // (including 'default') as a bundled custom sound; null would make it silent.
+      await Notifications.setNotificationChannelAsync(id, { name, importance: Notifications.AndroidImportance.HIGH });
     }
     let permission = await Notifications.getPermissionsAsync();
     if (!permission.granted && askPermission && permission.canAskAgain) permission = await Notifications.requestPermissionsAsync();

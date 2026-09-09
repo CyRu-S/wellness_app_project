@@ -126,6 +126,28 @@ test('confirmed admin approval is not turned into a failure by a follow-up read'
   assert.equal(reads, 0);
 });
 
+test('attention nudges and resolves update immediately and return as actions after failure', async () => {
+  const nudge = deferred(), resolve = deferred();
+  const admin = loadModule('../src/store/slices/adminSlice.js', {
+    '@reduxjs/toolkit': toolkit, './mealSlice': { normalizeMeal: (meal) => meal },
+    '../../services/api/client': { request: (path) => path.endsWith('/nudge') ? nudge.promise : resolve.promise },
+  });
+  const initial = admin.default(undefined, { type: 'init' });
+  const alert = { id: 8, memberId: 2, status: 'OPEN', severity: 'HIGH' };
+  const store = setup({ admin }, { admin: { ...initial, attention: [alert] } });
+
+  const nudging = store.dispatch(admin.nudgeAttention(8));
+  assert.equal(store.getState().admin.attention[0].status, 'NUDGED');
+  nudge.reject(new Error('Offline')); await nudging;
+  assert.equal(store.getState().admin.attention[0].status, 'OPEN');
+
+  const resolving = store.dispatch(admin.resolveAttention(8));
+  assert.equal(store.getState().admin.attention.length, 0);
+  resolve.reject(new Error('Offline')); await resolving;
+  assert.equal(store.getState().admin.attention[0].id, alert.id);
+  assert.equal(store.getState().admin.attention[0].status, 'OPEN');
+});
+
 test('access is granted only after confirmation and uses the PUT response without a second request', async () => {
   const write = deferred();
   let reads = 0;

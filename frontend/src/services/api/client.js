@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'web' ? 'http://localhost:8080/api' : 'http://10.0.2.2:8080/api');
+const platformApiUrl = Platform.OS === 'web' ? process.env.EXPO_PUBLIC_WEB_API_URL : process.env.EXPO_PUBLIC_MOBILE_API_URL;
+export const API_URL = platformApiUrl || process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'web' ? 'http://localhost:8080/api' : 'http://10.0.2.2:8080/api');
 const configuredTimeout = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS);
 const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 20000;
 

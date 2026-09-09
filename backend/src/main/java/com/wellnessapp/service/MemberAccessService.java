@@ -26,6 +26,7 @@ public class MemberAccessService {
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final PlanService plans;
+    private final WorkflowNotificationService notices;
 
     @Transactional(readOnly = true)
     public AdminMemberAccessResponse adminOverview() {
@@ -58,13 +59,18 @@ public class MemberAccessService {
             throw new BadRequestException("Every assigned member must be an active user");
         }
 
-        grants.deleteAll(grants.findByViewerIdOrderBySubjectFullName(viewerId));
+        users.lockById(viewerId).orElseThrow();
+        var previousGrants = grants.findByViewerIdOrderBySubjectFullName(viewerId);
+        var previousIds = previousGrants.stream().map(g -> g.getSubject().getId()).collect(Collectors.toSet());
+        grants.deleteAll(previousGrants);
         grants.flush();
         List<MemberAccessGrant> replacements = memberIds.stream()
                 .map(subjects::get)
                 .map(subject -> MemberAccessGrant.builder().viewer(viewer).subject(subject).grantedBy(admin).build())
                 .toList();
         List<MemberAccessGrant> saved = replacements.isEmpty() ? List.of() : grants.saveAllAndFlush(replacements);
+        if (!previousIds.equals(memberIds)) notices.notify(viewer, PushDelivery.Kind.ACCESS, "access-" + UUID.randomUUID(),
+                "Shared access updated", "Your admin has changed your shared member access. Open Shared to review your current access.");
         return viewerResponse(viewer, saved.stream().sorted(Comparator.comparing(item -> item.getSubject().getFullName())).toList());
     }
 

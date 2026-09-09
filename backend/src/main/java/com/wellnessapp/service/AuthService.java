@@ -17,6 +17,7 @@ public class AuthService {
     private final UserRepository users; private final PasswordEncoder encoder; private final AuthenticationManager authenticationManager; private final JwtTokenProvider tokens; private final GoogleIdentityService googleIdentities;
     private final com.wellnessapp.repository.UserProfileRepository profiles;
     private final MediaStorageService mediaStorage;
+    private final WorkflowNotificationService notices;
     public AuthResponse login(LoginRequest request) {
         var authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.email().trim(), request.password()));
         User user = users.findByEmailIgnoreCase(request.email()).orElseThrow();
@@ -34,6 +35,7 @@ public class AuthService {
             profile.setPhotoContentType(stored.contentType()); profile.setPhotoSize(stored.size());
         }
         profiles.save(profile);
+        notices.admins(com.wellnessapp.entity.PushDelivery.Kind.SIGNUP, "signup-" + user.getId(), "New signup request", user.getFullName() + " has requested membership. Review the approval request.");
         return response(user, null);
     }
     @Transactional public AuthResponse google(GoogleLoginRequest request) {
@@ -45,7 +47,11 @@ public class AuthService {
                 .role(User.Role.USER)
                 .status(User.Status.PENDING)
                 .build()));
-        if (user.getStatus() == User.Status.PENDING) return response(user, null);
+        if (user.getStatus() == User.Status.PENDING) {
+            users.lockById(user.getId()).orElseThrow();
+            notices.admins(com.wellnessapp.entity.PushDelivery.Kind.SIGNUP, "signup-" + user.getId(), "New signup request", user.getFullName() + " has requested membership. Review the approval request.");
+            return response(user, null);
+        }
         if (user.getStatus() != User.Status.ACTIVE) throw new DisabledException("This account is not active");
         return response(user, tokens.generate(user.getEmail(), "ROLE_" + user.getRole().name()));
     }

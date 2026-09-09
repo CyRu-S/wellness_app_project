@@ -7,5 +7,12 @@ import java.util.List;
 @Service @RequiredArgsConstructor public class NotificationService {
     private final UserRepository users; private final NotificationRepository notifications;
     public List<NotificationEvent> list(String email) { User user = users.findByEmailIgnoreCase(email).orElseThrow(); return notifications.findTop30ByUserIdOrderByScheduledAtDesc(user.getId()); }
+    @org.springframework.transaction.annotation.Transactional
+    public void markRead(String email, Long id) {
+        var user = users.findByEmailIgnoreCase(email).orElseThrow();
+        var event = notifications.findById(id).filter(n -> n.getUser().getId().equals(user.getId()))
+                .orElseThrow(() -> new com.wellnessapp.exception.NotFoundException("Notification not found"));
+        event.setRead(true);
+    }
 }
 

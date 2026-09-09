@@ -8,6 +8,7 @@ import java.time.Instant;
 @Service @RequiredArgsConstructor public class ActivityService {
     private final UserRepository users; private final ActivitySessionRepository activities;
     private final java.time.Clock clock; private final java.time.ZoneId applicationZoneId;
+    private final WorkflowNotificationService notices;
     public record Session(Long id, String activity, int durationSeconds, int minutes, int calories, Double distanceKm, Instant startedAt) {}
     public static Session response(ActivitySession item) {
         double rate = switch (item.getActivity().toLowerCase(java.util.Locale.ROOT)) {
@@ -28,5 +29,11 @@ import java.time.Instant;
         return activities.findByUserIdAndStartedAtAfter(user.getId(), clock.instant().minus(java.time.Duration.ofDays(30)))
                 .stream().sorted(java.util.Comparator.comparing(ActivitySession::getStartedAt).reversed()).map(ActivityService::response).toList();
     }
-    public ActivitySession create(String email, ActivityRequest request) { User user = users.findByEmailIgnoreCase(email).orElseThrow(); return activities.save(ActivitySession.builder().user(user).activity(request.activity()).durationSeconds(request.durationSeconds()).distanceKm(request.distanceKm()).startedAt(clock.instant()).build()); }
+    @org.springframework.transaction.annotation.Transactional
+    public ActivitySession create(String email, ActivityRequest request) {
+        User user = users.findByEmailIgnoreCase(email).orElseThrow();
+        var activity = activities.save(ActivitySession.builder().user(user).activity(request.activity()).durationSeconds(request.durationSeconds()).distanceKm(request.distanceKm()).startedAt(clock.instant()).build());
+        notices.admins(PushDelivery.Kind.ACTIVITY, "activity-" + activity.getId(), "New movement check-in", user.getFullName() + " completed an activity. Review today's member profile.");
+        return activity;
+    }
 }

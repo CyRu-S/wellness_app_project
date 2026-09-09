@@ -19,7 +19,8 @@ const attentionAction = (name, action, method) => createAsyncThunk(name, async (
 export const nudgeAttention = attentionAction('admin/nudge', 'nudge', 'POST');
 export const resolveAttention = attentionAction('admin/resolve', 'resolve', 'PATCH');
 export const nudgePriorityAttention = createAsyncThunk('admin/nudgePriority', async (_, { getState, dispatch }) => {
-  for (const item of getState().admin.attention.filter((a) => a.severity === 'HIGH' && a.status === 'OPEN')) await dispatch(nudgeAttention(item.id)).unwrap();
+  const ids = getState().admin.attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN').map((item) => item.id);
+  await Promise.all(ids.map((id) => dispatch(nudgeAttention(id)).unwrap()));
 });
 export const updateMemberMealPlan = createAsyncThunk('admin/savePlan', async ({ memberId, planName, items }, { getState }) => {
   const body = { planName, items: items.map((item) => {
@@ -37,7 +38,7 @@ const initialState = {
   members: [], approvals: [], attention: [], memberMealPlans: {}, memberMealPostHistory: {},
   mealInsights: { selectedRange: 'TODAY', ranges: { TODAY: emptyRange, '7D': emptyRange, '30D': emptyRange }, mealTypes: [], missingMembers: [] },
   preferences: { signupAlerts: true, deadlineAlerts: true, dailyDigest: false },
-  readId: null, writes: {}, membersStatus: 'idle', membersError: null, lastApprovalDecision: null,
+  readId: null, writes: {}, attentionRollbacks: {}, membersStatus: 'idle', membersError: null, lastApprovalDecision: null,
 };
 const slice = createSlice({
   name: 'admin', initialState,
@@ -63,7 +64,36 @@ const slice = createSlice({
     .addCase(updateMemberMealPlan.fulfilled, (state, action) => {
       state.memberMealPlans[action.meta.arg.memberId] = { ...action.payload, items: action.payload.items.map(normalizeMeal) };
     })
-    .addCase(resolveAttention.fulfilled, (state, action) => { state.attention = state.attention.filter((row) => row.id !== action.meta.arg); })
+    .addCase(nudgeAttention.pending, (state, action) => {
+      const index = state.attention.findIndex((row) => row.id === action.meta.arg);
+      if (index < 0) return;
+      state.attentionRollbacks[action.meta.requestId] = { kind: 'nudge', index, item: { ...state.attention[index] } };
+      state.attention[index].status = 'NUDGED';
+    })
+    .addCase(nudgeAttention.fulfilled, (state, action) => { delete state.attentionRollbacks[action.meta.requestId]; })
+    .addCase(nudgeAttention.rejected, (state, action) => {
+      const rollback = state.attentionRollbacks[action.meta.requestId];
+      if (rollback) {
+        const index = state.attention.findIndex((row) => row.id === rollback.item.id);
+        if (index >= 0) state.attention[index] = rollback.item;
+      }
+      delete state.attentionRollbacks[action.meta.requestId];
+    })
+    .addCase(resolveAttention.pending, (state, action) => {
+      const index = state.attention.findIndex((row) => row.id === action.meta.arg);
+      if (index < 0) return;
+      state.attentionRollbacks[action.meta.requestId] = { kind: 'resolve', index, item: { ...state.attention[index] } };
+      state.attention.splice(index, 1);
+    })
+    .addCase(resolveAttention.fulfilled, (state, action) => {
+      state.attention = state.attention.filter((row) => row.id !== action.meta.arg);
+      delete state.attentionRollbacks[action.meta.requestId];
+    })
+    .addCase(resolveAttention.rejected, (state, action) => {
+      const rollback = state.attentionRollbacks[action.meta.requestId];
+      if (rollback && !state.attention.some((row) => row.id === rollback.item.id)) state.attention.splice(rollback.index, 0, rollback.item);
+      delete state.attentionRollbacks[action.meta.requestId];
+    })
     .addMatcher((action) => writes.some((write) => write.pending.match(action)), (state, action) => {
       state.writes[action.meta.requestId] = true; state.readId = null;
     })
