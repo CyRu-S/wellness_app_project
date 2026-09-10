@@ -1,6 +1,34 @@
 import { Platform } from 'react-native';
-const platformApiUrl = Platform.OS === 'web' ? process.env.EXPO_PUBLIC_WEB_API_URL : process.env.EXPO_PUBLIC_MOBILE_API_URL;
-export const API_URL = platformApiUrl || process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'web' ? 'http://localhost:8080/api' : 'http://10.0.2.2:8080/api');
+import Constants from 'expo-constants';
+
+const getExpoHost = () => {
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (!hostUri) return null;
+
+  try {
+    return new URL(hostUri.includes('://') ? hostUri : `http://${hostUri}`).hostname;
+  } catch {
+    return null;
+  }
+};
+
+const getNativeApiUrl = () => {
+  // An explicit value is still useful for production builds. During local Expo
+  // development, the Metro host follows the computer's current LAN address.
+  if (process.env.EXPO_PUBLIC_MOBILE_API_URL) return process.env.EXPO_PUBLIC_MOBILE_API_URL;
+
+  const expoHost = getExpoHost();
+  if (expoHost) {
+    const port = process.env.EXPO_PUBLIC_API_PORT || '8080';
+    return `http://${expoHost}:${port}/api`;
+  }
+
+  return process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8080/api';
+};
+
+export const API_URL = Platform.OS === 'web'
+  ? process.env.EXPO_PUBLIC_WEB_API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api'
+  : getNativeApiUrl();
 const configuredTimeout = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS);
 const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 20000;
 

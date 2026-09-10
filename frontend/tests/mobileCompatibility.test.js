@@ -70,22 +70,38 @@ test('native protected images download with authorization before rendering', asy
   assert.equal(resolved.image.uri, downloaded.destination.uri);
 });
 
-test('web and mobile can use separate reachable API addresses', () => {
+test('web can use localhost while mobile follows the current Expo LAN host', () => {
   const environment = { env: {
     EXPO_PUBLIC_API_URL: 'http://fallback:8080/api',
     EXPO_PUBLIC_WEB_API_URL: 'http://localhost:8080/api',
-    EXPO_PUBLIC_MOBILE_API_URL: 'http://192.168.1.20:8080/api',
   } };
-  const web = loadModule('../src/services/api/client.js', { 'react-native': { Platform: { OS: 'web' } } }, { process: environment });
-  const mobile = loadModule('../src/services/api/client.js', { 'react-native': { Platform: { OS: 'android' } } }, { process: environment });
+  const expoConstants = { __esModule: true, default: { expoConfig: { hostUri: '10.123.7.238:8082' } } };
+  const web = loadModule('../src/services/api/client.js', {
+    'react-native': { Platform: { OS: 'web' } }, 'expo-constants': expoConstants,
+  }, { process: environment });
+  const mobile = loadModule('../src/services/api/client.js', {
+    'react-native': { Platform: { OS: 'android' } }, 'expo-constants': expoConstants,
+  }, { process: environment });
   assert.equal(web.API_URL, 'http://localhost:8080/api');
-  assert.equal(mobile.API_URL, 'http://192.168.1.20:8080/api');
+  assert.equal(mobile.API_URL, 'http://10.123.7.238:8080/api');
+});
+
+test('an explicit mobile API URL remains available for production builds', () => {
+  const environment = { env: { EXPO_PUBLIC_MOBILE_API_URL: 'https://api.example.test/api' } };
+  const mobile = loadModule('../src/services/api/client.js', {
+    'react-native': { Platform: { OS: 'android' } },
+    'expo-constants': { __esModule: true, default: { expoConfig: { hostUri: '10.0.0.5:8081' } } },
+  }, { process: environment });
+  assert.equal(mobile.API_URL, 'https://api.example.test/api');
 });
 
 test('duplicate GETs share one fetch but never share across accounts or writes', async () => {
   const pending = deferred();
   let calls = 0;
-  const { request } = loadModule('../src/services/api/client.js', { 'react-native': { Platform: { OS: 'android' } } }, {
+  const { request } = loadModule('../src/services/api/client.js', {
+    'react-native': { Platform: { OS: 'android' } },
+    'expo-constants': { __esModule: true, default: { expoConfig: null } },
+  }, {
     fetch: () => { calls++; return pending.promise; },
   });
   const options = { headers: { Authorization: 'Bearer one' } };
