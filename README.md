@@ -55,7 +55,7 @@ Web defaults to `http://localhost:8080/api`; Android emulators use `http://10.0.
 
 Meal-image analysis needs backend `GEMINI_API_KEY` and a supported `GEMINI_MODEL`. Without configuration, the client allows manual nutrition entry; it does not invent image-analysis results.
 
-Google sign-in needs backend `GOOGLE_CLIENT_IDS` plus the matching client settings `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. These external integrations need their own configured credentials and testing.
+Google sign-in needs backend `GOOGLE_CLIENT_IDS` plus the matching client settings `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Gmail password recovery needs `SMTP_USERNAME`, `SMTP_APP_PASSWORD`, `SMTP_FROM`, and `SMTP_ENABLED=true`. Follow [the authentication setup guide](docs/authentication-setup.md) for credential placement and the end-to-end checklist.
 
 ## Verification
 
@@ -72,9 +72,11 @@ npx expo export --platform all --output-dir dist
 
 Backend tests use isolated H2 databases and test-only fixtures, never the Supabase database.
 
-`backend/scripts/smoke_test.py` checks a running API and creates uniquely named Integration Check accounts. It accepts `WELLNESS_API_URL` (default localhost:8080/api). With PostgreSQL environment variables configured, `database_admin.py inspect` reports table/account counts. `database_admin.py cleanup-verification` backs up application tables and removes only those explicitly marked test accounts, verifying other accounts and their records are unchanged. Backups are private and Git-ignored. Do not run `reset-members` against a database whose member data must be retained.
+`backend/scripts/smoke_test.py` checks a running API and creates uniquely named Integration Check accounts. It requires `WELLNESS_ADMIN_PASSWORD` and accepts `WELLNESS_ADMIN_EMAIL` plus `WELLNESS_API_URL` (default localhost:8080/api). With PostgreSQL environment variables configured, `database_admin.py inspect` reports table/account counts. `database_admin.py cleanup-verification` backs up application tables and removes only those explicitly marked test accounts, verifying other accounts and their records are unchanged. Backups are private and Git-ignored. Do not run `reset-members` against a database whose member data must be retained.
 
 See [database notes](docs/database/README.md), [API contracts](docs/api-contracts/README.md), and [workflows](docs/workflows/README.md). OpenAPI is available at `http://localhost:8080/swagger-ui.html`.
+
+For a production Railway backend, EAS Android App Bundle, and Google Play release, follow the [deployment guide](docs/deployment.md).
 
 See the [phone frontend audit](docs/frontend-mobile-audit.md) for the SDK migration fixes, verification, remaining limitations, and physical-device checklist.
 

@@ -46,6 +46,7 @@
         }
       ],
       "expo-web-browser",
+      "react-native-nitro-google-signin",
       "expo-status-bar",
       [
         "expo-splash-screen",

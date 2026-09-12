@@ -7,20 +7,19 @@ import { setAuthError, signInWithGoogle } from '../store/slices/authSlice';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const missingClientId = 'google-client-id-not-configured';
 const clientIds = {
-  androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || missingClientId,
-  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || missingClientId,
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || missingClientId,
+  androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
+  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined,
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined,
 };
 
 const isConfigured = () => {
-  if (Platform.OS === 'android') return clientIds.androidClientId !== missingClientId;
-  if (Platform.OS === 'ios') return clientIds.iosClientId !== missingClientId;
-  return clientIds.webClientId !== missingClientId;
+  if (Platform.OS === 'android') return Boolean(clientIds.androidClientId);
+  if (Platform.OS === 'ios') return Boolean(clientIds.iosClientId);
+  return Boolean(clientIds.webClientId);
 };
 
-export default function useGoogleSignIn() {
+export default function useGoogleSignIn(navigation) {
   const dispatch = useDispatch();
   const configured = isConfigured();
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
@@ -32,12 +31,16 @@ export default function useGoogleSignIn() {
     if (!response) return;
     if (response.type === 'success') {
       const idToken = response.authentication?.idToken || response.params?.id_token;
-      if (idToken) dispatch(signInWithGoogle({ idToken })).unwrap().catch((error) => Alert.alert('Could not sign in', error.message));
+      if (idToken) dispatch(signInWithGoogle({ idToken })).unwrap()
+        .then((result) => {
+          if (result.status === 'PROFILE_REQUIRED') navigation?.navigate('Register', { googleRegistration: true });
+        })
+        .catch((error) => Alert.alert('Could not sign in', error.message));
       else dispatch(setAuthError('Google did not return a valid identity token. Please try again.'));
     } else if (response.type === 'error') {
       dispatch(setAuthError(response.error?.message || 'Google sign-in could not be completed.'));
     }
-  }, [dispatch, response]);
+  }, [dispatch, navigation, response]);
 
   const startGoogleSignIn = async () => {
     if (!configured) {
@@ -50,5 +53,5 @@ export default function useGoogleSignIn() {
     await promptAsync();
   };
 
-  return { startGoogleSignIn, ready: Boolean(request) };
+  return { startGoogleSignIn, ready: configured && Boolean(request) };
 }

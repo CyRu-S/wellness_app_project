@@ -20,6 +20,13 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordHash;
+    @Column(name = "google_subject", unique = true, length = 255)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String googleSubject;
+    @Builder.Default
+    @Column(name = "token_version", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private Long tokenVersion = 0L;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private Role role;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)

@@ -15,9 +15,9 @@ import { colors, fonts, type } from '../../theme';
 export default function LoginScreen({ navigation }) {
   const dispatch = useDispatch();
   const auth = useSelector((state) => state.auth);
-  const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn();
-  const [email, setEmail] = useState('user@mr-care.app');
-  const [password, setPassword] = useState('password');
+  const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn(navigation);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const submit = () => dispatch(signIn({ email, password }));
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -27,8 +27,8 @@ export default function LoginScreen({ navigation }) {
           <StaggeredView delay={170} style={styles.form}>
             <Text style={styles.helper}>Sign in to continue your progress.</Text>
             <AuthField label="Email address" icon="mail-outline" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-            <AuthField label="Password" icon="lock-closed-outline" value={password} onChangeText={setPassword} secureTextEntry />
-            <Pressable style={styles.forgot}><Text style={styles.link}>Forgot password?</Text></Pressable>
+            <AuthField label="Password" icon="lock-closed-outline" value={password} onChangeText={setPassword} secureTextEntry passwordToggle textContentType="password" />
+            <Pressable accessibilityRole="button" onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgot}><Text style={styles.link}>Forgot password?</Text></Pressable>
             {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
             <PrimaryButton title={auth.status === 'loading' ? 'Signing in…' : 'Sign in'} onPress={submit} disabled={!email || !password || auth.status === 'loading'} />
             <AuthDivider />

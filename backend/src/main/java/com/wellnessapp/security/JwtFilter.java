@@ -15,6 +15,7 @@ import java.io.IOException;
 public class JwtFilter extends OncePerRequestFilter {
     private final JwtTokenProvider tokens;
     private final CustomUserDetailsService userDetailsService;
+    private final com.wellnessapp.repository.UserRepository users;
 
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         String header = request.getHeader("Authorization");
@@ -22,8 +23,11 @@ public class JwtFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             if (tokens.isValid(token) && SecurityContextHolder.getContext().getAuthentication() == null) {
                 try {
-                UserDetails details = userDetailsService.loadUserByUsername(tokens.username(token));
-                if (details.isEnabled() && details.isAccountNonLocked() && details.isAccountNonExpired()) {
+                String username = tokens.username(token);
+                UserDetails details = userDetailsService.loadUserByUsername(username);
+                var user = users.findByEmailIgnoreCase(username).orElseThrow();
+                long currentVersion = user.getTokenVersion() == null ? 0L : user.getTokenVersion();
+                if (tokens.tokenVersion(token) == currentVersion && details.isEnabled() && details.isAccountNonLocked() && details.isAccountNonExpired()) {
                     var auth = new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities());
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);

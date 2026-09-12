@@ -9,7 +9,7 @@ import StaggeredView from '../../components/auth/StaggeredView';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
 import ProfilePhotoCropper from '../../components/user/ProfilePhotoCropper';
-import { register } from '../../store/slices/authSlice';
+import { completeGoogleRegistration, register } from '../../store/slices/authSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import { chooseProfilePhoto } from '../../utils/profilePhoto';
 
@@ -28,11 +28,12 @@ function SectionLabel({ number, children }) {
   );
 }
 
-export default function RegisterScreen({ navigation }) {
+export default function RegisterScreen({ navigation, route }) {
   const dispatch = useDispatch();
   const auth = useSelector((state) => state.auth);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const googleRegistration = route?.params?.googleRegistration ? auth.googleRegistration : null;
+  const [name, setName] = useState(googleRegistration?.name || '');
+  const [email, setEmail] = useState(googleRegistration?.email || '');
   const [password, setPassword] = useState('');
   const [age, setAge] = useState('');
   const [height, setHeight] = useState('');
@@ -41,7 +42,10 @@ export default function RegisterScreen({ navigation }) {
   const [notes, setNotes] = useState('');
   const [photo, setPhoto] = useState(null);
   const [cropCandidate, setCropCandidate] = useState(null);
-  const submit = () => dispatch(register({ name, email, password, age, height, weight, goal, notes, photo }));
+  const profile = { name, email, password, age, height, weight, goal, notes, photo };
+  const submit = () => googleRegistration
+    ? dispatch(completeGoogleRegistration({ profile, idToken: googleRegistration.idToken }))
+    : dispatch(register(profile));
   const selectPhoto = async () => {
     try {
       const selected = await chooseProfilePhoto();
@@ -56,7 +60,7 @@ export default function RegisterScreen({ navigation }) {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <AuthHeader compact navigation={navigation} eyebrow="JOIN MR_CARE">Tell us about you.</AuthHeader>
+          <AuthHeader compact navigation={navigation} eyebrow="JOIN MR_CARE">{googleRegistration ? 'Complete your profile.' : 'Tell us about you.'}</AuthHeader>
           <View style={styles.sheet}>
             <StaggeredView delay={70} style={styles.progressHeader}>
               <View style={styles.progressCopy}>
@@ -86,9 +90,9 @@ export default function RegisterScreen({ navigation }) {
             <StaggeredView delay={150} style={styles.sectionCard}>
               <SectionLabel number="01">ACCOUNT DETAILS</SectionLabel>
               <View style={styles.fields}>
-                <AuthField label="Full name" icon="person-outline" placeholder="Your full name" value={name} onChangeText={setName} textContentType="name" />
-                <AuthField label="Email address" icon="mail-outline" placeholder="you@example.com" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textContentType="emailAddress" />
-                <AuthField label="Password" icon="lock-closed-outline" placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry textContentType="newPassword" />
+                <AuthField label="Full name" icon="person-outline" placeholder="Your full name" value={name} onChangeText={setName} editable={!googleRegistration} textContentType="name" />
+                <AuthField label="Email address" icon="mail-outline" placeholder="you@example.com" value={email} onChangeText={setEmail} editable={!googleRegistration} autoCapitalize="none" keyboardType="email-address" textContentType="emailAddress" />
+                {googleRegistration ? <Text style={styles.googleVerified}>Google verified this account. No separate password is needed.</Text> : <AuthField label="Password" icon="lock-closed-outline" placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry passwordToggle textContentType="newPassword" />}
               </View>
             </StaggeredView>
 
@@ -125,7 +129,7 @@ export default function RegisterScreen({ navigation }) {
 
             <StaggeredView delay={330} style={styles.footer}>
               {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
-              <PrimaryButton title={auth.status === 'loading' ? 'Signing you up…' : 'Create my profile'} icon="person-add-outline" disabled={!name || !email || password.length < 8 || auth.status === 'loading'} onPress={submit} />
+              <PrimaryButton title={auth.status === 'loading' ? 'Signing you up…' : 'Create my profile'} icon="person-add-outline" disabled={!name || !email || (!googleRegistration && password.length < 8) || auth.status === 'loading'} onPress={submit} />
               <Text style={styles.legal}>By continuing, you agree to the <Text style={styles.legalStrong}>Terms</Text> and <Text style={styles.legalStrong}>Privacy Policy</Text>.</Text>
               <Pressable onPress={() => navigation.navigate('Login')}><Text style={styles.signIn}>Already have an account? <Text style={styles.signInStrong}>Sign in</Text></Text></Pressable>
             </StaggeredView>
@@ -164,6 +168,7 @@ const styles = StyleSheet.create({
   sectionText: { ...type.label, color: colors.tealDark, fontSize: 9.5 },
   sectionHint: { color: colors.muted, fontFamily: fonts.regular, fontSize: 10.5, lineHeight: 16, marginTop: -8, marginBottom: 14 },
   fields: { gap: 14 },
+  googleVerified: { color: colors.tealMid, fontFamily: fonts.medium, fontSize: 11, lineHeight: 17, marginTop: -3 },
   measurements: { flexDirection: 'row', gap: 9 },
   measure: { flex: 1 },
   goals: { gap: 9 },

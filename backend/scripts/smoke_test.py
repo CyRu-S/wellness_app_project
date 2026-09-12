@@ -11,6 +11,10 @@ import urllib.request
 import uuid
 
 BASE = os.environ.get('WELLNESS_API_URL', 'http://localhost:8080/api')
+ADMIN_EMAIL = os.environ.get('WELLNESS_ADMIN_EMAIL', 'admin@mr-care.app')
+ADMIN_PASSWORD = os.environ.get('WELLNESS_ADMIN_PASSWORD')
+if not ADMIN_PASSWORD:
+    raise SystemExit('Set WELLNESS_ADMIN_PASSWORD before running this authenticated smoke test.')
 RUN = uuid.uuid4().hex[:10]
 PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=')
 
@@ -46,7 +50,7 @@ def call(method, path, body=None, token=None, expected=200, multipart=None):
         return result
     return json.loads(result)
 
-admin = call('POST', '/auth/login', {'email': 'admin@mr-care.app', 'password': 'password'})['token']
+admin = call('POST', '/auth/login', {'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD})['token']
 workspace = call('GET', '/admin/workspace', token=admin)
 if workspace['summary']['totalMembers'] == 0:
     assert not workspace['attention'] and not workspace['approvals']

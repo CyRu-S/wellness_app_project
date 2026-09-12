@@ -16,7 +16,7 @@ import { colors, fonts, radius, type } from '../../theme';
 
 export default function GetStartedScreen({ navigation }) {
   const dispatch = useDispatch();
-  const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn();
+  const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn(navigation);
   const open = (screen) => { dispatch(finishOnboarding()); navigation.navigate(screen); };
   const continueWithGoogle = () => { dispatch(finishOnboarding()); startGoogleSignIn(); };
   return (

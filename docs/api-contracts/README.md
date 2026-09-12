@@ -6,7 +6,10 @@ Base URL: `http://localhost:8080/api`. Protected endpoints require `Authorizatio
 
 - `POST /auth/register`: JSON registration, or multipart `profile` JSON text plus optional `image`. Returns 201 with status PENDING and no token.
 - `POST /auth/login`: email/password; pending or suspended account receives 403.
-- `POST /auth/google`: verified Google ID token; first registration is pending.
+- `POST /auth/google`: verifies a Google ID token. New users receive `PROFILE_REQUIRED`; existing approved users receive a JWT.
+- `POST /auth/google/register`: verified Google ID token plus profile details, with optional multipart `image`. Creates the pending member after first-time profile completion.
+- `POST /auth/forgot-password`: accepts an email and sends a reset OTP when the account exists; the response does not reveal account existence.
+- `POST /auth/reset-password`: accepts email, six-digit OTP, and a new password; consumes the OTP and revokes older JWTs.
 
 ## Member data
 
