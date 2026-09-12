@@ -16,5 +16,9 @@ public class PlanItem {
     @Column(name = "scheduled_time") private LocalTime scheduledTime;
     @Column(nullable = false) private boolean completed;
     @Column(name = "sort_order", nullable = false) private int sortOrder;
+    @Column(name = "meal_type", length = 30) private String mealType;
+    @Column(nullable = false) private int calories;
+    @Column(name = "protein_grams", nullable = false) private int proteinGrams;
+    @Column(columnDefinition = "text") private String ingredients;
 }
 

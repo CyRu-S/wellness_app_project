@@ -24,6 +24,10 @@ export default function UserHeader({ navigation, title = 'Today', showNotificati
   };
 
   const goBack = () => {
+    if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+      return;
+    }
     const routeNames = navigation?.getState?.().routeNames || [];
     if (routeNames.includes('Dashboard')) {
       navigation.navigate('Dashboard');
@@ -35,7 +39,6 @@ export default function UserHeader({ navigation, title = 'Today', showNotificati
     }
     const parent = navigation?.getParent?.();
     if (parent?.getState?.().routeNames?.includes('Today')) parent.navigate('Today');
-    else if (navigation?.canGoBack?.()) navigation.goBack();
   };
 
   if (home) {

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MealPostRepository extends JpaRepository<MealPost, Long> {
+    List<MealPost> findByPostedAtGreaterThanEqual(Instant start);
     Optional<MealPost> findByUserIdAndClientRequestId(Long userId, String clientRequestId);
     Optional<MealPost> findByPlannedMealId(Long plannedMealId);
     List<MealPost> findByUserIdAndPostedAtGreaterThanEqualAndPostedAtLessThanOrderByPostedAt(

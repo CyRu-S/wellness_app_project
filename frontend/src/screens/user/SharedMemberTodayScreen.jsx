@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
+import useFocusedPolling from '../../hooks/useFocusedPolling';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
 import { clearSharedMemberToday, loadSharedMemberToday } from '../../store/slices/memberAccessSlice';
 import { colors, fonts, radius, type } from '../../theme';
@@ -58,10 +59,8 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
     return undefined;
   }, [dispatch, memberId]);
 
-  useEffect(() => {
-    load();
-    return () => { dispatch(clearSharedMemberToday()); };
-  }, [dispatch, load]);
+  useFocusedPolling(load);
+  useEffect(() => () => { dispatch(clearSharedMemberToday()); }, [dispatch]);
 
   const openPhoto = useCallback((post) => {
     navigation.navigate('SharedPhoto', { post, memberName: today?.member?.name || fallbackName });

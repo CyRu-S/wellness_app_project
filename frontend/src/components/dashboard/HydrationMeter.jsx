@@ -12,7 +12,7 @@ function WaterSegment({ filled, index }) {
   return <View style={styles.segment}><Animated.View style={[styles.fill, { opacity: motion, transform: [{ scaleY: motion }] }]} /></View>;
 }
 
-export default function HydrationMeter({ value, target, onAdd }) {
+export default function HydrationMeter({ value = 0, target = 8, onAdd, pending = false }) {
   const add = () => {
     Haptics.selectionAsync().catch(() => {});
     onAdd?.();
@@ -21,7 +21,7 @@ export default function HydrationMeter({ value, target, onAdd }) {
     <View>
       <View style={styles.head}>
         <View><Text style={styles.eyebrow}>HYDRATION</Text><Text style={styles.title}>{value} of {target} glasses</Text></View>
-        <Pressable accessibilityLabel="Add one glass of water" onPress={add} disabled={value >= target} style={({ pressed }) => [styles.add, pressed && styles.pressed, value >= target && styles.disabled]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add one glass of water" accessibilityState={{ busy: pending }} onPress={add} disabled={pending || value >= target} style={({ pressed }) => [styles.add, pressed && styles.pressed, (pending || value >= target) && styles.disabled]}>
           <Ionicons name={value >= target ? 'checkmark' : 'add'} size={18} color={colors.ink} /><Text style={styles.addText}>{value >= target ? 'Done' : 'Add glass'}</Text>
         </Pressable>
       </View>
@@ -34,6 +34,6 @@ export default function HydrationMeter({ value, target, onAdd }) {
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eyebrow: { ...type.label, color: colors.tealMid }, title: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 20, marginTop: 4 },
   add: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, borderRadius: radius.pill, backgroundColor: colors.accentSoft, paddingHorizontal: 13 }, pressed: { opacity: 0.62, transform: [{ scale: 0.97 }] }, disabled: { opacity: 0.58 }, addText: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 11 },
-  track: { flexDirection: 'row', gap: 6, marginTop: 17 }, segment: { flex: 1, height: 14, borderRadius: 7, backgroundColor: colors.line, overflow: 'hidden', justifyContent: 'flex-end' }, fill: { ...StyleSheet.absoluteFillObject, borderRadius: 7, backgroundColor: colors.accent },
+  track: { flexDirection: 'row', gap: 6, marginTop: 17 }, segment: { flex: 1, height: 14, borderRadius: 7, backgroundColor: colors.line, overflow: 'hidden', justifyContent: 'flex-end' }, fill: { ...StyleSheet.absoluteFill, borderRadius: 7, backgroundColor: colors.accent },
   caption: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 9 }, hint: { color: colors.muted, fontFamily: fonts.regular, fontSize: 11 },
 });

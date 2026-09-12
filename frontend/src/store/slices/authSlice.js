@@ -1,102 +1,57 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { googleLogin, login as loginApi, register as registerApi } from '../../services/api/authApi';
-import { uploadProfilePhoto } from '../../services/api/profileApi';
-import { getDemoProfilePhoto, setDemoProfilePhoto } from '../../services/storage/profilePhotoStorage';
+import { googleLogin, login, register as registerApi, registerWithGoogle } from '../../services/api/authApi';
+import { revokePushBeforeLogout } from '../../services/notifications/pushNotifications';
 
-const initialState = { user: null, token: null, hasOnboarded: false, status: 'idle', error: null, source: null };
-
-const DEMO_EMAILS = new Set(['user@mr-care.app', 'admin@mr-care.app']);
-const useApiDemoAccounts = process.env.EXPO_PUBLIC_USE_API_DEMO_ACCOUNTS === 'true';
-const demoModeEnabled = !useApiDemoAccounts && process.env.EXPO_PUBLIC_DISABLE_DEMO_FALLBACK !== 'true';
-
-const isDemoAccount = ({ email, password }) => (
-  demoModeEnabled
-  && DEMO_EMAILS.has(email?.trim().toLowerCase())
-  && password === 'password'
-);
-
-const demoLogin = ({ email }) => {
-  const normalizedEmail = email.trim().toLowerCase();
-  const isAdmin = normalizedEmail === 'admin@mr-care.app';
-
-  return {
-    token: 'demo-token',
-    id: isAdmin ? 2 : 1,
-    name: isAdmin ? 'Arpan' : 'Aarav',
-    email: normalizedEmail,
-    role: isAdmin ? 'ADMIN' : 'USER',
-    ...(isAdmin && {
-      phone: '+91 98765 43210',
-      clubName: 'Mr_Care Collective',
-    }),
-    source: 'demo',
-  };
-};
-
-export const signIn = createAsyncThunk('auth/signIn', async (credentials) => {
-  if (isDemoAccount(credentials)) {
-    const account = demoLogin(credentials);
-    return { ...account, profileImageUrl: await getDemoProfilePhoto(account) };
-  }
-  const response = await loginApi(credentials);
-  return { ...response, source: 'api' };
+const initialState = { user: null, token: null, googleRegistration: null, hasOnboarded: false, status: 'idle', error: null, source: null };
+export const signIn = createAsyncThunk('auth/signIn', async (credentials) => ({ ...await login(credentials), source: 'api' }));
+export const register = createAsyncThunk('auth/register', async (profile) => ({ ...await registerApi(profile), source: 'api' }));
+export const signInWithGoogle = createAsyncThunk('auth/signInWithGoogle', async ({ idToken }) => ({ ...await googleLogin(idToken), googleIdToken: idToken, source: 'api' }));
+export const completeGoogleRegistration = createAsyncThunk('auth/completeGoogleRegistration', async ({ profile, idToken }) => ({ ...await registerWithGoogle(profile, idToken), source: 'api' }));
+export const signOutSafely = createAsyncThunk('auth/signOutSafely', async (_, { getState, dispatch }) => {
+  await revokePushBeforeLogout(getState().auth.token);
+  dispatch(signOut());
 });
-
-export const register = createAsyncThunk('auth/register', async (profile) => {
-  let response;
-  try {
-    response = await registerApi({ name: profile.name, email: profile.email, password: profile.password });
-  } catch (error) {
-    if (!demoModeEnabled) throw error;
-    const demoAccount = { token: 'demo-token', id: 1, name: profile.name, email: profile.email, role: 'USER', source: 'demo' };
-    if (!profile.photo?.persistentUri) return demoAccount;
-    const profileImageUrl = await setDemoProfilePhoto(demoAccount, profile.photo.persistentUri);
-    return { ...demoAccount, profileImageUrl };
-  }
-  if (!profile.photo?.uri) return { ...response, source: 'api' };
-  try {
-    const updated = await uploadProfilePhoto(response.token, profile.photo);
-    return { ...response, profileImageUrl: updated.profileImageUrl, source: 'api' };
-  } catch {
-    return { ...response, source: 'api' };
-  }
-});
-
-export const signInWithGoogle = createAsyncThunk('auth/signInWithGoogle', async ({ idToken }) => {
-  const response = await googleLogin(idToken);
-  return { ...response, source: 'google' };
-});
-
-const authSlice = createSlice({
-  name: 'auth',
-  initialState,
+const slice = createSlice({
+  name: 'auth', initialState,
   reducers: {
     finishOnboarding: (state) => { state.hasOnboarded = true; },
+    clearGoogleRegistration: (state) => { state.googleRegistration = null; },
     setAuthError: (state, action) => { state.error = action.payload; state.status = action.payload ? 'error' : 'idle'; },
-    signOut: (state) => { state.user = null; state.token = null; state.status = 'idle'; state.error = null; state.source = null; },
-    updateProfile: (state, action) => {
-      if (state.user) state.user = { ...state.user, ...action.payload };
-    },
+    signOut: (state) => { Object.assign(state, initialState, { hasOnboarded: state.hasOnboarded }); },
+    updateProfile: (state, action) => { if (state.user) Object.assign(state.user, action.payload); },
   },
-  extraReducers: (builder) => {
-    builder
-      .addMatcher((action) => [signIn.pending.type, register.pending.type, signInWithGoogle.pending.type].includes(action.type), (state) => { state.status = 'loading'; state.error = null; })
-      .addMatcher((action) => [signIn.fulfilled.type, register.fulfilled.type, signInWithGoogle.fulfilled.type].includes(action.type), (state, action) => {
-        const { token, source, ...user } = action.payload;
-        const isAdmin = user.role === 'ADMIN' || user.email?.toLowerCase() === 'admin@mr-care.app';
-        state.user = isAdmin ? {
-          ...user,
-          name: 'Arpan',
-          phone: user.phone || '+91 98765 43210',
-          clubName: user.clubName || 'Mr_Care Collective',
-        } : user;
-        state.token = token;
-        state.source = source;
-        state.status = 'authenticated';
-      })
-      .addMatcher((action) => [signIn.rejected.type, register.rejected.type, signInWithGoogle.rejected.type].includes(action.type), (state, action) => { state.status = 'error'; state.error = action.error.message || 'Authentication failed'; });
-  },
+  extraReducers: (builder) => builder
+    .addCase('profile/saveDetails/fulfilled', (state, action) => { if (state.user) state.user.name = action.payload.name; })
+    .addCase('profile/savePhoto/fulfilled', (state, action) => { if (state.user) state.user.profileImageUrl = action.payload.profileImageUrl; })
+    .addCase(signInWithGoogle.fulfilled, (state, action) => {
+      const { token, source, googleIdToken, ...user } = action.payload;
+      if (user.status === 'PROFILE_REQUIRED') {
+        state.user = null; state.token = null; state.status = 'profileRequired'; state.error = null;
+        state.googleRegistration = { idToken: googleIdToken, name: user.name, email: user.email };
+        return;
+      }
+      state.googleRegistration = null;
+      if (!token || user.status !== 'ACTIVE') {
+        state.user = null; state.token = null; state.status = 'pending';
+        state.error = 'Registration submitted. Your admin must approve your account before you can sign in.';
+        return;
+      }
+      state.user = user; state.token = token; state.source = source; state.status = 'authenticated';
+    })
+    .addMatcher((a) => [signIn.pending.type, register.pending.type, signInWithGoogle.pending.type, completeGoogleRegistration.pending.type].includes(a.type), (state) => { state.status = 'loading'; state.error = null; })
+    .addMatcher((a) => [signIn.fulfilled.type, register.fulfilled.type, completeGoogleRegistration.fulfilled.type].includes(a.type), (state, action) => {
+      const { token, source, ...user } = action.payload;
+      state.googleRegistration = null;
+      if (!token || user.status !== 'ACTIVE') {
+        state.user = null; state.token = null; state.status = 'pending';
+        state.error = 'Registration submitted. Your admin must approve your account before you can sign in.';
+        return;
+      }
+      state.user = user; state.token = token; state.source = source; state.status = 'authenticated';
+    })
+    .addMatcher((a) => [signIn.rejected.type, register.rejected.type, signInWithGoogle.rejected.type, completeGoogleRegistration.rejected.type].includes(a.type), (state, action) => {
+      state.status = 'error'; state.error = action.error.message || 'Authentication failed';
+    }),
 });
-
-export const { finishOnboarding, setAuthError, signOut, updateProfile } = authSlice.actions;
-export default authSlice.reducer;
+export const { clearGoogleRegistration, finishOnboarding, setAuthError, signOut, updateProfile } = slice.actions;
+export default slice.reducer;

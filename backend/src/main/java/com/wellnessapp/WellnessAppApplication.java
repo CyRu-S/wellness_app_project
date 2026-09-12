@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class WellnessAppApplication {
     public static void main(String[] args) {
         SpringApplication.run(WellnessAppApplication.class, args);
+        System.out.println("Mr Care is Running...");
     }
 }
 

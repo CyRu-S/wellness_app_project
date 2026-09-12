@@ -1,12 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Animated, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { colors } from '../../theme';
 
-export default function Screen({ children, scroll = true, contentStyle, style }) {
+export default function Screen({ children, scroll = true, contentStyle, style, keyboardShouldPersistTaps = 'handled' }) {
   const reduceMotion = useReducedMotion();
-  const progress = useRef(new Animated.Value(0)).current;
+  const [progress] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     Animated.timing(progress, {
@@ -28,7 +28,7 @@ export default function Screen({ children, scroll = true, contentStyle, style })
 
   return (
     <SafeAreaView style={[styles.safe, style]} edges={['top', 'left', 'right']}>
-      {scroll ? <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>{content}</ScrollView> : <View style={styles.fill}>{content}</View>}
+      {scroll ? <ScrollView keyboardShouldPersistTaps={keyboardShouldPersistTaps} keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>{content}</ScrollView> : <View style={styles.fill}>{content}</View>}
     </SafeAreaView>
   );
 }

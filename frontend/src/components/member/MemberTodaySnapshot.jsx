@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import Image from '../common/ProtectedImage';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import PrimaryTealCardBackground from '../common/PrimaryTealCardBackground';
@@ -198,8 +199,8 @@ const styles = StyleSheet.create({
   nutritionText: { color: colors.inkSoft, fontFamily: fonts.medium, fontSize: 10 },
   nutritionDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.tealMid },
   photoPreview: { height: 142, borderRadius: 17, overflow: 'hidden', marginTop: 13, backgroundColor: colors.mist },
-  previewImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  previewScrim: { ...StyleSheet.absoluteFillObject },
+  previewImage: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
+  previewScrim: { ...StyleSheet.absoluteFill },
   previewCaption: { position: 'absolute', left: 13, right: 13, bottom: 11, flexDirection: 'row', alignItems: 'center', gap: 7 },
   previewText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 11 },
   emptySection: { minHeight: 91, flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: 16 },

@@ -5,11 +5,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
+import AdminMemberAvatar from '../../components/admin/AdminMemberAvatar';
 import {
   nudgeAttention,
   nudgePriorityAttention,
   resolveAttention,
   selectAdminAttention,
+  selectAdminMembers,
 } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 
@@ -21,7 +23,7 @@ const categoryIcons = {
   Supplements: 'medical-outline',
 };
 
-function AttentionCard({ item, onMember, onNudge, onResolve }) {
+function AttentionCard({ item, token, onMember, onNudge, onResolve }) {
   const high = item.severity === 'HIGH';
   const nudged = item.status === 'NUDGED';
 
@@ -40,7 +42,14 @@ function AttentionCard({ item, onMember, onNudge, onResolve }) {
           style={({ pressed }) => [styles.itemMain, pressed && styles.pressed]}
         >
           <View style={styles.identityLine}>
-            <View style={[styles.avatar, high && styles.avatarHigh]}><Text style={[styles.avatarText, high && styles.avatarTextHigh]}>{item.initials}</Text></View>
+            <AdminMemberAvatar
+              profileImageUrl={item.profileImageUrl}
+              token={token}
+              initials={item.initials}
+              style={[styles.avatar, high && styles.avatarHigh]}
+              imageStyle={styles.avatarImage}
+              textStyle={[styles.avatarText, high && styles.avatarTextHigh]}
+            />
             <View style={styles.identityCopy}>
               <Text numberOfLines={1} style={styles.memberName}>{item.memberName}</Text>
               <Text style={[styles.severity, high && styles.severityHigh]}>{high ? 'ACT NOW' : 'WATCH'}</Text>
@@ -83,7 +92,7 @@ function AttentionCard({ item, onMember, onNudge, onResolve }) {
   );
 }
 
-function Group({ eyebrow, title, description, items, navigation, dispatch }) {
+function Group({ eyebrow, title, description, items, token, navigation, dispatch }) {
   if (!items.length) return null;
   return (
     <View style={styles.group}>
@@ -100,6 +109,7 @@ function Group({ eyebrow, title, description, items, navigation, dispatch }) {
           <AttentionCard
             key={item.id}
             item={item}
+            token={token}
             onMember={() => navigation.navigate('UserDetails', { id: item.memberId })}
             onNudge={() => dispatch(nudgeAttention(item.id))}
             onResolve={() => dispatch(resolveAttention(item.id))}
@@ -113,8 +123,12 @@ function Group({ eyebrow, title, description, items, navigation, dispatch }) {
 export default function AdminAttentionScreen({ navigation }) {
   const dispatch = useDispatch();
   const attention = useSelector(selectAdminAttention);
+  const members = useSelector(selectAdminMembers);
+  const token = useSelector((state) => state.auth.token);
   const [filter, setFilter] = useState('All');
-  const allOpenItems = useMemo(() => attention.filter((item) => item.status !== 'RESOLVED'), [attention]);
+  const allOpenItems = useMemo(() => attention
+    .filter((item) => item.status !== 'RESOLVED')
+    .map((item) => ({ ...item, profileImageUrl: members.find((member) => String(member.id) === String(item.memberId))?.profileImageUrl })), [attention, members]);
   const openItems = useMemo(
     () => allOpenItems.filter((item) => filter === 'All' || item.category === filter),
     [allOpenItems, filter],
@@ -183,8 +197,8 @@ export default function AdminAttentionScreen({ navigation }) {
         })}
       </ScrollView>
 
-      <Group eyebrow="PRIORITY" title="Act now" description="High-impact missed moments" items={actNow} navigation={navigation} dispatch={dispatch} />
-      <Group eyebrow="MONITOR" title="Watch" description="Keep these members on your radar" items={watch} navigation={navigation} dispatch={dispatch} />
+      <Group eyebrow="PRIORITY" title="Act now" description="High-impact missed moments" items={actNow} token={token} navigation={navigation} dispatch={dispatch} />
+      <Group eyebrow="MONITOR" title="Watch" description="Keep these members on your radar" items={watch} token={token} navigation={navigation} dispatch={dispatch} />
 
       {openItems.length === 0 && (
         <View style={styles.empty}>
@@ -245,6 +259,7 @@ const styles = StyleSheet.create({
   itemMain: { minHeight: 137, padding: 14 },
   identityLine: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 43, height: 43, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  avatarImage: { borderRadius: 16 },
   avatarHigh: { backgroundColor: adminColors.coralSoft },
   avatarText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 12 },
   avatarTextHigh: { color: adminColors.coral },

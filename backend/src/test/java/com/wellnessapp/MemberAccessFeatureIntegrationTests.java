@@ -100,12 +100,12 @@ class MemberAccessFeatureIntegrationTests {
 
     @Test
     void enforcesWeeklyBodyMetricUpdates() {
-        var updated = profiles.updateBodyMetrics("user@mr-care.app", new BodyMetricsRequest(176, 71.8, 82.0, 18.5));
-        assertThat(updated.waistCm()).isEqualTo(82.0);
+        var updated = profiles.updateBodyMetrics("user@mr-care.app", new BodyMetricsRequest(176, 71.8, 28, 18.5));
+        assertThat(updated.age()).isEqualTo(28);
         assertThat(updated.lastBodyMetricsUpdatedAt()).isNotNull();
 
         assertThatThrownBy(() -> profiles.updateBodyMetrics(
-                "user@mr-care.app", new BodyMetricsRequest(176, 71.5, 81.0, 18.0)))
+                "user@mr-care.app", new BodyMetricsRequest(176, 71.5, 28, 18.0)))
                 .isInstanceOf(ConflictException.class);
     }
 

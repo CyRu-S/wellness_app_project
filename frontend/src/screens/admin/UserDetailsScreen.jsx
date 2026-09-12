@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Image from '../../components/common/ProtectedImage';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -21,7 +21,7 @@ import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
-import { memberAdherence } from '../../data/adminDemoData';
+import useFocusedPolling from '../../hooks/useFocusedPolling';
 import {
   selectAdminMemberMealPlans,
   selectAdminMembers,
@@ -61,12 +61,9 @@ function Stat({ value, label, last }) {
 }
 
 function Overview({ member, plan, snapshot }) {
-  const series = memberAdherence.map((value, index) => ({
-    label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][index],
-    value: Math.max(34, Math.min(100, value + member.adherence - 82)),
-  }));
+  const series = member.adherenceSeries || [];
   const completedItems = plan.items.filter((item) => item.consumed);
-  const completed = completedItems.length;
+  const completed = snapshot?.summary?.completedMeals ?? completedItems.length;
   const calories = snapshot?.summary?.calories ?? completedItems.reduce((sum, item) => sum + (item.detectedCalories ?? item.calories ?? 0), 0);
   const protein = snapshot?.summary?.proteinGrams ?? completedItems.reduce((sum, item) => sum + (item.detectedProtein ?? item.protein ?? 0), 0);
   const hydrationMl = snapshot?.summary?.hydrationMl;
@@ -75,7 +72,7 @@ function Overview({ member, plan, snapshot }) {
     : `${member.hydration}%`;
   const waterGoalMl = member.waterGoalMl || 2000;
   const hydration = hydrationMl != null
-    ? `${hydrationConsumed} / ${(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 ? 2 : 0).replace(/0$/, '')} L`
+    ? `${hydrationConsumed} / ${(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 ? 2 : 0)} L`
     : hydrationConsumed;
 
   return (
@@ -97,9 +94,9 @@ function Overview({ member, plan, snapshot }) {
         <View pointerEvents="none" style={styles.chartGlow} />
         <View style={styles.cardHeading}>
           <View><Text style={styles.cardEyebrow}>SEVEN-DAY ADHERENCE</Text><Text style={styles.cardTitle}>{member.adherence}% average</Text></View>
-          <Text style={styles.chartTrend}>{member.adherence >= 75 ? 'On track' : 'Needs care'}</Text>
+          <Text style={styles.chartTrend}>{!series.length ? 'No plan data yet' : member.adherence >= 75 ? 'On track' : 'Needs care'}</Text>
         </View>
-        <AdminBarChart data={series} label={`${member.name} seven day adherence`} />
+        <AdminBarChart maxValue={100} data={series} label={`${member.name} seven day adherence`} />
       </LinearGradient>
 
       <LinearGradient colors={['#F1FBF9', '#D7F1EC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planCard}>
@@ -329,6 +326,7 @@ function WaterGoalEditor({ visible, member, currentGoal, saving, onClose, onSave
 function PlanEditor({ visible, member, plan, onClose, onSave }) {
   const [planName, setPlanName] = useState(plan.planName);
   const [items, setItems] = useState(plan.items.map((item) => ({ ...item })));
+  const [saving, setSaving] = useState(false);
 
   const changeItem = (index, key, value) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item));
@@ -339,7 +337,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
     setItems((current) => [
       ...current,
       {
-        id: `${member.id}-new-${Date.now()}`,
+        id: `${member?.id}-new-${Date.now()}`,
         type: 'Snack',
         name: '',
         time: '4:00 PM',
@@ -360,20 +358,23 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
     setItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
-  const save = () => {
-    if (!planName.trim() || items.some((item) => !item.name.trim() || !TIME_PATTERN.test(item.time.trim()))) {
+  const save = async () => {
+    if (saving) return;
+    if (!items.length || !planName.trim() || items.some((item) => !item.name.trim() || !TIME_PATTERN.test(item.time.trim()))) {
       Alert.alert('Check the daily plan', 'Add a plan name, meal name, and time such as 8:00 AM for every meal.');
       return;
     }
-    onSave({
+    setSaving(true);
+    try { await onSave({
       planName: planName.trim(),
       items: items.map((item) => ({
         ...item,
         name: item.name.trim(),
         time: item.time.trim().toUpperCase(),
         hour: timeToHour(item.time, item.hour),
+        ingredients: (item.ingredients || []).map((ingredient) => ingredient.trim()).filter(Boolean),
       })),
-    });
+    }); } finally { setSaving(false); }
   };
 
   return (
@@ -419,10 +420,10 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                   })}
                 </ScrollView>
                 <TextInput
-                  accessibilityLabel={`${meal.type} meal`}
+                  accessibilityLabel={`${meal.type} description`}
                   value={meal.name}
                   onChangeText={(value) => changeItem(index, 'name', value)}
-                  placeholder={`Describe ${meal.type.toLowerCase()}`}
+                  placeholder={`${meal.type} description`}
                   placeholderTextColor={adminColors.muted}
                   multiline
                   style={styles.mealInput}
@@ -436,7 +437,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
           </ScrollView>
           <View style={styles.editorActions}>
             <Pressable accessibilityRole="button" onPress={onClose} style={styles.cancelButton}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={save} style={styles.saveButton}><Text style={styles.saveText}>Save daily plan</Text><Ionicons name="checkmark" size={18} color={adminColors.white} /></Pressable>
+            <Pressable accessibilityRole="button" onPress={save} disabled={saving} style={styles.saveButton}><Text style={styles.saveText}>{saving ? "Saving…" : "Save daily plan"}</Text><Ionicons name="checkmark" size={18} color={adminColors.white} /></Pressable>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -466,89 +467,51 @@ export default function UserDetailsScreen({ route, navigation }) {
   const dispatch = useDispatch();
   const members = useSelector(selectAdminMembers);
   const memberPlans = useSelector(selectAdminMemberMealPlans);
-  const liveUserMeals = useSelector((state) => state.meals);
+  const accessOverview = useSelector((state) => state.memberAccess.overview);
   const token = useSelector((state) => state.auth.token);
-  const authSource = useSelector((state) => state.auth.source);
   const [segment, setSegment] = useState('Overview');
   const [editingPlan, setEditingPlan] = useState(false);
   const [editingWaterGoal, setEditingWaterGoal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const member = useMemo(
-    () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name) || members[0],
+    () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name),
     [members, route.params],
   );
-  const journal = useSelector((state) => selectAdminMemberJournal(state, member.id));
-  const journalRequest = useSelector((state) => selectAdminMemberJournalRequest(state, member.id));
-  const waterGoalRequest = useSelector((state) => selectAdminMemberWaterGoalRequest(state, member.id));
-  const profileMember = useMemo(() => ({ ...member, ...(journal?.member || {}), id: member.id, initials: member.initials }), [journal?.member, member]);
+  const journal = useSelector((state) => selectAdminMemberJournal(state, member?.id));
+  const journalRequest = useSelector((state) => selectAdminMemberJournalRequest(state, member?.id));
+  const waterGoalRequest = useSelector((state) => selectAdminMemberWaterGoalRequest(state, member?.id));
+  const profileMember = { ...member, ...(journal?.member || {}), id: member?.id, initials: member?.initials };
   const memberAvatarSource = avatarFailed ? null : profileImageSource(profileMember.profileImageUrl, token);
-  const storedPlan = memberPlans[member.id];
-  const plan = useMemo(() => {
-    if (member.id !== 1) return storedPlan;
-    return {
-      ...storedPlan,
-      planName: liveUserMeals.planName,
-      consultant: liveUserMeals.consultant,
-      items: liveUserMeals.items,
-    };
-  }, [liveUserMeals.consultant, liveUserMeals.items, liveUserMeals.planName, member.id, storedPlan]);
-  const todaySnapshot = useMemo(() => {
-    if (!journal?.today || authSource !== 'demo') return journal?.today || null;
-    const currentMeals = journal.today.meals || [];
-    const meals = plan.items.map((meal) => {
-      const existing = currentMeals.find((item) => String(item.plannedMealId) === String(meal.id))
-        || currentMeals.find((item) => item.type === meal.type);
-      return {
-        ...existing,
-        plannedMealId: meal.id,
-        type: meal.type,
-        name: meal.detectedName || meal.name,
-        scheduledTime: meal.time,
-        completed: Boolean(meal.consumed),
-        postedAt: meal.consumed ? existing?.postedAt || meal.uploadedAt : null,
-        imageUrl: meal.imageUri || existing?.imageUrl || null,
-        nutrition: meal.consumed ? existing?.nutrition || {
-          calories: meal.detectedCalories ?? meal.calories ?? 0,
-          proteinGrams: meal.detectedProtein ?? meal.protein ?? 0,
-          carbsGrams: 0,
-          fatGrams: 0,
-        } : null,
-      };
-    });
-    const completedMeals = meals.filter((meal) => meal.completed);
-    return {
-      ...journal.today,
-      meals,
-      summary: {
-        ...journal.today.summary,
-        plannedMeals: meals.length,
-        completedMeals: completedMeals.length,
-        calories: completedMeals.reduce((sum, meal) => sum + (meal.nutrition?.calories || 0), 0),
-        proteinGrams: completedMeals.reduce((sum, meal) => sum + (meal.nutrition?.proteinGrams || 0), 0),
-      },
-    };
-  }, [authSource, journal?.today, plan.items]);
+  const plan = memberPlans[member?.id] || { planName: '', items: [] };
+  const todaySnapshot = journal?.today || null;
+  const memberId = member?.id;
+  const memberEmail = member?.email;
+  useFocusedPolling(React.useCallback(() => {
+    if (memberId) return dispatch(loadAdminMemberJournal({ memberId, email: memberEmail }));
+    return undefined;
+  }, [dispatch, memberId, memberEmail]));
 
-  useEffect(() => {
-    dispatch(loadAdminMemberJournal({ memberId: member.id, email: member.email }));
-  }, [dispatch, member.email, member.id]);
-
+  // Retry image rendering when the server provides a new profile-photo version.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setAvatarFailed(false); }, [profileMember.profileImageUrl]);
 
-  const retryJournal = () => dispatch(loadAdminMemberJournal({ memberId: member.id, email: member.email }));
+  const retryJournal = () => dispatch(loadAdminMemberJournal({ memberId: member?.id, email: member?.email }));
   const journalLoading = journalRequest.status === 'loading' || journalRequest.status === 'idle';
 
-  const savePlan = (nextPlan) => {
-    dispatch(updateMemberMealPlan({ memberId: member.id, ...nextPlan }));
+  const savePlan = async (nextPlan) => {
+    try {
+    await dispatch(updateMemberMealPlan({ memberId: member?.id, ...nextPlan })).unwrap();
+    retryJournal();
     setEditingPlan(false);
     setSegment('Overview');
     Alert.alert('Daily plan updated', `${member.name} will follow this meal schedule each day until you change it again.`);
+    } catch (error) { Alert.alert('Could not save plan', error.message || 'Please try again.'); }
   };
 
   const saveWaterGoal = async (waterGoalMl) => {
     try {
-      await dispatch(saveAdminMemberWaterGoal({ memberId: member.id, email: member.email, waterGoalMl })).unwrap();
+      await dispatch(saveAdminMemberWaterGoal({ memberId: member?.id, email: member?.email, waterGoalMl })).unwrap();
       setEditingWaterGoal(false);
       Alert.alert('Water goal updated', `${profileMember.name}'s daily target is now ${waterGoalMl / 1000} litres.`);
     } catch (error) {
@@ -556,6 +519,7 @@ export default function UserDetailsScreen({ route, navigation }) {
     }
   };
 
+  if (!member) return <AdminScreen><Text>Member not found.</Text></AdminScreen>;
   return (
     <AdminScreen>
       <AdminHeader title="Member profile" back onBackPress={() => navigation.goBack()} />
@@ -582,7 +546,7 @@ export default function UserDetailsScreen({ route, navigation }) {
             </View>
             <View style={styles.metricsRowDivider} />
             <View style={styles.metricsRow}>
-              <Metric label="WAIST" value={profileMember.waistCm} unit="cm" />
+              <Metric label="AGE" value={profileMember.age} unit="years" />
               <Metric label="BODY FAT" value={profileMember.bodyFatPercent} unit="%" last />
             </View>
           </View>
@@ -603,13 +567,19 @@ export default function UserDetailsScreen({ route, navigation }) {
       <Pressable accessibilityRole="button" accessibilityLabel={`Set daily water goal. Current goal ${profileMember.waterGoalMl || 2000} millilitres`} onPress={() => setEditingWaterGoal(true)} style={({ pressed }) => [styles.waterAction, pressed && styles.pressed]}>
         <View style={styles.waterActionIcon}><Ionicons name="water-outline" size={22} color={adminColors.teal} /></View>
         <View style={styles.waterActionCopy}><Text style={styles.waterActionLabel}>DAILY HYDRATION</Text><Text style={styles.waterActionText}>Set water goal</Text></View>
-        <View style={styles.waterActionValue}><Text style={styles.waterActionNumber}>{((profileMember.waterGoalMl || 2000) / 1000).toFixed((profileMember.waterGoalMl || 2000) % 1000 ? 2 : 0).replace(/0$/, '')} L</Text><Ionicons name="chevron-forward" size={18} color={adminColors.muted} /></View>
+        <View style={styles.waterActionValue}><Text style={styles.waterActionNumber}>{((profileMember.waterGoalMl || 2000) / 1000).toFixed((profileMember.waterGoalMl || 2000) % 1000 ? 2 : 0)} L</Text><Ionicons name="chevron-forward" size={18} color={adminColors.muted} /></View>
       </Pressable>
 
-      <View style={styles.segmentWrap}><AdminSegmentedControl options={['Overview', 'Today', 'History']} value={segment} onChange={setSegment} accessibilityLabel="Member profile section" /></View>
+      <View style={styles.segmentWrap}><AdminSegmentedControl options={['Overview', 'Today', 'History', 'Access']} value={segment} onChange={setSegment} accessibilityLabel="Member profile section" /></View>
 
       {segment === 'Overview' && <Overview member={profileMember} plan={plan} snapshot={todaySnapshot} />}
       {segment === 'Today' && (todaySnapshot ? <Today plan={plan} snapshot={todaySnapshot} token={token} onOpenPhoto={setSelectedPhoto} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
+      {segment === 'Access' && <View style={styles.planCard}>
+        <Text style={styles.cardTitle}>Shared access</Text>
+        {(accessOverview.viewers.find((viewer) => viewer.id === member.id)?.assignedMembers || []).map((subject) => <Text key={subject.id} style={styles.planMealName}>{subject.name}</Text>)}
+        {!accessOverview.viewers.find((viewer) => viewer.id === member.id)?.assignedCount && <Text style={styles.planExplanation}>No shared access has been assigned.</Text>}
+        <Pressable onPress={() => navigation.navigate('ManageMemberAccess', { viewerId: member.id })} style={styles.retryButton}><Text style={styles.retryText}>Manage access</Text></Pressable>
+      </View>}
       {segment === 'History' && (journal ? <History days={journal.history || []} token={token} retentionDays={journal.retentionDays || 21} onOpenPhoto={setSelectedPhoto} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
 
       {editingPlan ? <PlanEditor visible member={member} plan={plan} onClose={() => setEditingPlan(false)} onSave={savePlan} /> : null}

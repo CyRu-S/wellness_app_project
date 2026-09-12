@@ -15,8 +15,7 @@ class MediaStorageServiceTests {
 
     @Test
     void rejectsSpoofedImagesAndTraversalKeys() {
-        MediaStorageService storage = new MediaStorageService(directory.toString());
-        storage.initialise();
+        MediaStorageService storage = new MediaStorageService(org.mockito.Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class));
 
         MockMultipartFile fake = new MockMultipartFile("image", "fake.jpg", "image/jpeg", "not-an-image".getBytes());
         assertThatThrownBy(() -> storage.store(fake)).isInstanceOf(BadRequestException.class);

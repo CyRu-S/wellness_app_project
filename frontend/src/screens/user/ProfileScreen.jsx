@@ -1,15 +1,16 @@
-import React, { useEffect } from 'react';
-import { Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import Image from '../../components/common/ProtectedImage';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import Screen from '../../components/common/Screen';
 import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
 import UserHeader from '../../components/user/UserHeader';
-import { signOut } from '../../store/slices/authSlice';
-import { setTimelineRemindersEnabled } from '../../store/slices/notificationSlice';
+import { signOutSafely } from '../../store/slices/authSlice';
+import NotificationSettings from '../../components/user/NotificationSettings';
+import SyncFeedback from '../../components/common/SyncFeedback';
 import { loadProfile } from '../../store/slices/profileSlice';
-import { getUserPreferences, setUserPreferences } from '../../services/storage/userPreferences';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import { profileImageSource } from '../../utils/profilePhoto';
 
@@ -17,24 +18,25 @@ export default function ProfileScreen({ navigation }) {
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
   const token = useSelector((state) => state.auth.token);
+  const completion = useSelector((state) => state.dashboard.completion);
   const profile = useSelector((state) => state.profile);
-  const remindersEnabled = useSelector((state) => state.notifications.timelineRemindersEnabled);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState(null);
 
   useEffect(() => { dispatch(loadProfile(token)); }, [dispatch, token]);
-  useEffect(() => { getUserPreferences().then((preferences) => dispatch(setTimelineRemindersEnabled(preferences.timelineReminders))); }, [dispatch]);
-
-  const toggleReminders = async (value) => {
-    dispatch(setTimelineRemindersEnabled(value));
-    await setUserPreferences({ timelineReminders: value });
+  const logout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true); setLogoutError(null);
+    try { await dispatch(signOutSafely()).unwrap(); }
+    catch { setLogoutError('Could not disconnect phone notifications. Check your connection and retry sign out.'); setLoggingOut(false); }
   };
 
   const rows = [
     { icon: 'body-outline', label: 'Health profile', meta: 'Body measurements and weekly check-in', route: 'BodyDetails' },
     { icon: 'heart-outline', label: 'Health preferences', meta: 'Dietary needs shared with your coach', route: 'HealthPreferences' },
-    { icon: 'shield-checkmark-outline', label: 'Privacy & data', meta: 'Review access and data visibility', route: 'PrivacyData' },
   ];
   const displayName = user?.name || profile.name || 'Member';
-  const goal = profile.goal || 'Build energy through steady nutrition and movement.';
+  const goal = profile.goal || 'No goal added yet';
   const avatarSource = profileImageSource(profile.profileImageUrl || user?.profileImageUrl, token, profile.profileImageVersion);
 
   return (
@@ -47,15 +49,11 @@ export default function ProfileScreen({ navigation }) {
       </StaggeredView>
 
       <StaggeredView delay={130} style={styles.goal}>
-        <View style={styles.goalTop}><Text style={styles.goalLabel}>CURRENT GOAL</Text><Text style={styles.review}>ACTIVE PLAN</Text></View>
-        <Text style={styles.goalText}>{goal}</Text><View style={styles.goalProgress}><View style={styles.goalFill} /></View>
+        <View style={styles.goalTop}><Text style={styles.goalLabel}>CURRENT GOAL</Text><Text style={styles.review}>YOUR GOAL</Text></View>
+        <Text style={styles.goalText}>{goal}</Text><Text style={styles.review}>Today’s meal plan: {completion || 0}% logged</Text><View style={styles.goalProgress}><View style={[styles.goalFill, { width: `${Math.min(100, Math.max(0, completion || 0))}%` }]} /></View>
       </StaggeredView>
 
-      <StaggeredView delay={185} style={styles.reminders}>
-        <View style={styles.reminderIcon}><Ionicons name="notifications-outline" size={21} color={colors.tealDark} /></View>
-        <View style={styles.reminderCopy}><Text style={styles.reminderLabel}>TIMELINE REMINDERS</Text><Text style={styles.reminderText}>{remindersEnabled ? 'On · follows your assigned meal times' : 'Off · you will not receive timeline prompts'}</Text></View>
-        <Switch accessibilityLabel="Timeline reminders" value={remindersEnabled} onValueChange={toggleReminders} trackColor={{ false: colors.line, true: colors.accent }} thumbColor={colors.white} ios_backgroundColor={colors.line} />
-      </StaggeredView>
+      <NotificationSettings />
 
       <StaggeredView delay={235} style={styles.rows}>
         <Text style={styles.settings}>ACCOUNT & HEALTH</Text>
@@ -68,8 +66,9 @@ export default function ProfileScreen({ navigation }) {
         ))}
       </StaggeredView>
 
-      <StaggeredView delay={285} style={styles.trust}><PrimaryTealCardBackground /><Ionicons name="lock-closed" size={20} color="#BFECE5" /><Text style={styles.trustLabel}>PRIVATE BY DEFAULT</Text><Text style={styles.trustTitle}>Your wellbeing data stays yours.</Text><Text style={styles.trustCopy}>Meal photos, plan progress and activity details are visible only to you and your assigned coach.</Text></StaggeredView>
-      <Pressable accessibilityRole="button" onPress={() => dispatch(signOut())} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Ionicons name="log-out-outline" size={20} color={colors.danger} /><Text style={styles.logoutText}>Sign out</Text></Pressable>
+      <StaggeredView delay={285} style={styles.trust}><PrimaryTealCardBackground /><Ionicons name="lock-closed" size={20} color="#BFECE5" /><Text style={styles.trustLabel}>PRIVATE BY DEFAULT</Text><Text style={styles.trustTitle}>Your wellbeing data stays yours.</Text><Text style={styles.trustCopy}>Meal photos, plan progress and activity details are visible to you, your admin, and members explicitly granted access.</Text></StaggeredView>
+      <Pressable accessibilityRole="button" disabled={loggingOut} onPress={logout} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Ionicons name="log-out-outline" size={20} color={colors.danger} /><Text style={styles.logoutText} >{loggingOut ? 'Disconnecting…' : 'Sign out'}</Text></Pressable>
+      <SyncFeedback error={logoutError} label="Sign out" onRetry={logout} />
     </Screen>
   );
 }

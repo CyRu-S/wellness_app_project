@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Animated, Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -31,7 +31,7 @@ function getDateLabel() {
 }
 
 function Reveal({ children, delay, reduceMotion, style }) {
-  const progress = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const [progress] = useState(() => new Animated.Value(reduceMotion ? 1 : 0));
 
   useEffect(() => {
     progress.setValue(reduceMotion ? 1 : 0);

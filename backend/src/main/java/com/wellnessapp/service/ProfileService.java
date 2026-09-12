@@ -43,7 +43,7 @@ import java.time.Instant;
     @Transactional
     public ProfileResponse updatePhoto(String email, MultipartFile image) {
         User user = user(email);
-        if (user.getRole() != User.Role.USER || user.getStatus() != User.Status.ACTIVE) {
+        if (user.getStatus() != User.Status.ACTIVE) {
             throw new ConflictException("Only active members can update a profile photo");
         }
         UserProfile profile = profiles.findByUserId(user.getId())
@@ -98,7 +98,7 @@ import java.time.Instant;
         }
         profile.setHeightCm(request.heightCm());
         profile.setWeightKg(request.weightKg());
-        profile.setWaistCm(request.waistCm());
+        profile.setAge(request.age());
         profile.setBodyFatPercent(request.bodyFatPercent());
         profile.setLastBodyMetricsUpdatedAt(now);
         return response(user, profiles.save(profile));
@@ -115,7 +115,7 @@ import java.time.Instant;
                 profile == null ? null : profile.getHeightCm(),
                 profile == null ? null : profile.getWeightKg(),
                 profile == null ? null : profile.getDietaryPreferences(),
-                profile == null ? null : profile.getWaistCm(),
+                profile == null ? null : profile.getAge(),
                 profile == null ? null : profile.getBodyFatPercent(),
                 profile == null ? null : profile.getLastBodyMetricsUpdatedAt(),
                 profile == null ? 2000 : profile.getWaterGoalMl(),
@@ -134,7 +134,7 @@ import java.time.Instant;
     }
 
     private String profileImageUrl(UserProfile profile) {
-        return profile != null && profile.getPhotoMediaKey() != null ? "/api/profile/photo" : null;
+        return profile != null && profile.getPhotoMediaKey() != null ? "/api/profile/photo?v=" + profile.getPhotoMediaKey() : null;
     }
 
     public record MediaDownload(Resource resource, String contentType, String originalName, long size) {}

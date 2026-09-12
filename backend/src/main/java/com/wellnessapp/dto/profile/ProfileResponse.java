@@ -11,7 +11,7 @@ public record ProfileResponse(
         Integer heightCm,
         Double weightKg,
         String dietaryPreferences,
-        Double waistCm,
+        Integer age,
         Double bodyFatPercent,
         Instant lastBodyMetricsUpdatedAt,
         Integer waterGoalMl,

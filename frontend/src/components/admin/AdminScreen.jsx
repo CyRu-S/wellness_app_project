@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Animated, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import useReducedMotion from '../../hooks/useReducedMotion';
@@ -6,7 +6,7 @@ import { adminColors } from '../../theme/admin';
 
 export default function AdminScreen({ children, contentStyle, keyboardShouldPersistTaps = 'handled', scroll = true }) {
   const reduceMotion = useReducedMotion();
-  const progress = useRef(new Animated.Value(0)).current;
+  const [progress] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     Animated.timing(progress, {
@@ -28,6 +28,8 @@ export default function AdminScreen({ children, contentStyle, keyboardShouldPers
           contentContainerStyle={[styles.content, contentStyle]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
         >
           <Animated.View style={animatedStyle}>{children}</Animated.View>
         </ScrollView>

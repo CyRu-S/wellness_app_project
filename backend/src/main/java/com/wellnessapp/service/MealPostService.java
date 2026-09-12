@@ -25,6 +25,13 @@ public class MealPostService {
     private final MemberAccessService memberAccess;
     private final Clock clock;
     private final ZoneId applicationZoneId;
+    private final WorkflowNotificationService notices;
+    @Transactional(readOnly = true)
+    public java.util.List<MealPostResponse> history(String email) {
+        var user = users.findByEmailIgnoreCase(email).orElseThrow();
+        return posts.findByUserIdAndPostedAtGreaterThanEqualAndPostedAtLessThanOrderByPostedAtDesc(user.getId(),
+                clock.instant().minus(java.time.Duration.ofDays(21)), clock.instant().plusSeconds(1)).stream().map(this::response).toList();
+    }
 
     @Transactional
     public MealPostResponse create(String email, CreateMealPostRequest request, MultipartFile image) {
@@ -36,6 +43,9 @@ public class MealPostService {
         String requestId = request.clientRequestId().trim();
         MealPost existing = posts.findByUserIdAndClientRequestId(user.getId(), requestId).orElse(null);
         if (existing != null) return response(existing);
+        if (meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.now(clock.withZone(applicationZoneId))).isEmpty()) {
+            throw new BadRequestException("Your admin must assign a diet plan before you can post meals");
+        }
 
         Meal plannedMeal = null;
         if (request.plannedMealId() != null) {
@@ -68,8 +78,11 @@ public class MealPostService {
                     .build());
             if (plannedMeal != null && !plannedMeal.isConsumed()) {
                 plannedMeal.setConsumed(true);
+                plannedMeal.setCalories(request.calories());
+                plannedMeal.setProteinGrams(request.proteinGrams());
                 meals.saveAndFlush(plannedMeal);
             }
+            notices.admins(PushDelivery.Kind.MEAL_POST, "meal-post-" + post.getId(), "New meal check-in", user.getFullName() + " posted a meal photo. Review it in their member profile.");
             return response(post);
         } catch (RuntimeException exception) {
             mediaStorage.deleteQuietly(stored.key());

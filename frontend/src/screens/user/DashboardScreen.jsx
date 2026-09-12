@@ -6,12 +6,16 @@ import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import AnimatedNumber from '../../components/common/AnimatedNumber';
 import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
+import SyncFeedback from '../../components/common/SyncFeedback';
+import { completeActivity, loadActivities } from '../../store/slices/activitySlice';
+import { postMeal } from '../../store/slices/mealSlice';
 import Screen from '../../components/common/Screen';
 import HydrationMeter from '../../components/dashboard/HydrationMeter';
 import ProgressRing from '../../components/dashboard/ProgressRing';
 import MealSchedule, { getMealStatus } from '../../components/meal/MealSchedule';
 import UserHeader from '../../components/user/UserHeader';
 import { drinkWater, refreshDashboard } from '../../store/slices/dashboardSlice';
+import { confirmRetry } from '../../utils/confirmRetry';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
 const greeting = () => {
@@ -22,20 +26,26 @@ const greeting = () => {
 export default function DashboardScreen({ navigation }) {
   const user = useSelector((state) => state.auth.user);
   const dashboard = useSelector((state) => state.dashboard);
-  const meals = useSelector((state) => state.meals);
   const activity = useSelector((state) => state.activity);
+  const meals = useSelector((state) => state.meals);
   const dispatch = useDispatch();
   useFocusEffect(useCallback(() => { dispatch(refreshDashboard()); }, [dispatch]));
   const firstName = user?.name?.split(' ')[0] || 'there';
   const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
   const nextMeal = meals.items.find((meal) => !meal.consumed);
   const loggedMeals = meals.items.filter((meal) => meal.consumed).length;
-  const hydration = Math.round((dashboard.waterGlasses / dashboard.waterTarget) * 100);
-  const latestActivity = dashboard.lastActivity || activity.history[0];
+  const hydration = dashboard.waterTarget ? Math.min(100, Math.round((dashboard.waterGlasses / dashboard.waterTarget) * 100)) : 0;
+  const latestActivity = dashboard.lastActivity;
+  const addWater = () => {
+    const save = () => dispatch(drinkWater());
+    if (dashboard.waterError) confirmRetry('Water', save);
+    else save();
+  };
   const openTimeline = () => navigation.getParent()?.navigate('Log', { screen: 'TodayTimeline' });
   return (
     <Screen contentStyle={styles.screen}>
       <UserHeader navigation={navigation} title="Today" />
+      <SyncFeedback label="Meal" pending={!!meals.pendingPost} error={meals.postError} onRetry={() => meals.failedPost && dispatch(postMeal(meals.failedPost))} />
       <StaggeredView delay={40} style={styles.intro}>
         <Text style={styles.eyebrow}>YOUR DAILY RHYTHM</Text>
         <Text style={styles.greeting}>{greeting()}, <Text style={styles.name}>{firstName}.</Text></Text>
@@ -53,7 +63,7 @@ export default function DashboardScreen({ navigation }) {
             </View>
             <ProgressRing value={dashboard.completion} label="complete" size={120} />
           </View>
-          <View style={styles.heroActions}><View style={styles.nextStatus}><Ionicons name="time-outline" size={17} color={colors.accent} /><View><Text style={styles.nextLabel}>NEXT CHECK-IN</Text><Text style={styles.nextValue}>{nextMeal ? `${nextMeal.time} · ${nextMeal.name}` : 'Timeline complete'}</Text></View></View><View style={styles.textAction}><Text style={styles.textActionText}>Details</Text><Ionicons name="arrow-forward" size={15} color={colors.white} /></View></View>
+          <View style={styles.heroActions}><View style={styles.nextStatus}><Ionicons name="time-outline" size={17} color={colors.accent} /><View><Text style={styles.nextLabel}>NEXT CHECK-IN</Text><Text style={styles.nextValue}>{nextMeal ? `${nextMeal.time} · ${nextMeal.name}` : meals.items.length ? 'Timeline complete' : 'No plan assigned yet'}</Text></View></View><View style={styles.textAction}><Text style={styles.textActionText}>Details</Text><Ionicons name="arrow-forward" size={15} color={colors.white} /></View></View>
         </Pressable>
       </StaggeredView>
 
@@ -63,16 +73,16 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.quickStat}><Text style={styles.quickValue}>{dashboard.streak}</Text><Text style={styles.quickLabel}>DAY STREAK</Text></View>
       </StaggeredView>
 
-      {dashboard.lastMeal ? <StaggeredView delay={40} style={styles.success}><View style={styles.successIcon}><Ionicons name="checkmark" size={17} color={colors.white} /></View><View style={styles.successCopy}><Text style={styles.successTitle}>{dashboard.lastMeal.name} added</Text><Text style={styles.successMeta}>+{dashboard.lastMeal.calories} kcal · Dashboard updated now</Text></View><Ionicons name="sparkles-outline" size={18} color={colors.tealMid} /></StaggeredView> : null}
       {overdue.length ? <StaggeredView delay={210} style={styles.alert}><Ionicons name="alert-circle" size={20} color={colors.danger} /><View style={styles.alertCopy}><Text style={styles.alertTitle}>{overdue.length} timeline check-in{overdue.length > 1 ? 's' : ''} overdue</Text><Text style={styles.alertMeta}>Open Log when you are ready to add the photo.</Text></View></StaggeredView> : null}
 
       <StaggeredView delay={240} style={styles.section}>
-        <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>DAILY MEAL PLAN</Text><Text style={styles.sectionTitle}>{meals.planName}</Text><Text style={styles.sectionMeta}>Assigned by {meals.consultant}</Text></View></View>
+        <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>DAILY MEAL PLAN</Text><Text style={styles.sectionTitle}>{meals.planName || 'No plan assigned yet'}</Text><Text style={styles.sectionMeta}>{meals.consultant ? `Assigned by ${meals.consultant}` : 'Your admin will create your meal schedule.'}</Text></View></View>
         <MealSchedule items={meals.items} compact showPhotoAction={false} />
       </StaggeredView>
-      <StaggeredView delay={310} style={styles.section}><HydrationMeter value={dashboard.waterGlasses} target={dashboard.waterTarget} onAdd={() => dispatch(drinkWater())} /></StaggeredView>
+      <StaggeredView delay={310} style={styles.section}><HydrationMeter value={dashboard.waterGlasses} target={dashboard.waterTarget} pending={!!dashboard.optimistic.water} onAdd={addWater} /><SyncFeedback label="Water" pending={!!dashboard.optimistic.water} error={dashboard.waterError} onRetry={addWater} /></StaggeredView>
       <StaggeredView delay={370} style={styles.section}>
         <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>MOVEMENT</Text><Text style={styles.sectionTitle}>Today’s activity</Text></View><Pressable onPress={() => navigation.navigate('Move')}><Text style={styles.allLink}>Start timer</Text></Pressable></View>
+        <SyncFeedback label="Activity" pending={!!activity.pendingSession} error={activity.error} onRetry={() => activity.failedSession ? confirmRetry('Activity', () => dispatch(completeActivity(activity.failedSession))) : dispatch(loadActivities())} />
         <View style={styles.activitySummary}><View style={styles.activityIcon}><Ionicons name="walk" size={24} color={colors.tealDark} /></View><View style={styles.activityCopy}><Text style={styles.activityName}>{latestActivity?.activity || 'No activity logged'}</Text><Text style={styles.activityMeta}>{latestActivity ? `${latestActivity.minutes} min · ${latestActivity.calories} kcal burned` : 'Start a guided activity to update this section'}</Text></View><View><AnimatedNumber value={dashboard.activeMinutes} style={styles.activityValue} suffix="m" /><Text style={styles.activityLabel}>TODAY</Text></View></View>
       </StaggeredView>
     </Screen>

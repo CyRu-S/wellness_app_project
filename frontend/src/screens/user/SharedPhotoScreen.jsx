@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import Image from '../../components/common/ProtectedImage';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { colors, fonts, type } from '../../theme';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8080/api';
+import { API_URL } from '../../services/api/client';
 const EMPTY_POST = {};
 
 const imageUriFor = (post) => post?.imageUrl || post?.imageUri || (post?.postId ? `/api/meal-posts/${post.postId}/image` : null);
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
   lock: { width: 38, height: 38, borderRadius: 14, backgroundColor: 'rgba(39,195,178,0.12)', alignItems: 'center', justifyContent: 'center' },
   photoStage: { flex: 1, minHeight: 320, alignItems: 'center', justifyContent: 'center' },
   photo: { width: '100%', height: '100%' },
-  loading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 13 },
+  loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 13 },
   loadingText: { color: '#B9D8D3', fontFamily: fonts.medium, fontSize: 11 },
   failed: { alignItems: 'center', paddingHorizontal: 36 },
   failedIcon: { width: 68, height: 68, borderRadius: 24, backgroundColor: 'rgba(39,195,178,0.12)', alignItems: 'center', justifyContent: 'center' },

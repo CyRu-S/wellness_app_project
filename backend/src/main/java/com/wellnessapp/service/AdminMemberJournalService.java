@@ -32,7 +32,7 @@ public class AdminMemberJournalService {
     private final Clock clock;
     private final ZoneId applicationZoneId;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AdminMemberJournalResponse get(Long memberId) {
         User member = users.findById(memberId)
                 .filter(user -> user.getRole() == User.Role.USER)
@@ -84,7 +84,7 @@ public class AdminMemberJournalService {
                 profile == null ? null : profile.getGoal(),
                 profile == null ? null : profile.getDietaryPreferences(),
                 height, weight,
-                profile == null ? null : profile.getWaistCm(),
+                profile == null ? null : profile.getAge(),
                 profile == null ? null : profile.getBodyFatPercent(),
                 bmi(height, weight),
                 profile == null ? null : profile.getLastBodyMetricsUpdatedAt(),

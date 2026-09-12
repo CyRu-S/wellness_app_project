@@ -9,6 +9,8 @@ import java.util.List;
 @Service @RequiredArgsConstructor public class MealService {
     private final UserRepository users; private final MealRepository meals; private final MealItemRepository items;
     private final Clock clock; private final ZoneId applicationZoneId;
-    public List<MealResponse> today(String email) { User user = users.findByEmailIgnoreCase(email).orElseThrow(); return meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.now(clock.withZone(applicationZoneId))).stream().map(meal -> new MealResponse(meal.getId(), meal.getType(), meal.getName(), meal.getMealTime(), meal.getCalories(), meal.getProteinGrams(), meal.isConsumed(), items.findByMealId(meal.getId()).stream().map(item -> item.getName() + " · " + item.getQuantity()).toList())).toList(); }
+    private final PlanService plans;
+    @org.springframework.transaction.annotation.Transactional
+    public List<MealResponse> today(String email) { User user = users.findByEmailIgnoreCase(email).orElseThrow(); plans.ensureDailyMeals(user.getId()); return meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.now(clock.withZone(applicationZoneId))).stream().map(meal -> new MealResponse(meal.getId(), meal.getType(), meal.getName(), meal.getMealTime(), meal.getCalories(), meal.getProteinGrams(), meal.isConsumed(), items.findByMealId(meal.getId()).stream().map(item -> item.getName() + (item.getQuantity().isBlank() ? "" : " · " + item.getQuantity())).toList())).toList(); }
 }
 

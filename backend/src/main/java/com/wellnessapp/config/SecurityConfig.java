@@ -19,7 +19,16 @@ import java.util.List;
 public class SecurityConfig {
     private final JwtFilter jwtFilter;
     @Bean SecurityFilterChain security(HttpSecurity http) throws Exception {
-        return http.csrf(csrf -> csrf.disable()).cors(cors -> cors.configurationSource(corsSource())).sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health").permitAll().requestMatchers("/api/admin/**").hasRole("ADMIN").anyRequest().authenticated()).addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class).build();
+        return http.csrf(csrf -> csrf.disable()).cors(cors -> cors.configurationSource(corsSource()))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, ex) -> {
+                    response.setStatus(401); response.setContentType("application/json"); response.getWriter().write("{\"message\":\"Please sign in again\"}");
+                }).accessDeniedHandler((request, response, ex) -> {
+                    response.setStatus(403); response.setContentType("application/json"); response.getWriter().write("{\"message\":\"You do not have access to this action\"}");
+                }))
+                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN").anyRequest().authenticated())
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class).build();
     }
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
     @Bean AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception { return configuration.getAuthenticationManager(); }

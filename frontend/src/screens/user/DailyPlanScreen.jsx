@@ -1,19 +1,17 @@
 import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import AmbientBackground from '../../components/common/AmbientBackground';
 import Screen from '../../components/common/Screen';
 import UserHeader from '../../components/user/UserHeader';
-import { toggleTask } from '../../store/slices/planSlice';
 import { colors, fonts, radius, type } from '../../theme';
 
 const fittedText = { maxFontSizeMultiplier: 1.15 };
 
 export default function DailyPlanScreen({ navigation }) {
   const plan = useSelector((state) => state.plan);
-  const dispatch = useDispatch();
   const { fontScale } = useWindowDimensions();
   const compactLayout = Platform.OS === 'ios' || fontScale > 1.15;
   const complete = plan.tasks.filter((task) => task.done).length;
@@ -23,8 +21,8 @@ export default function DailyPlanScreen({ navigation }) {
     <Screen>
       <UserHeader navigation={navigation} title="Daily plan" />
       <StaggeredView delay={40} style={[styles.head, compactLayout && styles.headCompact]}>
-        <Text {...fittedText} style={styles.kicker}>YOUR PROGRAM · {plan.daysRemaining} DAYS LEFT</Text>
-        <Text {...fittedText} style={[styles.title, compactLayout && styles.titleCompact]}>{plan.title}</Text>
+        <Text {...fittedText} style={styles.kicker}>YOUR PROGRAM · DAILY SCHEDULE</Text>
+        <Text {...fittedText} style={[styles.title, compactLayout && styles.titleCompact]}>{plan.title || 'No plan assigned yet'}</Text>
         <Text {...fittedText} style={[styles.body, compactLayout && styles.bodyCompact]}>Complete each ritual at your pace. Consistency matters more than perfect timing.</Text>
       </StaggeredView>
       <StaggeredView delay={130} style={[styles.progressBlock, compactLayout && styles.progressBlockCompact]}>
@@ -34,7 +32,7 @@ export default function DailyPlanScreen({ navigation }) {
       <StaggeredView delay={220}>
         <Text {...fittedText} style={styles.sectionLabel}>TODAY’S RITUALS</Text>
         {plan.tasks.map((task, index) => (
-          <Pressable key={task.id} onPress={() => dispatch(toggleTask(task.id))} style={({ pressed }) => [styles.task, compactLayout && styles.taskCompact, pressed && styles.pressed]}>
+          <Pressable key={task.id} onPress={() => navigation.getParent()?.navigate('Log')} style={({ pressed }) => [styles.task, compactLayout && styles.taskCompact, pressed && styles.pressed]}>
             <View style={[styles.check, task.done && styles.checkDone]}>{task.done && <Ionicons name="checkmark" size={17} color={colors.white} />}</View>
             <View style={styles.copy}><Text {...fittedText} style={[styles.taskTitle, compactLayout && styles.taskTitleCompact, task.done && styles.done]}>{task.title}</Text><Text {...fittedText} style={[styles.detail, compactLayout && styles.detailCompact]}>{task.detail}</Text></View>
             <Text {...fittedText} style={styles.number}>0{index + 1}</Text>
@@ -45,7 +43,7 @@ export default function DailyPlanScreen({ navigation }) {
         <AmbientBackground />
         <Ionicons name="leaf-outline" size={22} color={colors.accent} />
         <Text {...fittedText} style={[styles.quoteText, compactLayout && styles.quoteTextCompact]}>Consistency is a direction, not a perfect score.</Text>
-        <Text {...fittedText} style={styles.quoteBy}>COACH MIRA</Text>
+        <Text {...fittedText} style={styles.quoteBy}>YOUR WELLNESS TEAM</Text>
       </StaggeredView>
     </Screen>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, PanResponder, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, radius, shadows, type } from '../../theme';
@@ -14,7 +14,11 @@ const geometryFor = (photo, viewportSize, zoom) => {
   return { width, height, maxX: Math.max(0, (width - viewportSize) / 2), maxY: Math.max(0, (height - viewportSize) / 2) };
 };
 
-export default function ProfilePhotoCropper({ photo, onCancel, onConfirm }) {
+export default function ProfilePhotoCropper(props) {
+  return props.photo ? <Cropper key={props.photo.uri} {...props} /> : null;
+}
+
+function Cropper({ photo, onCancel, onConfirm }) {
   const { width: screenWidth } = useWindowDimensions();
   const viewportSize = Math.min(280, screenWidth - 72);
   const [zoom, setZoom] = useState(1);
@@ -27,23 +31,21 @@ export default function ProfilePhotoCropper({ photo, onCancel, onConfirm }) {
   const viewportRef = useRef(viewportSize);
   const dragStart = useRef({ x: 0, y: 0 });
 
-  photoRef.current = photo;
-  zoomRef.current = zoom;
-  offsetRef.current = offset;
-  viewportRef.current = viewportSize;
-
-  useEffect(() => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
-    setError('');
-  }, [photo]);
+  useLayoutEffect(() => {
+    photoRef.current = photo;
+    zoomRef.current = zoom;
+    offsetRef.current = offset;
+    viewportRef.current = viewportSize;
+  }, [photo, zoom, offset, viewportSize]);
 
   const constrainedOffset = (nextOffset, nextZoom = zoomRef.current) => {
     const geometry = geometryFor(photoRef.current, viewportRef.current, nextZoom);
     return { x: clamp(nextOffset.x, -geometry.maxX, geometry.maxX), y: clamp(nextOffset.y, -geometry.maxY, geometry.maxY) };
   };
 
-  const panResponder = useRef(PanResponder.create({
+  // PanResponder stores these callbacks; ref reads only occur during touch events.
+  // eslint-disable-next-line react-hooks/refs
+  const [panResponder] = useState(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
     onPanResponderGrant: () => { dragStart.current = offsetRef.current; },
@@ -52,9 +54,8 @@ export default function ProfilePhotoCropper({ photo, onCancel, onConfirm }) {
       offsetRef.current = next;
       setOffset(next);
     },
-  })).current;
+  }));
 
-  if (!photo) return null;
   const geometry = geometryFor(photo, viewportSize, zoom);
   const changeZoom = (amount) => {
     const nextZoom = clamp(Number((zoom + amount).toFixed(2)), 1, 3);
@@ -113,7 +114,7 @@ const styles = StyleSheet.create({
   close: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   hint: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18, marginTop: 8, marginBottom: 16 },
   viewport: { alignSelf: 'center', overflow: 'hidden', borderRadius: radius.lg, backgroundColor: colors.ink },
-  cropBorder: { ...StyleSheet.absoluteFillObject, borderRadius: radius.lg, borderWidth: 2, borderColor: colors.white },
+  cropBorder: { ...StyleSheet.absoluteFill, borderRadius: radius.lg, borderWidth: 2, borderColor: colors.white },
   gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.42)' },
   gridVerticalOne: { top: 0, bottom: 0, left: '33.33%', width: StyleSheet.hairlineWidth },
   gridVerticalTwo: { top: 0, bottom: 0, left: '66.66%', width: StyleSheet.hairlineWidth },

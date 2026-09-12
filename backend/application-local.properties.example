@@ -1,0 +1,21 @@
+# Copy to backend/application-local.properties (which is Git-ignored).
+spring.datasource.url=jdbc:postgresql://YOUR_DATABASE_HOST:5432/YOUR_DATABASE?sslmode=require
+spring.datasource.username=YOUR_DATABASE_USER
+spring.datasource.password=YOUR_DATABASE_PASSWORD
+
+# Required. Generate a unique Base64-encoded value containing at least 32 random bytes.
+app.jwt.secret=YOUR_BASE64_ENCODED_RANDOM_SECRET
+
+# Comma-separated OAuth client IDs accepted by the backend.
+app.google.client-ids=YOUR_WEB_CLIENT_ID,YOUR_ANDROID_CLIENT_ID,YOUR_IOS_CLIENT_ID
+
+# Gmail SMTP password recovery. Use a Google App Password, never the Gmail password.
+spring.mail.username=your-sender@gmail.com
+spring.mail.password=YOUR_16_CHARACTER_GOOGLE_APP_PASSWORD
+spring.mail.test-connection=true
+app.mail.from=your-sender@gmail.com
+app.mail.enabled=true
+
+# Only needed when initializing a brand-new database with no administrator.
+app.admin.email=admin@mr-care.app
+app.admin.initial-password=USE_A_UNIQUE_PASSWORD_WITH_AT_LEAST_12_CHARACTERS

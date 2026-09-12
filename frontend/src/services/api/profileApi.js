@@ -1,5 +1,5 @@
 import { request } from './client';
-import { Platform } from 'react-native';
+import { appendImage } from './imageUpload';
 
 export const getProfile = (token) => request('/profile', { headers: { Authorization: `Bearer ${token}` } });
 
@@ -17,12 +17,7 @@ export const updateBodyMetrics = (token, metrics) => request('/profile/body-metr
 
 export async function uploadProfilePhoto(token, photo) {
   const form = new FormData();
-  if (Platform.OS === 'web') {
-    const imageResponse = await fetch(photo.uri);
-    form.append('image', await imageResponse.blob(), photo.fileName);
-  } else {
-    form.append('image', { uri: photo.uri, name: photo.fileName, type: photo.mimeType });
-  }
+  await appendImage(form, photo);
   return request('/profile/photo', {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },

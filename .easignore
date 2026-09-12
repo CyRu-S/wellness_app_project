@@ -1,0 +1,34 @@
+# EAS reads this at the Git repository root for this frontend/backend monorepo.
+# Keep Git's exclusions; include only the Firebase Android client config below.
+frontend/node_modules/
+frontend/.expo/
+frontend/dist/
+frontend/dist-*/
+backend/target/
+.idea/
+.vscode/
+*.iml
+*.log
+.env
+**/application-local.properties
+backend/data/
+backend/backups/
+frontend/.env.local
+frontend/google-services.json
+**/*service-account*.json
+.DS_Store
+
+# No backend, Git history, local environment secrets or signing keys in the APK build archive.
+/backend/
+.git/
+**/.env.*
+**/*firebase-adminsdk*.json
+**/*.pem
+**/*.p12
+**/*.jks
+**/*.keystore
+**/credentials.json
+
+# This is the Android client configuration, NOT a Firebase service-account private key.
+# app.config.js validates its type and Android package before the build can continue.
+!/frontend/google-services.json

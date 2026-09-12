@@ -1,12 +1,13 @@
-import React from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AppLogo from '../../components/common/AppLogo';
-import { signOut } from '../../store/slices/authSlice';
-import { selectAdminPreferences, setPreference } from '../../store/slices/adminSlice';
+import { signOutSafely } from '../../store/slices/authSlice';
+import NotificationSettings from '../../components/user/NotificationSettings';
+import SyncFeedback from '../../components/common/SyncFeedback';
 import { adminColors, adminFonts } from '../../theme/admin';
 
 function SectionHeading({ eyebrow, title, meta }) {
@@ -18,38 +19,6 @@ function SectionHeading({ eyebrow, title, meta }) {
       </View>
       {meta ? <Text style={styles.sectionMeta}>{meta}</Text> : null}
     </View>
-  );
-}
-
-function PreferenceRow({ index, title, detail, value, onValueChange, last }) {
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
-      accessibilityLabel={title}
-      accessibilityHint={detail}
-      onPress={() => onValueChange(!value)}
-      style={({ pressed }) => [styles.preferenceRow, !last && styles.preferenceDivider, pressed && styles.pressed]}
-    >
-      <View style={[styles.preferenceNumber, value && styles.preferenceNumberActive]}>
-        <Text style={[styles.preferenceNumberText, value && styles.preferenceNumberTextActive]}>{index}</Text>
-      </View>
-      <View style={styles.preferenceCopy}>
-        <Text style={styles.preferenceTitle}>{title}</Text>
-        <Text style={styles.preferenceDetail}>{detail}</Text>
-      </View>
-      <View style={styles.preferenceControl}>
-        <Text style={[styles.preferenceState, value && styles.preferenceStateActive]}>{value ? 'ON' : 'OFF'}</Text>
-        <Switch
-          accessible={false}
-          pointerEvents="none"
-          value={value}
-          trackColor={{ false: '#D8E3DF', true: '#86CFC9' }}
-          thumbColor={value ? adminColors.deepTeal : adminColors.white}
-          ios_backgroundColor="#D8E3DF"
-        />
-      </View>
-    </Pressable>
   );
 }
 
@@ -76,15 +45,19 @@ function AccountRow({ icon, title, detail, onPress, last }) {
 export default function AdminSettingsScreen({ navigation }) {
   const dispatch = useDispatch();
   const admin = useSelector((state) => state.auth.user);
-  const preferences = useSelector(selectAdminPreferences);
-  const activeAlerts = Object.values(preferences).filter(Boolean).length;
-  const alertTotal = Object.keys(preferences).length;
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState(null);
+  const logout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true); setLogoutError(null);
+    try { await dispatch(signOutSafely()).unwrap(); }
+    catch { setLoggingOut(false); setLogoutError('Could not disconnect notifications. Check your connection and retry.'); }
+  };
 
   const comingNext = (title) => Alert.alert(title, 'This destination is planned for the next admin release.');
-  const changePreference = (key, value) => dispatch(setPreference({ key, value }));
   const confirmSignOut = () => {
     if (Platform.OS === 'web') {
-      if (globalThis.confirm?.('Sign out of admin?\n\nYou will return to the login screen.')) dispatch(signOut());
+      if (globalThis.confirm?.('Sign out of admin?\n\nYou will return to the login screen.')) logout();
       return;
     }
 
@@ -93,7 +66,7 @@ export default function AdminSettingsScreen({ navigation }) {
       'You will return to the login screen.',
       [
         { text: 'Stay signed in', style: 'cancel' },
-        { text: 'Sign out', style: 'destructive', onPress: () => dispatch(signOut()) },
+        { text: 'Sign out', style: 'destructive', onPress: () => logout() },
       ],
     );
   };
@@ -120,32 +93,9 @@ export default function AdminSettingsScreen({ navigation }) {
         </View>
       </View>
 
-      <SectionHeading eyebrow="NOTIFICATIONS" title="Only the useful signals" meta={`${activeAlerts}/${alertTotal} active`} />
-      <View style={styles.preferenceList}>
-        <PreferenceRow
-          index="01"
-          title="Signup requests"
-          detail="When someone asks to join the club"
-          value={preferences.signupAlerts}
-          onValueChange={(value) => changePreference('signupAlerts', value)}
-        />
-        <PreferenceRow
-          index="02"
-          title="Missed deadlines"
-          detail="When a member may need support"
-          value={preferences.deadlineAlerts}
-          onValueChange={(value) => changePreference('deadlineAlerts', value)}
-        />
-        <PreferenceRow
-          index="03"
-          title="Morning digest"
-          detail="One daily summary of club activity"
-          value={preferences.dailyDigest}
-          onValueChange={(value) => changePreference('dailyDigest', value)}
-          last
-        />
-      </View>
-      <Text style={styles.sessionNote}>Preference changes stay with you for this session.</Text>
+      <NotificationSettings />
+      <Text style={styles.sessionNote}>Preferences are saved to your account. The optional morning digest follows the app timezone.</Text>
+      <AccountRow icon="notifications-outline" title="Notification inbox" detail="Signup requests, member updates and daily summaries" onPress={() => navigation.navigate('AdminNotifications')} last />
 
       <SectionHeading eyebrow="ACCOUNT & ACCESS" title="The essentials" />
       <View style={styles.accountList}>
@@ -162,24 +112,14 @@ export default function AdminSettingsScreen({ navigation }) {
         </View>
         <Text style={styles.trustTitle}>Member data deserves the same care as member wellbeing.</Text>
         <Text style={styles.trustText}>Activity and coaching information remain confidential inside the admin workspace.</Text>
-        <View style={styles.trustLinks}>
-          <Pressable accessibilityRole="button" onPress={() => comingNext('Data and privacy')} style={({ pressed }) => [styles.trustLink, pressed && styles.pressed]}>
-            <Text style={styles.trustLinkText}>Data & privacy</Text>
-            <Ionicons name="arrow-forward" size={16} color={adminColors.white} />
-          </Pressable>
-          <View style={styles.trustDivider} />
-          <Pressable accessibilityRole="button" onPress={() => comingNext('Admin terms')} style={({ pressed }) => [styles.trustLink, pressed && styles.pressed]}>
-            <Text style={styles.trustLinkText}>Admin terms</Text>
-            <Ionicons name="arrow-forward" size={16} color={adminColors.white} />
-          </Pressable>
-        </View>
       </View>
 
-      <Pressable accessibilityRole="button" onPress={confirmSignOut} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}>
+      <Pressable accessibilityRole="button" disabled={loggingOut} onPress={confirmSignOut} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}>
         <Ionicons name="log-out-outline" size={20} color={adminColors.coral} />
-        <Text style={styles.logoutText}>Sign out of admin</Text>
+        <Text style={styles.logoutText}>{loggingOut ? 'Disconnecting…' : 'Sign out of admin'}</Text>
         <Ionicons name="arrow-forward" size={18} color={adminColors.coral} />
       </Pressable>
+      <SyncFeedback error={logoutError} label="Sign out" onRetry={logout} />
       <Text style={styles.version}>Mr_Care Admin · Prototype 0.2</Text>
     </AdminScreen>
   );
@@ -225,17 +165,13 @@ const styles = StyleSheet.create({
   accountTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 15, lineHeight: 20 },
   accountDetail: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 3 },
   accountArrow: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
-  trustCard: { minHeight: 248, overflow: 'hidden', padding: 19, borderRadius: 26, backgroundColor: adminColors.deepTeal },
+  trustCard: { minHeight: 205, overflow: 'hidden', padding: 19, borderRadius: 26, backgroundColor: adminColors.deepTeal },
   trustOrb: { position: 'absolute', width: 190, height: 190, right: -92, top: -88, borderRadius: 95, backgroundColor: 'rgba(180,245,235,0.08)' },
   trustTopline: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   trustIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
   trustLabel: { color: '#BFECE5', fontFamily: adminFonts.semibold, fontSize: 11, lineHeight: 16, letterSpacing: 1.15 },
   trustTitle: { maxWidth: 300, color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 28, letterSpacing: -0.45, marginTop: 17 },
   trustText: { maxWidth: 310, color: '#C7E5E1', fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 20, marginTop: 7 },
-  trustLinks: { minHeight: 50, flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.18)', marginTop: 18 },
-  trustLink: { minHeight: 50, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7, paddingHorizontal: 5 },
-  trustDivider: { width: 1, height: 23, backgroundColor: 'rgba(255,255,255,0.17)', marginHorizontal: 8 },
-  trustLinkText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 13, lineHeight: 18 },
   logout: { minHeight: 59, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0CBC7', marginTop: 31 },
   logoutText: { flex: 1, color: adminColors.coral, fontFamily: adminFonts.semibold, fontSize: 15, lineHeight: 20 },
   version: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 18 },

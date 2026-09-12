@@ -7,11 +7,13 @@ import java.time.Instant;
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 @Entity @Table(name = "notification_events")
 public class NotificationEvent {
+    @Enumerated(EnumType.STRING) @Column(length = 16) private PushDelivery.Kind kind;
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @ManyToOne(optional = false) @JoinColumn(name = "user_id") private User user;
     @Column(nullable = false, length = 160) private String title;
     @Column(nullable = false, length = 500) private String body;
     @Column(name = "read_flag", nullable = false) private boolean read;
     @Column(name = "scheduled_at", nullable = false) private Instant scheduledAt;
+    @Column(name = "source_key", unique = true, length = 100) private String sourceKey;
 }
 
