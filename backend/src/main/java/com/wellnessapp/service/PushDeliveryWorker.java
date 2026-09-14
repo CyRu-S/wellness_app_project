@@ -42,8 +42,11 @@ public class PushDeliveryWorker {
                         .map(u -> u.getStatus() == User.Status.PENDING).orElse(false);
             }
             if (d.getKind() == PushDelivery.Kind.DEADLINE) {
-                return key != null && key.startsWith("deadline-") && missed.findById(Long.parseLong(key.split("-")[1]))
-                        .map(m -> !m.isResolved()).orElse(false);
+                if (key == null) return false;
+                String prefix = key.startsWith("member-deadline-") ? "member-deadline-" : "deadline-";
+                if (!key.startsWith(prefix)) return false;
+                return missed.findById(Long.parseLong(key.substring(prefix.length()).split("-")[0]))
+                        .map(m -> !m.isResolved() && (prefix.equals("deadline-") || m.getUser().getId().equals(event.getUser().getId()))).orElse(false);
             }
         } catch (NumberFormatException ignored) { return false; }
         return true;
@@ -56,7 +59,9 @@ public class PushDeliveryWorker {
                     case NUDGE -> "You have a reminder from your coach. Open Mr_Care to view it.";
                     case TEST -> "Phone notifications are connected.";
                     case SIGNUP -> "A new membership request is ready to review.";
-                    case DEADLINE -> "A member may need support. Open Attention to review.";
+                    case DEADLINE -> d.getNotification().getUser().getRole() == User.Role.ADMIN
+                            ? "A member may need support. Open Attention to review."
+                            : "Your meal check-in is overdue. Open your timeline to review.";
                     case DIGEST -> "Your morning club summary is ready.";
                     case MEAL_POST, ACTIVITY -> "A member has a new check-in. Open your admin inbox.";
                     case PLAN, ACCESS, APPROVAL -> "Your account has an update from your coach. Open Mr_Care to review.";

@@ -38,7 +38,7 @@ public class PlanService {
     public Map<String, Object> memberPlan(Long memberId) {
         Plan plan = current(memberId);
         if (plan == null) return Map.of("memberId", memberId, "planName", "", "items", List.of());
-        return Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", "Coach Arpan", "updatedAt", plan.getStartDate(),
+        return Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", "Coach Arjun", "updatedAt", plan.getStartDate(),
                 "items", items.findByPlanIdOrderBySortOrder(plan.getId()).stream().filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null).map(item -> Map.of(
                         "id", item.getId(), "type", item.getMealType(), "name", item.getTitle(), "time", item.getScheduledTime(),
                         "calories", item.getCalories(), "protein", item.getProteinGrams(), "ingredients", split(item.getIngredients()))).toList());

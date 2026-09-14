@@ -197,13 +197,39 @@ class PushNotificationIntegrationTests {
     }
     @Test void overdueMealNotifiesAdminOnceAndResolutionCancelsDelivery() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
+        accounts.register(member.getEmail(), "ExponentPushToken[member-device]", UUID.randomUUID().toString());
         var meal = meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
                 .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
         reminders.refresh(); reminders.refresh();
         assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isEqualTo(1);
         meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); worker.sendPending();
-        assertThat(deliveries.findAll()).hasSize(1).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
+        assertThat(deliveries.findAll()).hasSize(2).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
         verifyNoInteractions(expo);
+    }
+    @Test void overdueMealNudgeReachesMemberAndIsIdempotent() {
+        var admin = admin();
+        accounts.register(admin.getEmail(), pushToken, registration);
+        accounts.register(member.getEmail(), "ExponentPushToken[member-device]", UUID.randomUUID().toString());
+        meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
+                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
+        reminders.refresh();
+        var attention = missed.findByResolvedFalseOrderByMissedAtDesc().getFirst();
+        reminders.nudge(attention.getId()); reminders.nudge(attention.getId());
+        assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(1);
+        assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()))
+                .extracting(NotificationEvent::getKind).contains(PushDelivery.Kind.DEADLINE, PushDelivery.Kind.NUDGE);
+    }
+    @Test void lateNightDeadlineIsStillReportedAfterMidnight() {
+        var admin = admin();
+        accounts.register(admin.getEmail(), pushToken, registration);
+        // Application zone is Asia/Kolkata; 20:00 UTC is after local midnight.
+        advance(18 * 3600);
+        meals.saveAndFlush(Meal.builder().user(member).type("Dinner").name("Rice")
+                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(23, 0)).build());
+        reminders.refresh();
+        assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isEqualTo(1);
     }
     @Test void dailyDigestIsOptInAndOnlyOnceInTheMorningWindow() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);

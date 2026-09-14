@@ -1,5 +1,6 @@
 import { appendImage } from './imageUpload';
-import { request } from './client';
+import { API_URL, request } from './client';
+import { primeProtectedImageCache } from '../storage/protectedImageCache';
 
 const imageDetails = (uri) => {
   const extension = uri?.split('?')[0].split('.').pop()?.toLowerCase();
@@ -15,9 +16,15 @@ export async function createMealPost(token, { imageUri, ...metadata }) {
 
   await appendImage(form, { uri: imageUri, fileName: image.name });
 
-  return request('/meal-posts', {
+  const post = await request('/meal-posts', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
+  if (post?.imageUrl) {
+    const origin = API_URL.replace(/\/api\/?$/, '');
+    const uri = post.imageUrl.startsWith('/api/') ? `${origin}${post.imageUrl}` : post.imageUrl;
+    await primeProtectedImageCache(uri, `Bearer ${token}`, imageUri);
+  }
+  return post;
 }

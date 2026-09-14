@@ -25,7 +25,11 @@ public class ReminderService {
         for (var user : users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE).stream().sorted(Comparator.comparing(User::getId)).toList()) {
             users.lockById(user.getId()).orElseThrow();
             plans.ensureDailyMeals(user.getId());
-            for (var meal : meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.now(clock.withZone(applicationZoneId)))) {
+            var today = LocalDate.now(clock.withZone(applicationZoneId));
+            var dueMeals = new ArrayList<Meal>();
+            dueMeals.addAll(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), today.minusDays(1)));
+            dueMeals.addAll(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), today));
+            for (var meal : dueMeals) {
                 String key = "meal-" + meal.getId();
                 var due = meal.getMealDate().atTime(meal.getMealTime()).atZone(applicationZoneId).toInstant();
                 String notificationKey = key + "-" + due.getEpochSecond();
@@ -38,9 +42,14 @@ public class ReminderService {
                             .body(meal.getName() + " is scheduled for " + meal.getMealTime()).scheduledAt(due.minusSeconds(1800)).build());
                     push.enqueue(notification, PushDelivery.Kind.MEAL, due.plusSeconds(3600));
                 }
-                if (clock.instant().isAfter(due.plusSeconds(3600)) && missed.findBySourceKey(key).isEmpty()) {
-                    var attention = missed.save(MissedEvent.builder().user(user).sourceKey(key).itemType("Meals").itemTitle(meal.getType() + " check-in is overdue").missedAt(due).build());
-                    notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "A member may need support", user.getFullName() + " has an overdue meal check-in. Open Attention to review it.");
+                if (clock.instant().isAfter(due.plusSeconds(3600))) {
+                    var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user).sourceKey(key)
+                            .itemType("Meals").itemTitle(meal.getType() + " check-in is overdue").missedAt(due).build()));
+                    if (!attention.isResolved()) {
+                        notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "A member may need support", user.getFullName() + " has an overdue meal check-in. Open Attention to review it.");
+                        notices.notify(user, PushDelivery.Kind.DEADLINE, "member-deadline-" + attention.getId(),
+                                "Your meal check-in is overdue", "Open your timeline to review your missed meal check-in.");
+                    }
                 }
             }
         }

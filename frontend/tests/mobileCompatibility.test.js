@@ -56,13 +56,6 @@ test('photo sources preserve native content URIs and version keys, and do not le
 test('native protected images download with authorization before rendering', async () => {
   let downloaded;
   let resolved;
-  class MockFile {
-    constructor(...parts) { this.uri = `file:///${parts.at(-1)}`; this.exists = false; }
-    static downloadFileAsync(uri, destination, options) {
-      downloaded = { uri, destination, options };
-      return Promise.resolve({ uri: destination.uri, exists: false });
-    }
-  }
   const react = {
     __esModule: true,
     default: { createElement: (type, props) => ({ type, props }) },
@@ -73,7 +66,10 @@ test('native protected images download with authorization before rendering', asy
   const { default: ProtectedImage } = loadModule('../src/components/common/ProtectedImage.jsx', {
     react,
     'react-native': { Image: 'Image', Platform: { OS: 'android' } },
-    'expo-file-system': { File: MockFile, Paths: { cache: 'cache' } },
+    '../../services/storage/protectedImageCache': { cachedProtectedImage: async (uri, authorization) => {
+      downloaded = { uri, authorization };
+      return { uri: 'file:///private-photo.img' };
+    } },
   });
   const source = { uri: 'http://192.168.1.20:8080/api/meal-posts/7/image', headers: { Authorization: 'Bearer secret' } };
   const firstRender = ProtectedImage({ source });
@@ -81,8 +77,8 @@ test('native protected images download with authorization before rendering', asy
   await Promise.resolve();
   await Promise.resolve();
   assert.equal(downloaded.uri, source.uri);
-  assert.equal(downloaded.options.headers.Authorization, 'Bearer secret');
-  assert.equal(resolved.image.uri, downloaded.destination.uri);
+  assert.equal(downloaded.authorization, 'Bearer secret');
+  assert.equal(resolved.image.uri, 'file:///private-photo.img');
 });
 
 test('web can use localhost while mobile follows the current Expo LAN host', () => {

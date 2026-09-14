@@ -4,6 +4,6 @@ export function notificationDestination(role, kind) {
       MEAL_POST: 'UserList', ACTIVITY: 'UserList' })[kind] || 'NotificationSettings' } };
   }
   if (kind === 'ACCESS') return { name: 'Shared', params: { screen: 'SharedMembers' } };
-  if (kind === 'PLAN' || kind === 'MEAL') return { name: 'Log', params: { screen: 'TodayTimeline' } };
+  if (['PLAN', 'MEAL', 'NUDGE', 'DEADLINE'].includes(kind)) return { name: 'Log', params: { screen: 'TodayTimeline' } };
   return { name: 'Profile', params: { screen: 'ProfileHome' } };
 }

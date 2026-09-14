@@ -88,7 +88,7 @@ export default function AdminSettingsScreen({ navigation }) {
         </View>
         <View style={styles.profileCopy}>
           <Text style={styles.profileEyebrow}>ADMIN PROFILE</Text>
-          <Text numberOfLines={1} style={styles.profileName}>{admin?.name || 'Arpan'}</Text>
+          <Text numberOfLines={1} style={styles.profileName}>{admin?.name || 'Arjun'}</Text>
           <Text numberOfLines={1} style={styles.profileClub}>{admin?.clubName || 'Mr_Care Collective'}</Text>
         </View>
       </View>

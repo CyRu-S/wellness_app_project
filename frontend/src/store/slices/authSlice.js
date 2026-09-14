@@ -4,6 +4,7 @@ import { revokePushBeforeLogout } from '../../services/notifications/pushNotific
 import { getProfile } from '../../services/api/profileApi';
 import { clearSession, readSession, writeSession } from '../../services/storage/sessionStorage';
 import { clearCachedResponses } from '../../services/api/responseCache';
+import { clearProtectedImageCache } from '../../services/storage/protectedImageCache';
 
 const initialState = { user: null, token: null, hasOnboarded: false, bootstrapped: false, status: 'idle', error: null, source: null };
 export const restoreSession = createAsyncThunk('auth/restoreSession', async () => {
@@ -12,17 +13,18 @@ export const restoreSession = createAsyncThunk('auth/restoreSession', async () =
   try {
     const profile = await getProfile(saved.token, 'network-only');
     if (String(profile.id) !== String(saved.user.id) || profile.role !== saved.user.role) {
-      await clearSession(); await clearCachedResponses();
+      await clearSession(); await clearCachedResponses(); await clearProtectedImageCache();
       return null;
     }
     return { token: saved.token, user: { ...saved.user, name: profile.name, profileImageUrl: profile.profileImageUrl } };
   } catch (error) {
-    if (error.status === 401 || error.status === 403) { await clearSession(); await clearCachedResponses(); return null; }
+    if (error.status === 401 || error.status === 403) { await clearSession(); await clearCachedResponses(); await clearProtectedImageCache(); return null; }
     // Keep an encrypted, previously active session through a temporary network outage.
     return saved;
   }
 });
 export const signIn = createAsyncThunk('auth/signIn', async (credentials) => {
+  await clearProtectedImageCache();
   const response = await login(credentials);
   await writeSession(response);
   return { ...response, source: 'api' };
@@ -32,6 +34,7 @@ export const signOutSafely = createAsyncThunk('auth/signOutSafely', async (_, { 
   await revokePushBeforeLogout(getState().auth.token);
   await clearSession();
   await clearCachedResponses();
+  await clearProtectedImageCache();
   dispatch(signOut());
 });
 const slice = createSlice({

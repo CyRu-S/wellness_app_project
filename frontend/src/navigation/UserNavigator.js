@@ -17,7 +17,6 @@ import PrivacyDataScreen from '../screens/user/PrivacyDataScreen';
 import SharedMembersScreen from '../screens/user/SharedMembersScreen';
 import SharedMemberTodayScreen from '../screens/user/SharedMemberTodayScreen';
 import SharedPhotoScreen from '../screens/user/SharedPhotoScreen';
-import useReducedMotion from '../hooks/useReducedMotion';
 import { colors } from '../theme';
 
 const Tab = createBottomTabNavigator(); const Stack = createNativeStackNavigator();
@@ -27,15 +26,13 @@ function LogStack() { return <Stack.Navigator screenOptions={header}><Stack.Scre
 function ProfileStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ headerShown: false }} /><Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} /><Stack.Screen name="BodyDetails" component={BodyDetailsScreen} options={{ headerShown: false }} /><Stack.Screen name="HealthPreferences" component={HealthPreferencesScreen} options={{ headerShown: false }} /><Stack.Screen name="PrivacyData" component={PrivacyDataScreen} options={{ headerShown: false }} /></Stack.Navigator>; }
 function SharedStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="SharedMembers" component={SharedMembersScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedMemberToday" component={SharedMemberTodayScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedPhoto" component={SharedPhotoScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
 export default function UserNavigator() {
-  const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const dockSpace = 83 + Math.max(insets.bottom, 8);
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        animation: reduceMotion ? 'fade' : 'shift',
-        transitionSpec: { animation: 'timing', config: { duration: reduceMotion ? 120 : 260 } },
+        animation: 'none',
         sceneStyle: { backgroundColor: colors.paper, paddingBottom: dockSpace },
       }}
       tabBar={(props) => <UserTabBar {...props} />}

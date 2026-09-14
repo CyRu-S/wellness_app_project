@@ -15,7 +15,6 @@ import AdminSettingsScreen from '../screens/admin/AdminSettingsScreen';
 import AdminNotificationsScreen from '../screens/admin/AdminNotificationsScreen';
 import UserDetailsScreen from '../screens/admin/UserDetailsScreen';
 import ManageMemberAccessScreen from '../screens/admin/ManageMemberAccessScreen';
-import useReducedMotion from '../hooks/useReducedMotion';
 import { adminColors } from '../theme/admin';
 
 const Tab = createBottomTabNavigator();
@@ -31,7 +30,6 @@ const Variant = ({ route, navigation }) => (
 );
 
 function AdminTabs() {
-  const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const dockSpace = 83 + Math.max(insets.bottom, 8);
   return (
@@ -40,8 +38,7 @@ function AdminTabs() {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: adminColors.canvas, paddingBottom: dockSpace },
-        animation: reduceMotion ? 'fade' : 'shift',
-        transitionSpec: { animation: 'timing', config: { duration: reduceMotion ? 120 : 260 } },
+        animation: 'none',
       }}
       tabBar={(props) => <AdminTabBar {...props} />}
     >

@@ -73,7 +73,7 @@ function FluidTabItem({
         accessibilityLabel={options.tabBarAccessibilityLabel || config.label}
         onPress={onPress}
         onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
-        style={({ pressed }) => [styles.item, pressed && styles.pressed]}
+        style={styles.item}
       >
         <Animated.View
           pointerEvents="none"
@@ -170,7 +170,7 @@ const nativePillShadow = {
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.1,
   shadowRadius: 9,
-  elevation: 3,
+  elevation: 0,
 };
 
 const styles = StyleSheet.create({
@@ -223,5 +223,4 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   badgeText: { color: '#FFFFFF', fontSize: 10, lineHeight: 12 },
-  pressed: { opacity: 0.58 },
 });

@@ -51,8 +51,9 @@ test('all four photo workflows use the SDK-compatible upload helper', async () =
   const paths = [];
   let appended = 0;
   const dependencies = {
-    './client': { request: async (path, options) => { paths.push(path); assert.ok(options.body instanceof FormData); assert.ok(options.body.get('image') instanceof File); return {}; } },
+    './client': { API_URL: 'https://example.invalid/api', request: async (path, options) => { paths.push(path); assert.ok(options.body instanceof FormData); assert.ok(options.body.get('image') instanceof File); return {}; } },
     './imageUpload': { appendImage: async (form) => { appended++; form.append('image', new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })); } },
+    '../storage/protectedImageCache': { primeProtectedImageCache: async () => {} },
   };
   const auth = loadModule('../src/services/api/authApi.js', dependencies);
   const profile = loadModule('../src/services/api/profileApi.js', dependencies);

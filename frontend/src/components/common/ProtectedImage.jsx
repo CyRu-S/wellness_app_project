@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, Platform } from 'react-native';
-import { File, Paths } from 'expo-file-system';
-
-let nativeDownloadId = 0;
+import { cachedProtectedImage } from '../../services/storage/protectedImageCache';
 
 // Browser and native image loaders can handle authenticated URLs differently.
 // Download private media ourselves so every platform uses the bearer token.
@@ -17,7 +15,6 @@ export default function ProtectedImage({ source, onError, ...props }) {
     if (!protectedRemote) return undefined;
     const controller = new AbortController();
     let objectUrl;
-    let localFile;
     const download = Platform.OS === 'web'
       ? fetch(uri, { headers: { Authorization: authorization }, signal: controller.signal })
         .then((response) => { if (!response.ok) throw new Error('Photo unavailable'); return response.blob(); })
@@ -25,18 +22,10 @@ export default function ProtectedImage({ source, onError, ...props }) {
           objectUrl = URL.createObjectURL(blob);
           return { uri: objectUrl };
         })
-      : File.downloadFileAsync(
-        uri,
-        new File(Paths.cache, `protected-media-${Date.now()}-${nativeDownloadId++}.img`),
-        { headers: { Authorization: authorization }, signal: controller.signal },
-      ).then((file) => {
-        localFile = file;
-        return { uri: file.uri };
-      });
+      : cachedProtectedImage(uri, authorization);
     download
       .then((image) => {
         if (controller.signal.aborted) {
-          if (localFile?.exists) localFile.delete();
           return;
         }
         setResolved({ sourceUri: uri, authorization, image });
@@ -45,7 +34,6 @@ export default function ProtectedImage({ source, onError, ...props }) {
     return () => {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      if (localFile?.exists) localFile.delete();
     };
   }, [uri, authorization, protectedRemote]);
   const resolvedSource = resolved?.sourceUri === uri && resolved?.authorization === authorization ? resolved.image : null;

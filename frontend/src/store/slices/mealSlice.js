@@ -15,7 +15,7 @@ export const loadMeals = createAsyncThunk('meals/load', async (_, { getState }) 
     getMeals(token), getPlan(token), request('/meal-posts', { headers: { Authorization: `Bearer ${token}` } }),
   ]);
   return {
-    planName: plan?.title || '', consultant: plan ? 'Coach Arpan' : '',
+    planName: plan?.title || '', consultant: plan ? 'Coach Arjun' : '',
     items: items.map((meal) => {
       const post = posts.find((p) => p.plannedMealId === meal.id);
       return { ...normalizeMeal(meal), uploadedAt: post ? formatJournalClock(post.postedAt) : null,

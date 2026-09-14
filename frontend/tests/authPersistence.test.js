@@ -24,6 +24,7 @@ function setup() {
     } },
     '../../services/storage/sessionStorage': session,
     '../../services/api/responseCache': { clearCachedResponses: async () => {} },
+    '../../services/storage/protectedImageCache': { clearProtectedImageCache: async () => {} },
   });
   const makeStore = () => toolkit.configureStore({ reducer: { auth: auth.default } });
   return { auth, makeStore, values, setProfileError: (value) => { profileError = value; } };
