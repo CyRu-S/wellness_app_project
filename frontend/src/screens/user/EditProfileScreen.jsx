@@ -46,13 +46,9 @@ export default function EditProfileScreen({ navigation }) {
     if (nextName.length > 120) { setError('Keep your profile name under 120 characters.'); return; }
     setSaveError('');
     try {
-      // Upload and save independent fields together, without waiting for a poll.
-      const results = await Promise.allSettled([
-        ...(photo ? [dispatch(saveProfilePhoto({ token, photo })).unwrap()] : []),
-        dispatch(saveProfileDetails({ token, details: { name: nextName, dietaryPreferences: profile.dietaryPreferences || '' } })).unwrap(),
-      ]);
-      const failure = results.find((result) => result.status === 'rejected');
-      if (failure) throw failure.reason;
+      // Keep the two profile writes ordered so their database transactions cannot race.
+      await dispatch(saveProfileDetails({ token, details: { name: nextName, dietaryPreferences: profile.dietaryPreferences || '' } })).unwrap();
+      if (photo) await dispatch(saveProfilePhoto({ token, photo })).unwrap();
       navigation.goBack();
     } catch (saveFailure) {
       const message = saveFailure.message || 'Please try again.';

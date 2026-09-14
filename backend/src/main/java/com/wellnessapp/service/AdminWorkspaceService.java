@@ -61,7 +61,7 @@ public class AdminWorkspaceService {
                 }).toList();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Map<String, Object> workspace() {
         var all = users.findAll().stream().filter(u -> u.getRole() == User.Role.USER).sorted(Comparator.comparing(User::getId)).toList();
         var active = all.stream().filter(u -> u.getStatus() == User.Status.ACTIVE).toList();
@@ -91,7 +91,6 @@ public class AdminWorkspaceService {
                     user.getLastSeenAt().isAfter(clock.instant().minusSeconds(120)) ? "Active now" : user.getLastSeenAt().atZone(applicationZoneId).format(DateTimeFormatter.ofPattern("d MMM, h:mm a")));
             row.put("attentionLevel", "NONE"); row.put("attentionReason", ""); members.add(row);
         }
-        reminders.refresh();
         var attention = reminders.attention();
         for (var row : members) {
             var alerts = attention.stream().filter(a -> a.get("memberId").equals(row.get("id"))).toList();

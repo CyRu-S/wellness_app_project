@@ -3,7 +3,7 @@ import { getProfile, updateBodyMetrics as updateBodyMetricsApi, updateProfileDet
 
 export const BODY_UPDATE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const initialProfileState = {
-  name: '', email: '', goal: null, dietaryPreferences: '', profileImageUrl: null, profileImageVersion: null,
+  name: '', email: '', goal: null, dietaryPreferences: '', phone: '', clubName: '', profileImageUrl: null, profileImageVersion: null,
   bodyMetrics: { heightCm: null, weightKg: null, age: null, bodyFatPercent: null },
   lastBodyMetricsUpdatedAt: null, status: 'idle', error: null, readId: null, writes: {},
 };
@@ -31,7 +31,9 @@ function finish(state, action, kind, values) {
   state.status = Object.keys(state.writes).length ? 'saving' : state.error ? 'error' : 'saved';
 }
 const metricsFrom = (payload) => Object.fromEntries(['heightCm', 'weightKg', 'age', 'bodyFatPercent'].map((key) => [key, payload[key] ?? null]));
-const detailsFrom = (payload) => ({ name: payload.name, dietaryPreferences: payload.dietaryPreferences ?? '' });
+const detailsFrom = (payload) => ({ name: payload.name, dietaryPreferences: payload.dietaryPreferences ?? '',
+  ...(payload.phone !== undefined ? { phone: payload.phone ?? '' } : {}),
+  ...(payload.clubName !== undefined ? { clubName: payload.clubName ?? '' } : {}) });
 
 const slice = createSlice({
   name: 'profile', initialState: initialProfileState, reducers: {},

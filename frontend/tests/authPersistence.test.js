@@ -25,6 +25,7 @@ function setup() {
     '../../services/storage/sessionStorage': session,
     '../../services/api/responseCache': { clearCachedResponses: async () => {} },
     '../../services/storage/protectedImageCache': { clearProtectedImageCache: async () => {} },
+    '../../services/storage/persistedState': { cancelPersistedState: async () => {} },
   });
   const makeStore = () => toolkit.configureStore({ reducer: { auth: auth.default } });
   return { auth, makeStore, values, setProfileError: (value) => { profileError = value; } };
@@ -38,6 +39,7 @@ test('manual sign-in is restored from encrypted storage after a cold start', asy
   assert.equal(values.size, 1);
   const reopened = makeStore();
   await reopened.dispatch(auth.restoreSession());
+  await reopened.dispatch(auth.validateRestoredSession());
   assert.equal(reopened.getState().auth.user.id, 4);
   assert.equal(reopened.getState().auth.bootstrapped, true);
 });
@@ -54,6 +56,8 @@ test('expired server session is deleted and explicit sign-out stays bootstrapped
   setProfileError(Object.assign(new Error('Expired'), { status: 401 }));
   const reopened = makeStore();
   await reopened.dispatch(auth.restoreSession());
+  assert.equal(reopened.getState().auth.user.id, 4, 'cached session appears immediately while validation is pending');
+  await reopened.dispatch(auth.validateRestoredSession());
   assert.equal(reopened.getState().auth.user, null);
   assert.equal(values.size, 0);
 });

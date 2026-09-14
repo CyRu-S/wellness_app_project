@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Animated, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { colors } from '../../theme';
@@ -28,7 +28,9 @@ export default function Screen({ children, scroll = true, contentStyle, style, k
 
   return (
     <SafeAreaView style={[styles.safe, style]} edges={['top', 'left', 'right']}>
-      {scroll ? <ScrollView keyboardShouldPersistTaps={keyboardShouldPersistTaps} keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>{content}</ScrollView> : <View style={styles.fill}>{content}</View>}
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {scroll ? <ScrollView keyboardShouldPersistTaps={keyboardShouldPersistTaps} keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>{content}</ScrollView> : <View style={styles.fill}>{content}</View>}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

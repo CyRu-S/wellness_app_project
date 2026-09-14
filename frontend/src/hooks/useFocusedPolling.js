@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
 // Detail screens must not poll while hidden, backgrounded, or already loading.
-export default function useFocusedPolling(load, interval = 10000) {
+export default function useFocusedPolling(load, interval = 30000) {
   useFocusEffect(useCallback(() => {
     let active = true;
     let busy = false;

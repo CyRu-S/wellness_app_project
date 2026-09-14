@@ -5,7 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AppLogo from '../../components/common/AppLogo';
-import { updateProfile } from '../../store/slices/authSlice';
+import { saveProfileDetails } from '../../store/slices/profileSlice';
 import { adminColors, adminFonts, adminRadius } from '../../theme/admin';
 
 const makeForm = (admin) => ({
@@ -48,10 +48,14 @@ function EditField({ icon, label, value, onChangeText, error, keyboardType, auto
 export default function AdminProfileScreen({ navigation }) {
   const dispatch = useDispatch();
   const admin = useSelector((state) => state.auth.user);
+  const token = useSelector((state) => state.auth.token);
+  const profile = useSelector((state) => state.profile);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(() => makeForm(admin));
   const [errors, setErrors] = useState({});
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // Only refresh the form from the account while it is not being edited.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -65,17 +69,23 @@ export default function AdminProfileScreen({ navigation }) {
 
   const validate = () => {
     const next = {};
-    ['name', 'email', 'phone', 'clubName'].forEach((key) => { if (!form[key].trim()) next[key] = 'This field is required.'; });
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = 'Enter a valid email address.';
+    ['name', 'clubName'].forEach((key) => { if (!form[key].trim()) next[key] = 'This field is required.'; });
+    if (form.name.trim().length > 120) next.name = 'Use 120 characters or fewer.';
+    if (form.clubName.trim().length > 120) next.clubName = 'Use 120 characters or fewer.';
+    if (form.phone.trim() && !/^\+?[0-9 ()-]{7,30}$/.test(form.phone.trim())) next.phone = 'Enter a valid phone number.';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
-  const save = () => {
-    if (!validate()) return;
-    dispatch(updateProfile(Object.fromEntries(Object.entries(form).map(([key, value]) => [key, value.trim()]))));
-    setEditing(false);
-    setSaved(true);
+  const save = async () => {
+    if (saving || !validate()) return;
+    setSaving(true); setSaveError('');
+    try {
+      await dispatch(saveProfileDetails({ token, details: { name: form.name.trim(), dietaryPreferences: profile.dietaryPreferences || '',
+        phone: form.phone.trim(), clubName: form.clubName.trim() } })).unwrap();
+      setEditing(false); setSaved(true);
+    } catch (error) { setSaveError(error.message || 'Could not save your profile. Please retry.'); }
+    finally { setSaving(false); }
   };
 
   const cancel = () => {
@@ -107,7 +117,7 @@ export default function AdminProfileScreen({ navigation }) {
         {editing ? (
           <>
             <EditField icon="person-outline" label="FULL NAME" value={form.name} onChangeText={(value) => setField('name', value)} error={errors.name} />
-            <EditField icon="mail-outline" label="EMAIL" value={form.email} onChangeText={(value) => setField('email', value)} error={errors.email} keyboardType="email-address" autoCapitalize="none" />
+            <ViewField icon="mail-outline" label="SIGN-IN EMAIL (VERIFIED)" value={admin?.email} />
             <EditField icon="call-outline" label="PHONE" value={form.phone} onChangeText={(value) => setField('phone', value)} error={errors.phone} keyboardType="phone-pad" autoCapitalize="none" />
             <EditField icon="business-outline" label="CLUB NAME" value={form.clubName} onChangeText={(value) => setField('clubName', value)} error={errors.clubName} />
           </>
@@ -121,10 +131,12 @@ export default function AdminProfileScreen({ navigation }) {
         )}
       </View>
 
+      {saveError ? <Text accessibilityRole="alert" style={styles.errorText}>{saveError}</Text> : null}
+
       {editing && (
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" onPress={save} style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}><Text style={styles.saveText}>Save changes</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={cancel} style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+          <Pressable accessibilityRole="button" disabled={saving} onPress={save} style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}><Text style={styles.saveText}>{saving ? 'Saving…' : 'Save changes'}</Text></Pressable>
+          <Pressable accessibilityRole="button" disabled={saving} onPress={cancel} style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
         </View>
       )}
     </AdminScreen>

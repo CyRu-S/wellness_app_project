@@ -34,7 +34,8 @@ export const nudgePriorityAttention = createAsyncThunk('admin/nudgePriority', as
 export const updateMemberMealPlan = createAsyncThunk('admin/savePlan', async ({ memberId, planName, items }, { getState }) => {
   const body = { planName, items: items.map((item) => {
     const minutes = Math.round(item.hour * 60);
-    return { type: item.type, name: item.name, time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}:00`,
+    return { id: Number.isSafeInteger(Number(item.id)) ? Number(item.id) : null,
+      type: item.type, name: item.name, time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}:00`,
       calories: Number(item.calories) || 0, protein: Number(item.protein) || 0, ingredients: item.ingredients || [] };
   }) };
   const result = await request(`/admin/plans/members/${memberId}`, { method: 'PUT', headers: headers(getState), body: JSON.stringify(body) });

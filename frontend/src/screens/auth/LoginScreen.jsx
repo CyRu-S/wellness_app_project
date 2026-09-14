@@ -17,7 +17,7 @@ export default function LoginScreen({ navigation }) {
   const submit = () => dispatch(signIn({ email, password }));
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <AuthHeader navigation={navigation} eyebrow="WELCOME BACK">Good to see{`\n`}you again.</AuthHeader>
           <StaggeredView delay={170} style={styles.form}>

@@ -76,6 +76,6 @@ public class AuthService {
 
     private AuthResponse response(User user, String token) {
         return new AuthResponse(token, user.getId(), user.getFullName(), user.getEmail(),
-                user.getRole().name(), user.getStatus().name());
+                user.getRole().name(), user.getStatus().name(), user.getPhoneNumber(), user.getClubName());
     }
 }

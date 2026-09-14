@@ -9,7 +9,7 @@ import { loadActivities } from '../store/slices/activitySlice';
 import { loadProfile } from '../store/slices/profileSlice';
 import { loadNotifications, loadNotificationPreferences } from '../store/slices/notificationSlice';
 import { loadSharedMembers, loadAdminMemberAccess } from '../store/slices/memberAccessSlice';
-import { invalidateCachedResponses } from '../services/api/client';
+import { validateRestoredSession } from '../store/slices/authSlice';
 
 export default function useLiveSync() {
   const dispatch = useDispatch();
@@ -20,12 +20,11 @@ export default function useLiveSync() {
     let stopped = false;
     let busy = false;
     let lastSlowRefresh = 0;
-    const refresh = async (force = false) => {
+    const refresh = async () => {
       if (stopped || busy || (AppState.currentState && AppState.currentState !== 'active')) return;
       busy = true;
       try {
-        if (force) await invalidateCachedResponses();
-        const slowRefresh = force || Date.now() - lastSlowRefresh >= 120000;
+        const slowRefresh = Date.now() - lastSlowRefresh >= 120000;
         const actions = role === 'ADMIN'
           ? [loadAdminMembers(), loadNotifications(), ...(slowRefresh ? [loadAdminMemberAccess(), loadNotificationPreferences()] : [])]
           : [refreshDashboard(), loadMeals(), loadActivities(), loadNotifications(), ...(slowRefresh ? [loadPlan(), loadSharedMembers(), loadNotificationPreferences()] : [])];
@@ -33,9 +32,10 @@ export default function useLiveSync() {
         await Promise.all(actions.map((action) => dispatch(action)));
       } finally { busy = false; }
     };
+    dispatch(validateRestoredSession());
     refresh();
-    const timer = setInterval(refresh, 30000);
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(true); });
+    const timer = setInterval(refresh, 60000);
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(); });
     return () => { stopped = true; clearInterval(timer); subscription.remove(); };
   }, [dispatch, role, token]);
 }

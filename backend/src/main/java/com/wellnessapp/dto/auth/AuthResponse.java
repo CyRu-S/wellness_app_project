@@ -1,3 +1,4 @@
 package com.wellnessapp.dto.auth;
-public record AuthResponse(String token, Long id, String name, String email, String role, String status) {}
+public record AuthResponse(String token, Long id, String name, String email, String role, String status,
+                           String phone, String clubName) {}
 

@@ -20,6 +20,7 @@ import AdminBarChart from '../../components/admin/AdminBarChart';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl';
+import MealTimePicker from '../../components/admin/MealTimePicker';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
 import useFocusedPolling from '../../hooks/useFocusedPolling';
 import { formatNutrition } from '../../utils/formatNutrition';
@@ -329,6 +330,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
   const [planName, setPlanName] = useState(plan.planName);
   const [items, setItems] = useState(plan.items.map((item) => ({ ...item })));
   const [saving, setSaving] = useState(false);
+  const [timePickerIndex, setTimePickerIndex] = useState(null);
 
   const changeItem = (index, key, value) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item));
@@ -366,6 +368,11 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
       Alert.alert('Check the daily plan', 'Add a plan name, meal name, and time such as 8:00 AM for every meal.');
       return;
     }
+    const identities = items.map((item) => `${item.type.trim().toLowerCase()}|${item.name.trim().toLowerCase()}|${item.time.trim().toUpperCase().replace(/\s+/g, '')}`);
+    if (new Set(identities).size !== identities.length) {
+      Alert.alert('Duplicate meal', 'The same meal is already scheduled at that time. Change its name or time instead of adding it twice.');
+      return;
+    }
     setSaving(true);
     try { await onSave({
       planName: planName.trim(),
@@ -381,7 +388,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
         <View style={styles.editorSheet}>
           <View style={styles.editorHandle} />
           <View style={styles.editorHeader}>
@@ -401,15 +408,11 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                   <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${meal.type}`} disabled={items.length === 1} onPress={() => removeItem(index)} style={[styles.removeMeal, items.length === 1 && styles.removeMealDisabled]}>
                     <Ionicons name="trash-outline" size={17} color={adminColors.coral} />
                   </Pressable>
-                  <TextInput
-                    accessibilityLabel={`${meal.type} time`}
-                    autoCapitalize="characters"
-                    value={meal.time}
-                    onChangeText={(value) => changeItem(index, 'time', value)}
-                    placeholder="8:00 AM"
-                    placeholderTextColor={adminColors.muted}
-                    style={styles.timeInput}
-                  />
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Choose ${meal.type} time, currently ${meal.time}`}
+                    onPress={() => setTimePickerIndex(index)} style={styles.timeInput}>
+                    <Text style={styles.timeInputText}>{meal.time}</Text>
+                    <Ionicons name="time-outline" size={15} color={adminColors.deepTeal} />
+                  </Pressable>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeOptions}>
                   {MEAL_TYPES.map((type) => {
@@ -437,6 +440,9 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
               <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add another meal</Text><Text style={styles.addMealDetail}>Create as many daily meal or product slots as needed.</Text></View>
             </Pressable>
           </ScrollView>
+          {timePickerIndex != null && items[timePickerIndex] ? <MealTimePicker key={`${timePickerIndex}-${items[timePickerIndex].id}`}
+            value={items[timePickerIndex].time} onCancel={() => setTimePickerIndex(null)}
+            onConfirm={(value) => { changeItem(timePickerIndex, 'time', value); setTimePickerIndex(null); }} /> : null}
           <View style={styles.editorActions}>
             <Pressable accessibilityRole="button" onPress={onClose} style={styles.cancelButton}><Text style={styles.cancelText}>Cancel</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={save} disabled={saving} style={styles.saveButton}><Text style={styles.saveText}>{saving ? "Saving…" : "Save daily plan"}</Text><Ionicons name="checkmark" size={18} color={adminColors.white} /></Pressable>
@@ -746,7 +752,8 @@ const styles = StyleSheet.create({
   editorMealType: { flex: 1, color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 14 },
   removeMeal: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: adminColors.coralSoft },
   removeMealDisabled: { opacity: 0.35 },
-  timeInput: { width: 92, minHeight: 42, paddingHorizontal: 9, borderRadius: 13, color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 12, textAlign: 'center', backgroundColor: adminColors.aqua },
+  timeInput: { minWidth: 100, minHeight: 42, paddingHorizontal: 9, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: adminColors.aqua },
+  timeInputText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 12 },
   typeOptions: { gap: 7, paddingTop: 11, paddingBottom: 1 },
   typeOption: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 13, backgroundColor: adminColors.surfaceMuted, borderWidth: 1, borderColor: adminColors.line },
   typeOptionSelected: { backgroundColor: adminColors.deepTeal, borderColor: adminColors.deepTeal },

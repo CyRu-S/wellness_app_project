@@ -5,23 +5,29 @@ import { getProfile } from '../../services/api/profileApi';
 import { clearSession, readSession, writeSession } from '../../services/storage/sessionStorage';
 import { clearCachedResponses } from '../../services/api/responseCache';
 import { clearProtectedImageCache } from '../../services/storage/protectedImageCache';
+import { cancelPersistedState } from '../../services/storage/persistedState';
 
 const initialState = { user: null, token: null, hasOnboarded: false, bootstrapped: false, status: 'idle', error: null, source: null };
 export const restoreSession = createAsyncThunk('auth/restoreSession', async () => {
   const saved = await readSession();
-  if (!saved) return null;
+  return saved;
+});
+export const validateRestoredSession = createAsyncThunk('auth/validateRestoredSession', async (_, { getState, dispatch }) => {
+  const { token, user } = getState().auth;
+  if (!token || !user) return null;
   try {
-    const profile = await getProfile(saved.token, 'network-only');
-    if (String(profile.id) !== String(saved.user.id) || profile.role !== saved.user.role) {
-      await clearSession(); await clearCachedResponses(); await clearProtectedImageCache();
-      return null;
-    }
-    return { token: saved.token, user: { ...saved.user, name: profile.name, profileImageUrl: profile.profileImageUrl } };
+    const profile = await getProfile(token, 'network-only');
+    if (String(profile.id) !== String(user.id) || profile.role !== user.role) throw Object.assign(new Error('Session changed'), { status: 401 });
+    return { name: profile.name, profileImageUrl: profile.profileImageUrl, phone: profile.phone, clubName: profile.clubName };
   } catch (error) {
-    if (error.status === 401 || error.status === 403) { await clearSession(); await clearCachedResponses(); await clearProtectedImageCache(); return null; }
-    // Keep an encrypted, previously active session through a temporary network outage.
-    return saved;
+    if (error.status === 401 || error.status === 403) await dispatch(expireSession());
+    return null;
   }
+});
+export const expireSession = createAsyncThunk('auth/expireSession', async (_, { dispatch }) => {
+  await cancelPersistedState();
+  await clearSession(); await clearCachedResponses(); await clearProtectedImageCache();
+  dispatch(signOut());
 });
 export const signIn = createAsyncThunk('auth/signIn', async (credentials) => {
   await clearProtectedImageCache();
@@ -32,6 +38,7 @@ export const signIn = createAsyncThunk('auth/signIn', async (credentials) => {
 export const register = createAsyncThunk('auth/register', async (profile) => ({ ...await registerApi(profile), source: 'api' }));
 export const signOutSafely = createAsyncThunk('auth/signOutSafely', async (_, { getState, dispatch }) => {
   await revokePushBeforeLogout(getState().auth.token);
+  await cancelPersistedState();
   await clearSession();
   await clearCachedResponses();
   await clearProtectedImageCache();
@@ -54,7 +61,8 @@ const slice = createSlice({
       }
     })
     .addCase(restoreSession.rejected, (state) => { state.bootstrapped = true; })
-    .addCase('profile/saveDetails/fulfilled', (state, action) => { if (state.user) state.user.name = action.payload.name; })
+    .addCase(validateRestoredSession.fulfilled, (state, action) => { if (state.user && action.payload) Object.assign(state.user, action.payload); })
+    .addCase('profile/saveDetails/fulfilled', (state, action) => { if (state.user) Object.assign(state.user, { name: action.payload.name, phone: action.payload.phone, clubName: action.payload.clubName }); })
     .addCase('profile/savePhoto/fulfilled', (state, action) => { if (state.user) state.user.profileImageUrl = action.payload.profileImageUrl; })
     .addMatcher((a) => [signIn.pending.type, register.pending.type].includes(a.type), (state) => { state.status = 'loading'; state.error = null; })
     .addMatcher((a) => [signIn.fulfilled.type, register.fulfilled.type].includes(a.type), (state, action) => {

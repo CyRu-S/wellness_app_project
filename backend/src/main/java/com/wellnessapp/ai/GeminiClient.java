@@ -3,14 +3,16 @@ package com.wellnessapp.ai;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wellnessapp.dto.meal.MealAnalysisResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Base64;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -18,9 +20,16 @@ import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 @Component
-@RequiredArgsConstructor
 public class GeminiClient {
     private final ObjectMapper objectMapper;
+    private final RestClient client;
+
+    public GeminiClient(ObjectMapper objectMapper, RestClient.Builder builder) {
+        this.objectMapper = objectMapper;
+        var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
+        factory.setReadTimeout(Duration.ofSeconds(50));
+        this.client = builder.requestFactory(factory).build();
+    }
 
     @Value("${app.gemini.api-key:}")
     private String apiKey;
@@ -56,7 +65,7 @@ public class GeminiClient {
         );
 
         try {
-            JsonNode response = RestClient.create()
+            JsonNode response = client
                     .post()
                     .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", model)
                     .header("x-goog-api-key", apiKey)

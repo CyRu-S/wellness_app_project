@@ -4,6 +4,7 @@ import com.wellnessapp.dto.profile.BodyMetricsRequest;
 import com.wellnessapp.dto.profile.UpdateProfileRequest;
 import com.wellnessapp.entity.*;
 import com.wellnessapp.exception.ConflictException;
+import com.wellnessapp.exception.BadRequestException;
 import com.wellnessapp.exception.NotFoundException;
 import com.wellnessapp.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,12 @@ import java.time.Instant;
         UserProfile profile = profiles.findByUserId(user.getId())
                 .orElseGet(() -> UserProfile.builder().user(user).build());
         user.setFullName(request.name().trim());
+        if (user.getRole() == User.Role.ADMIN) {
+            if (request.phone() != null) user.setPhoneNumber(request.phone().trim());
+            if (request.clubName() != null) user.setClubName(request.clubName().trim());
+        } else if (request.phone() != null || request.clubName() != null) {
+            throw new BadRequestException("Only an administrator can change club contact details");
+        }
         profile.setDietaryPreferences(request.dietaryPreferences() == null
                 ? null
                 : request.dietaryPreferences().trim());
@@ -119,7 +126,7 @@ import java.time.Instant;
                 profile == null ? null : profile.getBodyFatPercent(),
                 profile == null ? null : profile.getLastBodyMetricsUpdatedAt(),
                 profile == null ? 2000 : profile.getWaterGoalMl(),
-                profileImageUrl(profile));
+                profileImageUrl(profile), user.getPhoneNumber(), user.getClubName());
     }
 
     private MediaDownload photo(Long userId) {

@@ -242,7 +242,7 @@ class PushNotificationIntegrationTests {
     @Test void planAccessAndMovementCreateRecipientScopedNotices() {
         var admin = admin(); accounts.register(member.getEmail(), pushToken, registration);
         plans.save(member.getId(), new com.wellnessapp.dto.plan.SaveMealPlanRequest("Test plan", List.of(
-                new com.wellnessapp.dto.plan.SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 300, 10, List.of("Oats")))));
+                new com.wellnessapp.dto.plan.SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 300, 10, List.of("Oats"), null))));
         assertThat(count(PushDelivery.Kind.PLAN, member)).isEqualTo(1);
         var subject = users.saveAndFlush(User.builder().email("shared@example.com").fullName("Shared").passwordHash("unused")
                 .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(now).build());

@@ -68,7 +68,7 @@ class PersistentWorkflowIntegrationTests {
         return user;
     }
     void plan(User u) {
-        plans.save(u.getId(), new SaveMealPlanRequest("Daily balance", List.of(new SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 400, 20, List.of("Oats", "Milk")))));
+        plans.save(u.getId(), new SaveMealPlanRequest("Daily balance", List.of(new SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 400, 20, List.of("Oats", "Milk"), null))));
     }
 
     @Test void startsWithOnlyAdminAndEmptyWorkspace() throws Exception {
@@ -153,6 +153,49 @@ class PersistentWorkflowIntegrationTests {
         plans.ensureDailyMeals(user.getId());
         assertThat(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 6))).hasSize(1).allMatch(m -> !m.isConsumed());
         assertThat(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5))).hasSize(1).allMatch(Meal::isConsumed);
+    }
+
+    @Test void addingDinnerKeepsAnAlreadyLoggedAfternoonMealWithoutDuplicatingIt() throws Exception {
+        var user = approve("plan-edit@example.com");
+        plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of(
+                new SaveMealPlanRequest.Item("Snack", "Fruit", LocalTime.of(17, 0), 120, 2, List.of(), null))));
+        var afternoon = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
+        afternoon.setConsumed(true); meals.saveAndFlush(afternoon);
+        Long originalId = afternoon.getPlanItem().getId();
+        plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of(
+                new SaveMealPlanRequest.Item("Snack", "Fruit", LocalTime.of(17, 0), 120, 2, List.of(), originalId),
+                new SaveMealPlanRequest.Item("Dinner", "Rice", LocalTime.of(20, 0), 440, 15, List.of(), null))));
+        var today = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5));
+        assertThat(today).hasSize(2);
+        assertThat(today.stream().filter(m -> m.getMealTime().equals(LocalTime.of(17, 0))).toList())
+                .singleElement().satisfies(m -> { assertThat(m.getId()).isEqualTo(afternoon.getId()); assertThat(m.isConsumed()).isTrue(); });
+        plans.ensureDailyMeals(user.getId());
+        assertThat(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5))).hasSize(2);
+        setTime("2026-09-06T04:30:00Z");
+        plans.ensureDailyMeals(user.getId());
+        assertThat(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 6))).hasSize(2);
+    }
+
+    @Test void adminProfileDetailsAreSavedAndMemberCannotChangeClubDetails() throws Exception {
+        mvc.perform(patch("/api/profile").header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Coach Arjun\",\"phone\":\"+919876543210\",\"clubName\":\"Mr Care\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Coach Arjun"))
+                .andExpect(jsonPath("$.phone").value("+919876543210"))
+                .andExpect(jsonPath("$.clubName").value("Mr Care"));
+        mvc.perform(get("/api/profile").header("Authorization", admin())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.clubName").value("Mr Care"));
+        var member = approve("member-profile@example.com");
+        plan(member);
+        mvc.perform(get("/api/plans/today").header("Authorization", token(member))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.consultant").value("Coach Arjun"));
+        mvc.perform(patch("/api/profile").header("Authorization", token(member)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Updated Member\",\"dietaryPreferences\":\"Vegetarian\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Updated Member"));
+        mvc.perform(patch("/api/profile").header("Authorization", token(member)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Updated Member\",\"clubName\":\"Not allowed\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/admin/members").header("Authorization", admin())).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Updated Member"));
     }
 
     @Test void mealWaterAndTimerAppearInAdminJournalAndDashboard() throws Exception {

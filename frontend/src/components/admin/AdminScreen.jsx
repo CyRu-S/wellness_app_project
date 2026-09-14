@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Animated, ScrollView, StyleSheet } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { adminColors } from '../../theme/admin';
@@ -23,6 +23,7 @@ export default function AdminScreen({ children, contentStyle, keyboardShouldPers
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {scroll ? (
         <ScrollView
           contentContainerStyle={[styles.content, contentStyle]}
@@ -34,6 +35,7 @@ export default function AdminScreen({ children, contentStyle, keyboardShouldPers
           <Animated.View style={animatedStyle}>{children}</Animated.View>
         </ScrollView>
       ) : <Animated.View style={[styles.content, styles.flex, contentStyle, animatedStyle]}>{children}</Animated.View>}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

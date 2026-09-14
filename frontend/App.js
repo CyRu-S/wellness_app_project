@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,6 +8,8 @@ import { Text, TextInput, View } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { store } from './src/store';
 import { restoreSession } from './src/store/slices/authSlice';
+import { beginPersistedStateWrites, readPersistedState } from './src/services/storage/persistedState';
+import { purgeLegacyCache } from './src/services/storage/encryptedStorage';
 
 Text.defaultProps = Text.defaultProps || {};
 Text.defaultProps.style = [{ fontFamily: 'Chillax-Regular' }, Text.defaultProps.style];
@@ -17,8 +19,25 @@ TextInput.defaultProps.style = [{ fontFamily: 'Chillax-Regular' }, TextInput.def
 function AppContent() {
   const dispatch = useDispatch();
   const bootstrapped = useSelector((state) => state.auth.bootstrapped);
-  useEffect(() => { dispatch(restoreSession()); }, [dispatch]);
-  if (!bootstrapped) return <View style={{ flex: 1, backgroundColor: '#002E36' }} />;
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      await purgeLegacyCache().catch(() => {});
+      const result = await dispatch(restoreSession());
+      const session = result.payload;
+      if (session?.token) {
+        const data = await readPersistedState(session.token, session.user.id);
+        if (active && data) dispatch({ type: 'app/hydrateCachedState', payload: { userId: session.user.id, data } });
+      }
+      if (active) {
+        beginPersistedStateWrites();
+        setHydrated(true);
+      }
+    })();
+    return () => { active = false; };
+  }, [dispatch]);
+  if (!bootstrapped || !hydrated) return <View style={{ flex: 1, backgroundColor: '#002E36' }} />;
   return <AppNavigator />;
 }
 

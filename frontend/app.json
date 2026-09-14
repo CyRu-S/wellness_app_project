@@ -9,6 +9,7 @@
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.wellnessapp.mobile",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/arjun-nutrition-logo.png",
         "backgroundColor": "#002E36"

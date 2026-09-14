@@ -26,7 +26,7 @@ export default function ForgotPasswordScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
           <AuthHeader compact navigation={navigation} eyebrow="ACCOUNT RECOVERY">Reset your password.</AuthHeader>
           <View style={styles.card}>

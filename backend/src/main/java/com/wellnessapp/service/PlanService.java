@@ -5,6 +5,7 @@ import com.wellnessapp.entity.*;
 import com.wellnessapp.exception.*;
 import com.wellnessapp.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
@@ -20,6 +21,8 @@ public class PlanService {
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final WorkflowNotificationService notices;
+    @Value("${app.admin.email:admin@mr-care.app}")
+    private String adminEmail;
 
     @Transactional
     public PlanResponse today(String email) {
@@ -31,14 +34,14 @@ public class PlanService {
         return new PlanResponse(plan.getId(), plan.getTitle(), plan.getGoal(), plan.getStartDate(), plan.getEndDate(),
                 items.findByPlanIdOrderBySortOrder(plan.getId()).stream().map(item -> new PlanResponse.Item(
                         item.getId(), item.getType().name(), item.getTitle(), item.getDetail(), item.getScheduledTime(),
-                        todayMeals.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId()) && meal.isConsumed()), item.getSortOrder())).toList());
+                        todayMeals.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId()) && meal.isConsumed()), item.getSortOrder())).toList(), coachName());
     }
 
     @Transactional(readOnly = true)
     public Map<String, Object> memberPlan(Long memberId) {
         Plan plan = current(memberId);
         if (plan == null) return Map.of("memberId", memberId, "planName", "", "items", List.of());
-        return Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", "Coach Arjun", "updatedAt", plan.getStartDate(),
+        return Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", coachName(), "updatedAt", plan.getStartDate(),
                 "items", items.findByPlanIdOrderBySortOrder(plan.getId()).stream().filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null).map(item -> Map.of(
                         "id", item.getId(), "type", item.getMealType(), "name", item.getTitle(), "time", item.getScheduledTime(),
                         "calories", item.getCalories(), "protein", item.getProteinGrams(), "ingredients", split(item.getIngredients()))).toList());
@@ -49,17 +52,35 @@ public class PlanService {
         User user = users.lockById(memberId).filter(u -> u.getRole() == User.Role.USER && u.getStatus() == User.Status.ACTIVE)
                 .orElseThrow(() -> new BadRequestException("Approve this member before assigning a plan"));
         Plan previous = current(memberId);
+        var previousItems = previous == null ? List.<PlanItem>of() : items.findByPlanIdOrderBySortOrder(previous.getId());
+        var previousIds = new HashSet<Long>();
+        for (PlanItem item : previousItems) previousIds.add(item.getId());
+        var seenIds = new HashSet<Long>();
+        var seenMeals = new HashSet<String>();
+        for (var item : request.items()) {
+            if (item.id() != null && (!previousIds.contains(item.id()) || !seenIds.add(item.id())))
+                throw new BadRequestException("The meal plan contains an invalid or repeated existing meal");
+            String signature = item.type().trim().toLowerCase(Locale.ROOT) + "|" + item.name().trim().toLowerCase(Locale.ROOT) + "|" + item.time();
+            if (!seenMeals.add(signature)) throw new BadRequestException("The same meal and time appears more than once");
+        }
+        var todayMeals = meals.findByUserIdAndMealDateOrderByMealTime(memberId, today());
         if (previous != null) { previous.setActive(false); plans.save(previous); }
-        for (Meal meal : meals.findByUserIdAndMealDateOrderByMealTime(memberId, today())) {
+        for (Meal meal : todayMeals) {
             if (!meal.isConsumed()) { ingredients.deleteAll(ingredients.findByMealId(meal.getId())); meals.delete(meal); }
         }
         Plan plan = plans.save(Plan.builder().user(user).title(request.planName().trim()).goal("")
                 .startDate(today()).endDate(LocalDate.of(9999, 12, 31)).active(true).build());
         int order = 0;
         for (var item : request.items()) {
-            items.save(PlanItem.builder().plan(plan).type(PlanItem.Type.MEAL).title(item.name().trim()).detail(item.type())
+            PlanItem savedItem = items.save(PlanItem.builder().plan(plan).type(PlanItem.Type.MEAL).title(item.name().trim()).detail(item.type())
                     .mealType(item.type()).scheduledTime(item.time()).calories(item.calories()).proteinGrams(item.protein())
                     .ingredients(String.join("\n", item.ingredients() == null ? List.of() : item.ingredients())).sortOrder(order++).build());
+            // A logged check-in belongs to the same recurring slot even when the coach
+            // adds another meal later. Reattach it so today's schedule does not clone it.
+            todayMeals.stream().filter(Meal::isConsumed)
+                    .filter(meal -> meal.getPlanItem() != null && item.id() != null
+                            && item.id().equals(meal.getPlanItem().getId()))
+                    .forEach(meal -> { meal.setPlanItem(savedItem); meals.save(meal); });
         }
         ensureDailyMeals(memberId);
         notices.notify(user, PushDelivery.Kind.PLAN, "plan-" + plan.getId(), "Your meal plan was updated", "Your coach has assigned an updated meal plan. Open your daily plan to review it.");
@@ -87,6 +108,11 @@ public class PlanService {
                 .filter(plan -> !today().isBefore(plan.getStartDate()) && !today().isAfter(plan.getEndDate())).orElse(null);
     }
     private LocalDate today() { return LocalDate.now(clock.withZone(applicationZoneId)); }
+    private String coachName() {
+        String name = users.findByEmailIgnoreCase(adminEmail).filter(user -> user.getRole() == User.Role.ADMIN)
+                .map(User::getFullName).filter(value -> !value.isBlank()).orElse("Arjun");
+        return name.regionMatches(true, 0, "Coach ", 0, 6) ? name : "Coach " + name;
+    }
     private List<String> split(String value) { return value == null || value.isBlank() ? List.of() : Arrays.asList(value.split("\n")); }
 }
 
