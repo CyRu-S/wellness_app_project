@@ -9,6 +9,7 @@ import { loadActivities } from '../store/slices/activitySlice';
 import { loadProfile } from '../store/slices/profileSlice';
 import { loadNotifications, loadNotificationPreferences } from '../store/slices/notificationSlice';
 import { loadSharedMembers, loadAdminMemberAccess } from '../store/slices/memberAccessSlice';
+import { invalidateCachedResponses } from '../services/api/client';
 
 export default function useLiveSync() {
   const dispatch = useDispatch();
@@ -23,7 +24,8 @@ export default function useLiveSync() {
       if (stopped || busy || (AppState.currentState && AppState.currentState !== 'active')) return;
       busy = true;
       try {
-        const slowRefresh = force || Date.now() - lastSlowRefresh >= 30000;
+        if (force) await invalidateCachedResponses();
+        const slowRefresh = force || Date.now() - lastSlowRefresh >= 120000;
         const actions = role === 'ADMIN'
           ? [loadAdminMembers(), loadNotifications(), ...(slowRefresh ? [loadAdminMemberAccess(), loadNotificationPreferences()] : [])]
           : [refreshDashboard(), loadMeals(), loadActivities(), loadNotifications(), ...(slowRefresh ? [loadPlan(), loadSharedMembers(), loadNotificationPreferences()] : [])];
@@ -32,7 +34,7 @@ export default function useLiveSync() {
       } finally { busy = false; }
     };
     refresh();
-    const timer = setInterval(refresh, 10000);
+    const timer = setInterval(refresh, 30000);
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(true); });
     return () => { stopped = true; clearInterval(timer); subscription.remove(); };
   }, [dispatch, role, token]);

@@ -96,7 +96,12 @@ export default function MealCaptureScreen({ navigation, route }) {
   const confirm = async () => {
     if (posting || pendingPost || !analysis || !photo) return;
     if (!targetMeal || targetMeal.consumed) { Alert.alert('No meal available', 'Choose an unlogged meal from your assigned plan.'); return; }
-    if (!analysis.name.trim() || ['calories', 'protein', 'carbs', 'fat'].some((key) => !Number.isFinite(Number(analysis[key])) || Number(analysis[key]) < 0)) { Alert.alert('Check meal details', 'Enter a meal name and valid nutrition values.'); return; }
+    const nutritionLimits = { calories: 10000, protein: 1000, carbs: 2000, fat: 1000 };
+    const nutrition = Object.fromEntries(Object.keys(nutritionLimits).map((key) => [key, Number(String(analysis[key]).replace(',', '.'))]));
+    if (!analysis.name.trim() || Object.entries(nutrition).some(([key, value]) =>
+      !/^\d+(?:[.,]\d{1,4})?$/.test(String(analysis[key])) || !Number.isFinite(value) || value > nutritionLimits[key])) {
+      Alert.alert('Check meal details', 'Enter a meal name and nutrition values with up to four decimal places.'); return;
+    }
     setPosting(true);
 
 
@@ -104,10 +109,10 @@ export default function MealCaptureScreen({ navigation, route }) {
       plannedMealId: Number(targetMealId),
       mealType: targetMeal.type,
       mealName: analysis.name,
-      calories: Number(analysis.calories) || 0,
-      proteinGrams: Number(analysis.protein) || 0,
-      carbsGrams: Number(analysis.carbs) || 0,
-      fatGrams: Number(analysis.fat) || 0,
+      calories: nutrition.calories,
+      proteinGrams: nutrition.protein,
+      carbsGrams: nutrition.carbs,
+      fatGrams: nutrition.fat,
       clientRequestId: clientRequestId.current,
       imageUri: photo,
       optimisticCompletion: Math.min(100, Math.round((allMeals.filter((meal) => meal.consumed).length + 1) * 100 / allMeals.length)),
@@ -157,7 +162,7 @@ export default function MealCaptureScreen({ navigation, route }) {
         <View style={styles.nutrition}><View><Text style={styles.value}>{analysis.calories}</Text><Text style={styles.valueLabel}>KCAL</Text></View><View><Text style={styles.value}>{analysis.protein}g</Text><Text style={styles.valueLabel}>PROTEIN</Text></View><View><Text style={styles.value}>{analysis.carbs}g</Text><Text style={styles.valueLabel}>CARBS</Text></View><View><Text style={styles.value}>{analysis.fat}g</Text><Text style={styles.valueLabel}>FAT</Text></View></View>
         {analysis.source !== 'live' ? <View style={styles.demoNote}><Ionicons name="information-circle-outline" size={16} color={colors.tealDark} /><Text style={styles.demoText}>Photo analysis is unavailable. Review the planned values below and enter the nutrition you want to log.</Text></View> : null}
         <TextInput accessibilityLabel="Meal name" value={analysis.name} onChangeText={(name) => setAnalysis((current) => ({ ...current, name }))} style={{ padding: 8, color: colors.ink }} />
-        <View style={{ flexDirection: 'row', gap: 8 }}>{['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key} style={{ flex: 1 }}><Text>{key}</Text><TextInput accessibilityLabel={key} keyboardType="number-pad" value={String(analysis[key] ?? '')} onChangeText={(value) => setAnalysis((current) => ({ ...current, [key]: value }))} style={{ padding: 8, borderBottomWidth: 1, color: colors.ink }} /></View>)}</View>
+        <View style={{ flexDirection: 'row', gap: 8 }}>{['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key} style={{ flex: 1 }}><Text>{key}</Text><TextInput accessibilityLabel={key} keyboardType="decimal-pad" value={String(analysis[key] ?? '')} onChangeText={(value) => setAnalysis((current) => ({ ...current, [key]: value }))} style={{ padding: 8, borderBottomWidth: 1, color: colors.ink }} /></View>)}</View>
         <View style={styles.resultActions}><Pressable onPress={retake} disabled={posting} style={[styles.retake, posting && styles.disabled]}><Text style={styles.retakeText}>Retake</Text></Pressable><Pressable accessibilityState={{ busy: posting, disabled: posting }} onPress={confirm} disabled={posting} style={[styles.confirm, posting && styles.disabled]}><Text style={styles.confirmText}>{posting ? 'Saving meal…' : 'Add to dashboard'}</Text><Ionicons name={posting ? 'cloud-upload-outline' : 'arrow-forward'} size={17} color={colors.white} /></Pressable></View>
         </ScrollView>
       </Animated.View> : null}

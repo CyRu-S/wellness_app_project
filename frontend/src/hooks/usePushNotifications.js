@@ -3,6 +3,9 @@ import { AppState } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { beginPushSession, endPushSession, isOwnNotification, notificationModule, syncPushRegistration } from '../services/notifications/pushNotifications';
 import { loadNotifications, loadNotificationPreferences, setPushState } from '../store/slices/notificationSlice';
+import { loadAdminMembers } from '../store/slices/adminSlice';
+import { refreshDashboard } from '../store/slices/dashboardSlice';
+import { invalidateCachedResponses } from '../services/api/client';
 
 export default function usePushNotifications(navigationRef) {
   const dispatch = useDispatch();
@@ -41,7 +44,14 @@ export default function usePushNotifications(navigationRef) {
         const show = !stopped && isOwnNotification(notification, userId);
         return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
       } });
-      const receive = (notification) => { if (!stopped && isOwnNotification(notification, userId)) dispatch(loadNotifications()); };
+      const receive = (notification) => {
+        if (stopped || !isOwnNotification(notification, userId)) return;
+        invalidateCachedResponses().then(() => {
+          if (stopped) return;
+          dispatch(loadNotifications());
+          dispatch(role === 'ADMIN' ? loadAdminMembers() : refreshDashboard());
+        });
+      };
       const tap = (response) => {
         if (stopped || !response || !isOwnNotification(response.notification, userId)) return;
         const id = response.notification.request.identifier;

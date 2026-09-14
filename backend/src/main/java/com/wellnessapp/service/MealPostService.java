@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.*;
+import java.math.RoundingMode;
 
 @Service
 @RequiredArgsConstructor
@@ -78,8 +79,8 @@ public class MealPostService {
                     .build());
             if (plannedMeal != null && !plannedMeal.isConsumed()) {
                 plannedMeal.setConsumed(true);
-                plannedMeal.setCalories(request.calories());
-                plannedMeal.setProteinGrams(request.proteinGrams());
+                plannedMeal.setCalories(request.calories().setScale(0, RoundingMode.HALF_UP).intValueExact());
+                plannedMeal.setProteinGrams(request.proteinGrams().setScale(0, RoundingMode.HALF_UP).intValueExact());
                 meals.saveAndFlush(plannedMeal);
             }
             notices.admins(PushDelivery.Kind.MEAL_POST, "meal-post-" + post.getId(), "New meal check-in", user.getFullName() + " posted a meal photo. Review it in their member profile.");

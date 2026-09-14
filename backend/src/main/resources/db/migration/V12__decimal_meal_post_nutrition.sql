@@ -1,0 +1,4 @@
+ALTER TABLE meal_posts ALTER COLUMN calories TYPE NUMERIC(12,4);
+ALTER TABLE meal_posts ALTER COLUMN protein_grams TYPE NUMERIC(12,4);
+ALTER TABLE meal_posts ALTER COLUMN carbs_grams TYPE NUMERIC(12,4);
+ALTER TABLE meal_posts ALTER COLUMN fat_grams TYPE NUMERIC(12,4);

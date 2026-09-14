@@ -25,6 +25,8 @@ export default function MealDetailsScreen({ navigation, route }) {
       type: post.type || plannedMeal?.type,
       calories: post.calories ?? plannedMeal?.calories ?? 0,
       protein: post.protein ?? plannedMeal?.protein ?? 0,
+      carbs: post.carbsGrams ?? 0,
+      fat: post.fatGrams ?? 0,
       imageUri: post.imageUri || plannedMeal?.imageUri,
       time: post.loggedAt || plannedMeal?.time,
     } : {}),
@@ -44,8 +46,10 @@ export default function MealDetailsScreen({ navigation, route }) {
       <Text style={styles.type}>{meal.type}</Text>
       <Text style={styles.title}>{meal.name}</Text>
       <View style={styles.nutrition}>
-        <View><Text style={styles.value}>{meal.calories}</Text><Text style={styles.label}>kcal</Text></View>
-        <View><Text style={styles.value}>{meal.protein}g</Text><Text style={styles.label}>protein</Text></View>
+        <View style={styles.nutritionItem}><Text style={styles.value}>{meal.calories}</Text><Text style={styles.label}>kcal</Text></View>
+        <View style={styles.nutritionItem}><Text style={styles.value}>{meal.protein}g</Text><Text style={styles.label}>protein</Text></View>
+        {post ? <View style={styles.nutritionItem}><Text style={styles.value}>{meal.carbs}g</Text><Text style={styles.label}>carbs</Text></View> : null}
+        {post ? <View style={styles.nutritionItem}><Text style={styles.value}>{meal.fat}g</Text><Text style={styles.label}>fat</Text></View> : null}
       </View>
       {meal.ingredients.length ? <><Text style={styles.ingredients}>INGREDIENTS</Text>{meal.ingredients.map((item, index) => <View key={`${item}-${index}`} style={styles.ingredient}><Text style={styles.index}>{String(index + 1).padStart(2, '0')}</Text><Text style={styles.ingredientText}>{item}</Text></View>)}</> : null}
       <View style={styles.button}><PrimaryButton title={meal.consumed ? 'Meal logged' : 'Log meal photo'} disabled={meal.consumed} onPress={() => navigation.navigate('MealCapture', { targetMealId: meal.id, category: 'meal' })} /></View>
@@ -61,8 +65,9 @@ const styles = StyleSheet.create({
   time: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 12 },
   type: { ...type.label, color: colors.moss, marginTop: 25 },
   title: { ...type.h1, color: colors.ink, marginTop: 5 },
-  nutrition: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 24, marginTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
-  value: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 20 },
+  nutrition: { flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 18, marginTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
+  nutritionItem: { width: '50%', paddingVertical: 6 },
+  value: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16 },
   label: { color: colors.muted, marginTop: 3 },
   ingredients: { ...type.label, color: colors.muted, marginTop: 27 },
   ingredient: { flexDirection: 'row', paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line },

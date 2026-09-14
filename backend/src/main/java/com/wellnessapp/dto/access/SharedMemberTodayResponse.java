@@ -2,6 +2,7 @@ package com.wellnessapp.dto.access;
 
 import java.time.*;
 import java.util.List;
+import java.math.BigDecimal;
 
 public record SharedMemberTodayResponse(
         Member member,
@@ -24,7 +25,7 @@ public record SharedMemberTodayResponse(
             int activityMinutes
     ) {}
 
-    public record Nutrition(int calories, int proteinGrams, int carbsGrams, int fatGrams) {}
+    public record Nutrition(BigDecimal calories, BigDecimal proteinGrams, BigDecimal carbsGrams, BigDecimal fatGrams) {}
 
     public record MealEntry(
             Long plannedMealId,

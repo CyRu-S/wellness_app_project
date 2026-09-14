@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 @Entity
@@ -27,10 +28,10 @@ public class MealPost {
     private String mealType;
     @Column(name = "meal_name", nullable = false, length = 160)
     private String mealName;
-    @Column(nullable = false) private int calories;
-    @Column(name = "protein_grams", nullable = false) private int proteinGrams;
-    @Column(name = "carbs_grams", nullable = false) private int carbsGrams;
-    @Column(name = "fat_grams", nullable = false) private int fatGrams;
+    @Column(nullable = false, precision = 12, scale = 4) private BigDecimal calories;
+    @Column(name = "protein_grams", nullable = false, precision = 12, scale = 4) private BigDecimal proteinGrams;
+    @Column(name = "carbs_grams", nullable = false, precision = 12, scale = 4) private BigDecimal carbsGrams;
+    @Column(name = "fat_grams", nullable = false, precision = 12, scale = 4) private BigDecimal fatGrams;
     @Column(name = "posted_at", nullable = false) private Instant postedAt;
     @Column(name = "media_key", nullable = false, unique = true) private String mediaKey;
     @Column(name = "media_original_name") private String mediaOriginalName;

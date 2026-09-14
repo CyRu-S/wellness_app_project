@@ -77,10 +77,10 @@ class MemberAccessApiIntegrationTests {
                 "plannedMealId", mealId,
                 "mealType", "Breakfast",
                 "mealName", "Oats and fruit",
-                "calories", 410,
-                "proteinGrams", 24,
-                "carbsGrams", 55,
-                "fatGrams", 12,
+                "calories", 410.25,
+                "proteinGrams", 24.75,
+                "carbsGrams", 55.5,
+                "fatGrams", 12.125,
                 "clientRequestId", "mock-multipart-request"));
         MockMultipartFile metadataPart = new MockMultipartFile(
                 "metadata", "", MediaType.TEXT_PLAIN_VALUE, metadata);
@@ -94,6 +94,10 @@ class MemberAccessApiIntegrationTests {
                         .header("Authorization", "Bearer " + token(aarav.getEmail(), "ROLE_USER")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.plannedMealId").value(mealId))
+                .andExpect(jsonPath("$.calories").value(410.25))
+                .andExpect(jsonPath("$.proteinGrams").value(24.75))
+                .andExpect(jsonPath("$.carbsGrams").value(55.5))
+                .andExpect(jsonPath("$.fatGrams").value(12.125))
                 .andExpect(jsonPath("$.imageUrl").isNotEmpty());
     }
 

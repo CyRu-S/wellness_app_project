@@ -17,6 +17,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -116,7 +117,7 @@ class MemberAccessFeatureIntegrationTests {
         Long plannedMealId = meals.findByUserIdAndMealDateOrderByMealTime(
                 aarav.getId(), LocalDate.now(applicationZoneId)).getFirst().getId();
         CreateMealPostRequest metadata = new CreateMealPostRequest(
-                plannedMealId, "Breakfast", "Oats and fruit", 410, 24, 55, 12, "integration-test-post");
+                plannedMealId, "Breakfast", "Oats and fruit", new BigDecimal("410.25"), new BigDecimal("24.75"), new BigDecimal("55.50"), new BigDecimal("12.125"), "integration-test-post");
         MockMultipartFile image = new MockMultipartFile(
                 "image", "breakfast.png", "image/png",
                 new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1});
@@ -124,6 +125,12 @@ class MemberAccessFeatureIntegrationTests {
         var created = mealPosts.create(aarav.getEmail(), metadata, image);
         var duplicate = mealPosts.create(aarav.getEmail(), metadata, image);
         assertThat(duplicate.id()).isEqualTo(created.id());
+        assertThat(created.calories()).isEqualByComparingTo("410.25");
+        assertThat(created.proteinGrams()).isEqualByComparingTo("24.75");
+        assertThat(created.carbsGrams()).isEqualByComparingTo("55.50");
+        assertThat(created.fatGrams()).isEqualByComparingTo("12.125");
+        assertThat(memberAccess.adminMemberToday(aarav.getId()).meals()).anySatisfy(meal ->
+                assertThat(meal.nutrition().proteinGrams()).isEqualByComparingTo("24.75"));
         assertThat(mealPosts.image(aarav.getEmail(), created.id()).contentType()).isEqualTo("image/png");
         assertThatThrownBy(() -> mealPosts.image(kavya.getEmail(), created.id())).isInstanceOf(NotFoundException.class);
 

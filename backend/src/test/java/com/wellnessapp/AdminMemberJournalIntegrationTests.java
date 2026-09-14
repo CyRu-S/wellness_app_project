@@ -18,6 +18,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
+import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -98,7 +99,7 @@ class AdminMemberJournalIntegrationTests {
         LocalDate today = LocalDate.now(clock.withZone(applicationZoneId));
         MealPost expired = posts.saveAndFlush(MealPost.builder()
                 .user(member).mealType("Dinner").mealName("Missing media dinner")
-                .calories(420).proteinGrams(25).carbsGrams(48).fatGrams(13)
+                .calories(BigDecimal.valueOf(420)).proteinGrams(BigDecimal.valueOf(25)).carbsGrams(BigDecimal.valueOf(48)).fatGrams(BigDecimal.valueOf(13))
                 .postedAt(today.minusDays(23).atTime(19, 0).atZone(applicationZoneId).toInstant())
                 .mediaKey("missing-media-file.png").mediaOriginalName("missing.png")
                 .mediaContentType("image/png").mediaSize(9).clientRequestId("missing-media-retention").build());
@@ -128,7 +129,7 @@ class AdminMemberJournalIntegrationTests {
         }
         return posts.saveAndFlush(MealPost.builder()
                 .user(user).mealType("Breakfast").mealName("Journal breakfast")
-                .calories(410).proteinGrams(24).carbsGrams(55).fatGrams(12)
+                .calories(BigDecimal.valueOf(410)).proteinGrams(BigDecimal.valueOf(24)).carbsGrams(BigDecimal.valueOf(55)).fatGrams(BigDecimal.valueOf(12))
                 .postedAt(postedAt).mediaKey(mediaKey).mediaOriginalName(originalName)
                 .mediaContentType(contentType).mediaSize(size).clientRequestId(requestId).build());
     }

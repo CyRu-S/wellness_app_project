@@ -47,6 +47,8 @@ export default function SharedPhotoScreen({ navigation, route }) {
   const nutrition = post.nutrition || {};
   const calories = Number(nutrition.calories ?? post.calories) || 0;
   const protein = Number(nutrition.proteinGrams ?? post.proteinGrams ?? post.protein) || 0;
+  const carbs = Number(nutrition.carbsGrams ?? post.carbsGrams ?? post.carbs) || 0;
+  const fat = Number(nutrition.fatGrams ?? post.fatGrams ?? post.fat) || 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
@@ -81,10 +83,11 @@ export default function SharedPhotoScreen({ navigation, route }) {
         <Text style={styles.captionMeta}>Posted {formatClock(post.postedAt || post.uploadedAt)}{post.scheduledTime ? ` · Planned ${formatClock(post.scheduledTime)}` : ''}</Text>
         <View style={styles.nutrition}>
           <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{calories}</Text><Text style={styles.nutritionLabel}>KCAL</Text></View>
-          <View style={styles.nutritionRule} />
           <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{protein}g</Text><Text style={styles.nutritionLabel}>PROTEIN</Text></View>
-          <View style={styles.privateNote}><Ionicons name="eye-outline" size={15} color="#B9D8D3" /><Text style={styles.privateText}>TODAY ONLY</Text></View>
+          <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{carbs}g</Text><Text style={styles.nutritionLabel}>CARBS</Text></View>
+          <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{fat}g</Text><Text style={styles.nutritionLabel}>FAT</Text></View>
         </View>
+        <View style={styles.privateNote}><Ionicons name="eye-outline" size={15} color="#B9D8D3" /><Text style={styles.privateText}>TODAY ONLY</Text></View>
       </View>
     </SafeAreaView>
   );
@@ -98,7 +101,7 @@ const styles = StyleSheet.create({
   topTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 14 },
   topMeta: { color: '#B7D8D3', fontFamily: fonts.medium, fontSize: 11, marginTop: 3 },
   lock: { width: 38, height: 38, borderRadius: 14, backgroundColor: 'rgba(39,195,178,0.12)', alignItems: 'center', justifyContent: 'center' },
-  photoStage: { flex: 1, minHeight: 320, alignItems: 'center', justifyContent: 'center' },
+  photoStage: { flex: 1, minHeight: 180, alignItems: 'center', justifyContent: 'center' },
   photo: { width: '100%', height: '100%' },
   loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 13 },
   loadingText: { color: '#B9D8D3', fontFamily: fonts.medium, fontSize: 11 },
@@ -111,12 +114,11 @@ const styles = StyleSheet.create({
   captionLabel: { ...type.label, color: colors.accent, fontSize: 11 },
   captionTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 22, lineHeight: 28, marginTop: 5 },
   captionMeta: { color: '#BBD8D4', fontFamily: fonts.medium, fontSize: 12, lineHeight: 18, marginTop: 5 },
-  nutrition: { minHeight: 64, flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.15)' },
-  nutritionItem: { minWidth: 65 },
+  nutrition: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 16, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.15)' },
+  nutritionItem: { width: '50%', paddingVertical: 6 },
   nutritionValue: { color: colors.white, fontFamily: fonts.semibold, fontSize: 17 },
   nutritionLabel: { color: '#A9CFCA', fontFamily: fonts.semibold, fontSize: 10, lineHeight: 14, letterSpacing: 0.6, marginTop: 2 },
-  nutritionRule: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.15)', marginHorizontal: 13 },
-  privateNote: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+  privateNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 7 },
   privateText: { ...type.label, color: '#CBE4E0', fontSize: 10 },
   pressed: { opacity: 0.65, transform: [{ scale: 0.96 }] },
 });

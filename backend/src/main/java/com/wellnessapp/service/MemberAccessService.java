@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -153,10 +155,12 @@ public class MemberAccessService {
         int completed = (int) mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed).count();
         int calories = mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed)
                 .map(SharedMemberTodayResponse.MealEntry::nutrition).filter(Objects::nonNull)
-                .mapToInt(SharedMemberTodayResponse.Nutrition::calories).sum();
+                .map(SharedMemberTodayResponse.Nutrition::calories)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(0, RoundingMode.HALF_UP).intValueExact();
         int protein = mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed)
                 .map(SharedMemberTodayResponse.MealEntry::nutrition).filter(Objects::nonNull)
-                .mapToInt(SharedMemberTodayResponse.Nutrition::proteinGrams).sum();
+                .map(SharedMemberTodayResponse.Nutrition::proteinGrams)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(0, RoundingMode.HALF_UP).intValueExact();
         int hydration = water.stream().mapToInt(WaterLog::getAmountMl).sum();
         int activityMinutes = activity.stream().mapToInt(item -> item.getDurationSeconds() / 60).sum();
 
@@ -176,7 +180,7 @@ public class MemberAccessService {
     private SharedMemberTodayResponse.MealEntry mealEntry(Meal meal, MealPost post) {
         boolean completed = meal.isConsumed() || post != null;
         SharedMemberTodayResponse.Nutrition nutrition = post == null
-                ? new SharedMemberTodayResponse.Nutrition(meal.getCalories(), meal.getProteinGrams(), 0, 0)
+                ? new SharedMemberTodayResponse.Nutrition(BigDecimal.valueOf(meal.getCalories()), BigDecimal.valueOf(meal.getProteinGrams()), BigDecimal.ZERO, BigDecimal.ZERO)
                 : nutrition(post);
         return new SharedMemberTodayResponse.MealEntry(
                 meal.getId(), post == null ? null : post.getId(), meal.getType(), meal.getName(), meal.getMealTime(),

@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { cacheVersion, invalidateCachedResponses, readCachedResponse, saveCachedResponse } from './responseCache';
 
 const getExpoHost = () => {
   const hostUri = Constants.expoConfig?.hostUri;
@@ -32,28 +33,39 @@ export const API_URL = Platform.OS === 'web'
 const configuredTimeout = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS);
 const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 20000;
 
-// Share simultaneous reads (focus + live sync), but never cache settled data or
-// replay a write. A write invalidates older reads for subsequent callers.
+// Share simultaneous reads (focus + live sync). Authenticated GETs use a
+// short-lived, account-scoped disk cache; writes invalidate it immediately.
 const inFlightReads = new Map();
 let readGeneration = 0;
 
 export function request(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
   const isRead = method === 'GET';
-  if (!isRead) { readGeneration += 1; inFlightReads.clear(); }
-  if (isRead && !options.signal) {
-    const key = JSON.stringify([readGeneration, path, options.headers || {}]);
+  const cacheable = isRead && !options.signal && options.cachePolicy !== 'network-only';
+  if (!isRead) { readGeneration += 1; inFlightReads.clear(); invalidateCachedResponses(); }
+  if (cacheable) {
+    const key = JSON.stringify([readGeneration, path, options.headers || {}, options.cachePolicy || 'default']);
     if (inFlightReads.has(key)) return inFlightReads.get(key);
-    const promise = performRequest(path, options).finally(() => {
+    const promise = (async () => {
+      const version = cacheVersion();
+      const authorization = options.headers?.Authorization;
+      const cached = await readCachedResponse(path, authorization);
+      if (version === cacheVersion() && cached.hit) return cached.value;
+      const value = await performRequest(path, options);
+      await saveCachedResponse(path, authorization, value, version);
+      return value;
+    })().finally(() => {
       if (inFlightReads.get(key) === promise) inFlightReads.delete(key);
     });
     inFlightReads.set(key, promise);
     return promise;
   }
   return performRequest(path, options).finally(() => {
-    if (!isRead) { readGeneration += 1; inFlightReads.clear(); }
+    if (!isRead) { readGeneration += 1; inFlightReads.clear(); invalidateCachedResponses(); }
   });
 }
+
+export { invalidateCachedResponses };
 
 async function performRequest(path, options = {}) {
   const controller = new AbortController();
@@ -70,8 +82,10 @@ async function performRequest(path, options = {}) {
 
   try {
     const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    const fetchOptions = { ...options };
+    delete fetchOptions.cachePolicy;
     const response = await fetch(`${API_URL}${path}`, {
-      ...options,
+      ...fetchOptions,
       signal: controller.signal,
       headers: { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...options.headers },
     });

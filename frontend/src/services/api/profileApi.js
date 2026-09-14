@@ -1,7 +1,7 @@
 import { request } from './client';
 import { appendImage } from './imageUpload';
 
-export const getProfile = (token) => request('/profile', { headers: { Authorization: `Bearer ${token}` } });
+export const getProfile = (token, cachePolicy) => request('/profile', { headers: { Authorization: `Bearer ${token}` }, cachePolicy });
 
 export const updateProfileDetails = (token, profile) => request('/profile', {
   method: 'PATCH',

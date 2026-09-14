@@ -3,6 +3,21 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { loadModule, deferred } from './loadModule.js';
 
+const cacheStub = () => {
+  const values = new Map();
+  let version = 0;
+  const key = (path, authorization) => `${authorization}:${path}`;
+  return {
+    cacheVersion: () => version,
+    invalidateCachedResponses: async () => { version++; values.clear(); },
+    readCachedResponse: async (path, authorization) => values.has(key(path, authorization))
+      ? { hit: true, value: values.get(key(path, authorization)) } : { hit: false },
+    saveCachedResponse: async (path, authorization, value, started) => {
+      if (version === started && authorization) values.set(key(path, authorization), value);
+    },
+  };
+};
+
 test('no frontend file uses the removed native absolute-fill export', () => {
   const root = new URL('../src/', import.meta.url);
   for (const path of readdirSync(root, { recursive: true }).filter((file) => /\.[jt]sx?$/.test(file))) {
@@ -78,9 +93,11 @@ test('web can use localhost while mobile follows the current Expo LAN host', () 
   const expoConstants = { __esModule: true, default: { expoConfig: { hostUri: '10.123.7.238:8082' } } };
   const web = loadModule('../src/services/api/client.js', {
     'react-native': { Platform: { OS: 'web' } }, 'expo-constants': expoConstants,
+    './responseCache': cacheStub(),
   }, { process: environment });
   const mobile = loadModule('../src/services/api/client.js', {
     'react-native': { Platform: { OS: 'android' } }, 'expo-constants': expoConstants,
+    './responseCache': cacheStub(),
   }, { process: environment });
   assert.equal(web.API_URL, 'http://localhost:8080/api');
   assert.equal(mobile.API_URL, 'http://10.123.7.238:8080/api');
@@ -91,16 +108,18 @@ test('an explicit mobile API URL remains available for production builds', () =>
   const mobile = loadModule('../src/services/api/client.js', {
     'react-native': { Platform: { OS: 'android' } },
     'expo-constants': { __esModule: true, default: { expoConfig: { hostUri: '10.0.0.5:8081' } } },
+    './responseCache': cacheStub(),
   }, { process: environment });
   assert.equal(mobile.API_URL, 'https://api.example.test/api');
 });
 
-test('duplicate GETs share one fetch but never share across accounts or writes', async () => {
+test('duplicate GETs share one fetch, persist settled data, and never share across accounts or writes', async () => {
   const pending = deferred();
   let calls = 0;
   const { request } = loadModule('../src/services/api/client.js', {
     'react-native': { Platform: { OS: 'android' } },
     'expo-constants': { __esModule: true, default: { expoConfig: null } },
+    './responseCache': cacheStub(),
   }, {
     fetch: () => { calls++; return pending.promise; },
   });
@@ -110,9 +129,14 @@ test('duplicate GETs share one fetch but never share across accounts or writes',
   const otherAccount = request('/profile', { headers: { Authorization: 'Bearer two' } });
   const write = request('/water', { method: 'POST' });
   const afterWrite = request('/profile', options);
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(calls, 4);
   pending.resolve({ ok: true, status: 200, text: async () => '{}' });
   await Promise.all([first, otherAccount, write, afterWrite]);
   await request('/profile', options);
-  assert.equal(calls, 5, 'settled GET responses must not be cached');
+  assert.equal(calls, 5, 'reads racing a write cannot populate the cache');
+  await request('/profile', options);
+  assert.equal(calls, 5, 'settled GET responses are served from the account cache');
+  await request('/profile', { ...options, cachePolicy: 'network-only' });
+  assert.equal(calls, 6, 'session validation bypasses the cache');
 });

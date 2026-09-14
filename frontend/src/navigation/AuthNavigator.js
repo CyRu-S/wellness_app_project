@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SplashScreen from '../screens/auth/SplashScreen';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
@@ -12,5 +13,5 @@ import { colors } from '../theme';
 
 const Stack = createNativeStackNavigator();
 export default function AuthNavigator() {
-  return <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper }, animation: 'fade_from_bottom', animationDuration: 360 }}><Stack.Screen name="Splash" component={SplashScreen} /><Stack.Screen name="Onboarding" component={OnboardingScreen} /><Stack.Screen name="GetStarted" component={GetStartedScreen} /><Stack.Screen name="Login" component={LoginScreen} /><Stack.Screen name="Register" component={RegisterScreen} /><Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} /><Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} /><Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} /></Stack.Navigator>;
+  return <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper }, animation: Platform.OS === 'android' ? 'none' : 'fade_from_bottom', animationDuration: 360 }}><Stack.Screen name="Splash" component={SplashScreen} /><Stack.Screen name="Onboarding" component={OnboardingScreen} /><Stack.Screen name="GetStarted" component={GetStartedScreen} /><Stack.Screen name="Login" component={LoginScreen} /><Stack.Screen name="Register" component={RegisterScreen} /><Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} /><Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} /><Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} /></Stack.Navigator>;
 }

@@ -266,6 +266,7 @@ function JournalHistory({ days, token, retentionDays, onOpenPhoto }) {
                       <View style={styles.historyTitleRow}><Text style={styles.historyTitle}>{post.type}</Text><Text style={styles.historyTime}>{formatJournalClock(post.postedAt)}</Text></View>
                       <Text numberOfLines={1} style={styles.historyDetail}>{post.name}</Text>
                       <Text style={styles.historyNutrition}>{nutrition.calories || 0} kcal · {nutrition.proteinGrams || 0}g protein{hasPhoto ? ' · View photo' : ''}</Text>
+                      <Text style={styles.historyNutrition}>{nutrition.carbsGrams ?? 0}g carbs · {nutrition.fatGrams ?? 0}g fat</Text>
                     </View>
                     {hasPhoto ? <Ionicons name="expand-outline" size={19} color={adminColors.teal} /> : null}
                   </Pressable>
@@ -457,6 +458,7 @@ function PhotoViewer({ meal, token, memberName, onClose }) {
           <Text style={styles.photoType}>{meal?.type}</Text>
           <Text style={styles.photoTitle}>{meal?.detectedName || meal?.name}</Text>
           <Text style={styles.photoMeta}>Posted {formatJournalClock(meal?.postedAt || meal?.uploadedAt) || 'today'} · {nutrition.calories ?? meal?.detectedCalories ?? meal?.calories ?? 0} kcal · {nutrition.proteinGrams ?? meal?.detectedProtein ?? meal?.protein ?? 0}g protein</Text>
+          <Text style={styles.photoMeta}>{nutrition.carbsGrams ?? meal?.carbsGrams ?? 0}g carbs · {nutrition.fatGrams ?? meal?.fatGrams ?? 0}g fat</Text>
         </View>
       </View>
     </Modal>

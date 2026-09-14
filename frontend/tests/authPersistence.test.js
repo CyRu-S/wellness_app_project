@@ -23,6 +23,7 @@ function setup() {
       return { id: 4, name: 'Member', role: 'USER', profileImageUrl: null };
     } },
     '../../services/storage/sessionStorage': session,
+    '../../services/api/responseCache': { clearCachedResponses: async () => {} },
   });
   const makeStore = () => toolkit.configureStore({ reducer: { auth: auth.default } });
   return { auth, makeStore, values, setProfileError: (value) => { profileError = value; } };

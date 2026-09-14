@@ -3,20 +3,21 @@ import { login, register as registerApi } from '../../services/api/authApi';
 import { revokePushBeforeLogout } from '../../services/notifications/pushNotifications';
 import { getProfile } from '../../services/api/profileApi';
 import { clearSession, readSession, writeSession } from '../../services/storage/sessionStorage';
+import { clearCachedResponses } from '../../services/api/responseCache';
 
 const initialState = { user: null, token: null, hasOnboarded: false, bootstrapped: false, status: 'idle', error: null, source: null };
 export const restoreSession = createAsyncThunk('auth/restoreSession', async () => {
   const saved = await readSession();
   if (!saved) return null;
   try {
-    const profile = await getProfile(saved.token);
+    const profile = await getProfile(saved.token, 'network-only');
     if (String(profile.id) !== String(saved.user.id) || profile.role !== saved.user.role) {
-      await clearSession();
+      await clearSession(); await clearCachedResponses();
       return null;
     }
     return { token: saved.token, user: { ...saved.user, name: profile.name, profileImageUrl: profile.profileImageUrl } };
   } catch (error) {
-    if (error.status === 401 || error.status === 403) { await clearSession(); return null; }
+    if (error.status === 401 || error.status === 403) { await clearSession(); await clearCachedResponses(); return null; }
     // Keep an encrypted, previously active session through a temporary network outage.
     return saved;
   }
@@ -30,6 +31,7 @@ export const register = createAsyncThunk('auth/register', async (profile) => ({ 
 export const signOutSafely = createAsyncThunk('auth/signOutSafely', async (_, { getState, dispatch }) => {
   await revokePushBeforeLogout(getState().auth.token);
   await clearSession();
+  await clearCachedResponses();
   dispatch(signOut());
 });
 const slice = createSlice({
