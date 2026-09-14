@@ -4,6 +4,9 @@ frontend/node_modules/
 frontend/.expo/
 frontend/dist/
 frontend/dist-*/
+# Local prebuild output is incomplete in cloud uploads; let EAS regenerate native projects.
+/frontend/android/
+/frontend/ios/
 backend/target/
 .idea/
 .vscode/
