@@ -1,6 +1,6 @@
 # Mr_Care production deployment
 
-This guide deploys the Spring Boot API on Railway and publishes the Android app through EAS and Google Play. Production mobile builds use the native application, not Expo Go.
+This guide describes the Google Play route. For direct APK distribution, use the EAS `preview` APK profile instead of the `production` AAB profile. Railway Free blocks outbound SMTP, so password-reset email must use an HTTPS email API there. Gmail SMTP can still be used locally or on hosting plans that permit SMTP.
 
 ## 1. Production prerequisites
 
@@ -19,7 +19,7 @@ Never copy `backend/application-local.properties` into a deployment or mobile bu
 1. Create a Railway project and choose **Deploy from GitHub repo**.
 2. Select this repository and create one service named `mr-care-api`.
 3. In service **Settings**, set **Root Directory** to `/backend`.
-4. If Railway does not discover it automatically, set **Config as Code** to `/backend/railway.toml`.
+4. In **Settings**, set Build Command to `mvn -B -DskipTests clean package` and Custom Start Command to `java -XX:MaxRAMPercentage=50.0 -jar target/*.jar`.
 5. Add these variables in the service **Variables** tab:
 
 | Variable | Value |
@@ -29,10 +29,10 @@ Never copy `backend/application-local.properties` into a deployment or mobile bu
 | `DB_PASSWORD` | Supabase database password |
 | `JWT_SECRET` | New Base64 value generated from at least 32 cryptographically random bytes |
 | `GOOGLE_CLIENT_IDS` | Google Web OAuth client ID used as the ID-token audience |
-| `SMTP_USERNAME` | Gmail sender address |
-| `SMTP_APP_PASSWORD` | Google App Password without spaces |
-| `SMTP_FROM` | Same Gmail sender address |
-| `SMTP_ENABLED` | `true` |
+| `MAIL_PROVIDER` | `brevo` on Railway Free |
+| `MAIL_ENABLED` | `true` after sender verification |
+| `MAIL_FROM` | Verified Brevo sender address |
+| `BREVO_API_KEY` | Brevo API key, stored only in Railway |
 | `ADMIN_EMAIL` | Initial administrator email |
 | `ADMIN_INITIAL_PASSWORD` | Strong initial password; remove this variable after the first successful startup |
 | `APP_TIME_ZONE` | `Asia/Kolkata` |
@@ -41,6 +41,8 @@ Never copy `backend/application-local.properties` into a deployment or mobile bu
 | `PUSH_ENABLED` | `false` until Expo push credentials are ready |
 | `GEMINI_API_KEY` | Optional meal-analysis key |
 | `GEMINI_MODEL` | Optional supported model name |
+
+Brevo may replace a Gmail sender address with a provider-managed address to satisfy mail authentication requirements. To consistently show your own sender address, authenticate a domain you own. Never put `SMTP_APP_PASSWORD` in the mobile app; it is not used by the Railway Free mail path.
 
 6. Deploy and inspect the logs. Flyway applies pending migrations automatically.
 7. In **Settings → Networking**, generate a public HTTPS domain. The mobile API value is this domain followed by `/api`, for example `https://mr-care-api.example.up.railway.app/api`.
