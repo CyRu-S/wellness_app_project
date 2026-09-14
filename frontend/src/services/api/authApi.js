@@ -1,9 +1,10 @@
 import { appendImage } from './imageUpload';
 import { request } from './client';
 export const login = (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
-export const googleLogin = (idToken) => request('/auth/google', { method: 'POST', body: JSON.stringify({ idToken }) });
 export const requestPasswordReset = (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
 export const resetPassword = (email, otp, newPassword) => request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, otp, newPassword }) });
+export const verifyEmail = (email, otp) => request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ email, otp }) });
+export const resendVerification = (email) => request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) });
 
 const registrationDetails = (profile, extra = {}) => {
   const number = (value) => value === '' || value == null ? null : Number(value);
@@ -25,13 +26,4 @@ async function submitRegistration(path, details, photo) {
 
 export function register(profile) {
   return submitRegistration('/auth/register', registrationDetails(profile), profile.photo);
-}
-
-export function registerWithGoogle(profile, idToken) {
-  const allDetails = registrationDetails(profile, { idToken });
-  const details = {
-    idToken: allDetails.idToken, age: allDetails.age, heightCm: allDetails.heightCm,
-    weightKg: allDetails.weightKg, goal: allDetails.goal, notes: allDetails.notes,
-  };
-  return submitRegistration('/auth/google/register', details, profile.photo);
 }

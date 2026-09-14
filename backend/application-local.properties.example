@@ -6,10 +6,7 @@ spring.datasource.password=YOUR_DATABASE_PASSWORD
 # Required. Generate a unique Base64-encoded value containing at least 32 random bytes.
 app.jwt.secret=YOUR_BASE64_ENCODED_RANDOM_SECRET
 
-# Comma-separated OAuth client IDs accepted by the backend.
-app.google.client-ids=YOUR_WEB_CLIENT_ID,YOUR_ANDROID_CLIENT_ID,YOUR_IOS_CLIENT_ID
-
-# Gmail SMTP password recovery. Use a Google App Password, never the Gmail password.
+# Local SMTP for verification and password recovery. Use a Google App Password, never the Gmail password.
 spring.mail.username=your-sender@gmail.com
 spring.mail.password=YOUR_16_CHARACTER_GOOGLE_APP_PASSWORD
 spring.mail.test-connection=true

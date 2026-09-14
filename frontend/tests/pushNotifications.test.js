@@ -17,7 +17,7 @@ const createPush = ({ request = async () => null, environment = 'standalone', pe
 test('Expo Go explains the development build requirement and never calls push registration', async () => {
   const push = createPush({ environment: 'storeClient', request: () => { throw Error('Must not call backend'); } });
   const result = await push.syncPushRegistration(push.beginPushSession('auth', 1), true);
-  assert.equal(result.status, 'unsupported'); assert.match(result.message, /development build/);
+  assert.equal(result.status, 'unsupported'); assert.match(result.message, /installed Mr_Care APK/);
   assert.equal(await push.notificationModule(), null);
 });
 test('Android channels use the system sound without passing a custom filename or silencing them', async () => {

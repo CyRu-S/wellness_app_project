@@ -19,6 +19,9 @@ import java.time.*;
 import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -36,9 +39,16 @@ class PersistentWorkflowIntegrationTests {
     @Autowired PlanService plans;
     @Autowired ReminderService reminders;
     @MockitoBean Clock clock;
+    @MockitoBean PasswordResetMailService mail;
+    Map<String, String> verificationCodes = new HashMap<>();
     private final ZoneId zone = ZoneId.of("Asia/Kolkata");
     private final byte[] png = Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=");
-    @BeforeEach void time() { setTime("2026-09-05T04:30:00Z"); }
+    @BeforeEach void time() {
+        setTime("2026-09-05T04:30:00Z");
+        verificationCodes.clear();
+        doAnswer(call -> { verificationCodes.put(call.getArgument(0), call.getArgument(2)); return null; })
+                .when(mail).sendVerificationOtp(anyString(), anyString(), anyString(), anyLong());
+    }
     void setTime(String time) { var fixed = Clock.fixed(Instant.parse(time), zone); when(clock.instant()).thenReturn(fixed.instant()); when(clock.withZone(zone)).thenReturn(fixed); }
     String admin() { return "Bearer " + tokens.generate("admin@mr-care.app", "ROLE_ADMIN"); }
     String token(User u) { return "Bearer " + tokens.generate(u.getEmail(), "ROLE_USER"); }
@@ -46,6 +56,9 @@ class PersistentWorkflowIntegrationTests {
     User register(String email) throws Exception {
         mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(registration(email))))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING")).andExpect(jsonPath("$.token").isEmpty());
+        mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsBytes(Map.of("email", email, "otp", verificationCodes.get(email)))))
+                .andExpect(status().isOk());
         return users.findByEmailIgnoreCase(email).orElseThrow();
     }
     User approve(String email) throws Exception {
@@ -84,13 +97,49 @@ class PersistentWorkflowIntegrationTests {
         mvc.perform(get("/api/admin/workspace").header("Authorization", token(user))).andExpect(status().isForbidden());
     }
 
+    @Test void newMemberMustVerifyEmailBeforeAdminCanApprove() throws Exception {
+        String email = "unverified@example.com";
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsBytes(registration(email)))).andExpect(status().isCreated());
+        var user = users.findByEmailIgnoreCase(email).orElseThrow();
+        assertThat(user.getEmailVerifiedAt()).isNull();
+        mvc.perform(get("/api/admin/workspace").header("Authorization", admin()))
+                .andExpect(jsonPath("$.approvals").isEmpty());
+        mvc.perform(get("/api/admin/members").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+        mvc.perform(get("/api/admin/approvals").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+        mvc.perform(patch("/api/admin/users/{id}/approval", user.getId()).header("Authorization", admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"APPROVE\"}"))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsBytes(Map.of("email", email, "otp",
+                        verificationCodes.get(email).equals("000000") ? "111111" : "000000"))))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsBytes(Map.of("email", email, "otp", verificationCodes.get(email)))))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/admin/workspace").header("Authorization", admin()))
+                .andExpect(jsonPath("$.approvals.length()").value(1));
+        mvc.perform(get("/api/admin/approvals").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].name").value("Test Member"));
+        mvc.perform(patch("/api/admin/users/{id}/approval", user.getId()).header("Authorization", admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"APPROVE\"}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"unverified@example.com\",\"password\":\"MemberPass123!\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.token").isNotEmpty());
+        mvc.perform(get("/api/admin/members").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].name").value("Test Member"));
+    }
+
     @Test void storesRegistrationPhotoInDatabaseAndProtectsIt() throws Exception {
         var metadata = new MockMultipartFile("profile", "", "text/plain", json.writeValueAsBytes(registration("photo@example.com")));
         mvc.perform(multipart("/api/auth/register").file(metadata).file(new MockMultipartFile("image", "profile.png", "image/png", png)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.token").isEmpty());
         var user = users.findByEmailIgnoreCase("photo@example.com").orElseThrow();
         mvc.perform(get("/api/admin/users/{id}/profile-photo", user.getId()).header("Authorization", admin())).andExpect(status().isOk()).andExpect(content().bytes(png));
-        user.setStatus(User.Status.ACTIVE); users.saveAndFlush(user);
+        user.setEmailVerifiedAt(Instant.now()); user.setStatus(User.Status.ACTIVE); users.saveAndFlush(user);
         mvc.perform(get("/api/profile/photo").header("Authorization", token(user))).andExpect(status().isOk()).andExpect(content().bytes(png));
         mvc.perform(get("/api/profile/photo")).andExpect(status().isUnauthorized());
     }

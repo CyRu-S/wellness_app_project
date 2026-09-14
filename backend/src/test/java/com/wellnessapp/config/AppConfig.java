@@ -65,7 +65,7 @@ public class AppConfig {
     private User seedPrimaryMember() {
         LocalDate today = LocalDate.now(applicationZoneId);
         User user = users.save(User.builder().fullName("Aarav Mehta").email("user@mr-care.app")
-                .passwordHash(encoder.encode("password")).role(User.Role.USER).status(User.Status.ACTIVE).build());
+                .passwordHash(encoder.encode("password")).role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(Instant.now()).build());
         profiles.save(UserProfile.builder().user(user).goal("Build energy through steady nutrition and movement.")
                 .heightCm(175).weightKg(72.5).waistCm(84.0).bodyFatPercent(19.2)
                 .dietaryPreferences("Vegetarian").waterGoalMl(2500).build());
@@ -97,7 +97,7 @@ public class AppConfig {
         if (users.existsByEmailIgnoreCase(email)) return;
         LocalDate today = LocalDate.now(applicationZoneId);
         User user = users.save(User.builder().fullName(name).email(email).passwordHash(encoder.encode("password"))
-                .role(User.Role.USER).status(User.Status.ACTIVE).build());
+                .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(Instant.now()).build());
         profiles.save(UserProfile.builder().user(user).heightCm(164 + offset * 3).weightKg(61.0 + offset * 4)
                 .waistCm(72.0 + offset * 2).bodyFatPercent(17.0 + offset)
                 .waterGoalMl(1750 + offset * 250).build());

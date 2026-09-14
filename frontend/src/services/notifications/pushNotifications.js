@@ -13,7 +13,7 @@ const exclusive = (work) => {
 };
 export const pushSupport = () => {
   if (Platform.OS !== 'android') return 'Phone push notifications are currently available in the Android app only.';
-  if (Constants.executionEnvironment === 'storeClient') return 'Push notifications require the Mr_Care development build, not Expo Go.';
+  if (Constants.executionEnvironment === 'storeClient') return 'Phone push notifications require the installed Mr_Care APK, not Expo Go.';
   if (!(Constants.easConfig?.projectId || Constants.expoConfig?.extra?.eas?.projectId)) return 'An Expo project ID must be configured before enabling push notifications.';
   return null;
 };

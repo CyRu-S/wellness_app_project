@@ -45,8 +45,7 @@
           "microphonePermission": false
         }
       ],
-      "expo-web-browser",
-      "react-native-nitro-google-signin",
+      "expo-secure-store",
       "expo-status-bar",
       [
         "expo-splash-screen",

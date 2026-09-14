@@ -40,12 +40,14 @@ class PushNotificationIntegrationTests {
     @Autowired ReminderService reminders;
     @Autowired WorkflowNotificationService notices;
     @Autowired AuthService authentication;
+    @Autowired EmailVerificationService emailVerification;
     @Autowired PlanService plans;
     @Autowired ActivityService activity;
     @Autowired MemberAccessService access;
     @Autowired AdminWorkspaceService workspace;
     @Autowired JwtTokenProvider tokens;
     @MockitoBean ExpoPushClient expo;
+    @MockitoBean PasswordResetMailService mail;
     @MockitoBean Clock clock;
     final String pushToken = "ExponentPushToken[test-device]";
     final String registration = "a1111111-1111-4111-a111-111111111111";
@@ -54,7 +56,7 @@ class PushNotificationIntegrationTests {
     @BeforeEach void setup() {
         now = Instant.parse("2026-09-07T02:00:00Z"); advance(0);
         member = users.saveAndFlush(User.builder().email("push@example.com").fullName("Push Test").passwordHash("unused")
-                .role(User.Role.USER).status(User.Status.ACTIVE).build());
+                .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(now).build());
     }
     void advance(long seconds) {
         now = now.plusSeconds(seconds);
@@ -120,7 +122,7 @@ class PushNotificationIntegrationTests {
     }
     @Test void logoutAndAccountSwitchCancelPreviouslyQueuedMessages() {
         var row = queuedTest();
-        var other = users.saveAndFlush(User.builder().email("other-push@example.com").fullName("Other").passwordHash("unused").role(User.Role.USER).status(User.Status.ACTIVE).build());
+        var other = users.saveAndFlush(User.builder().email("other-push@example.com").fullName("Other").passwordHash("unused").role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(now).build());
         String newRegistration = UUID.randomUUID().toString();
         accounts.register(other.getEmail(), pushToken, newRegistration);
         accounts.unregister(member.getEmail(), pushToken, registration);
@@ -181,6 +183,11 @@ class PushNotificationIntegrationTests {
         authentication.register(new com.wellnessapp.dto.auth.RegisterRequest("Applicant", "applicant@example.com", "test-password", 25, 170, 65.0, "", ""));
         var applicant = users.findByEmailIgnoreCase("applicant@example.com").orElseThrow();
         assertThat(applicant.getStatus()).isEqualTo(User.Status.PENDING);
+        assertThat(count(PushDelivery.Kind.SIGNUP, admin)).isZero();
+        var code = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(mail).sendVerificationOtp(eq(applicant.getEmail()), eq(applicant.getFullName()), code.capture(), anyLong());
+        // The persisted service performs verification; the captured code never reaches logs.
+        emailVerification.verify(new com.wellnessapp.dto.auth.VerifyEmailRequest(applicant.getEmail(), code.getValue()));
         assertThat(count(PushDelivery.Kind.SIGNUP, admin)).isEqualTo(1);
         workspace.decide(applicant.getId(), "APPROVE");
         assertThat(count(PushDelivery.Kind.APPROVAL, applicant)).isEqualTo(1);
@@ -212,7 +219,7 @@ class PushNotificationIntegrationTests {
                 new com.wellnessapp.dto.plan.SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 300, 10, List.of("Oats")))));
         assertThat(count(PushDelivery.Kind.PLAN, member)).isEqualTo(1);
         var subject = users.saveAndFlush(User.builder().email("shared@example.com").fullName("Shared").passwordHash("unused")
-                .role(User.Role.USER).status(User.Status.ACTIVE).build());
+                .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(now).build());
         var grant = new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of(subject.getId()));
         access.replaceAssignments(admin.getEmail(), member.getId(), grant);
         access.replaceAssignments(admin.getEmail(), member.getId(), grant);

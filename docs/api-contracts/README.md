@@ -4,10 +4,10 @@ Base URL: `http://localhost:8080/api`. Protected endpoints require `Authorizatio
 
 ## Authentication
 
-- `POST /auth/register`: JSON registration, or multipart `profile` JSON text plus optional `image`. Returns 201 with status PENDING and no token.
-- `POST /auth/login`: email/password; pending or suspended account receives 403.
-- `POST /auth/google`: verifies a Google ID token. New users receive `PROFILE_REQUIRED`; existing approved users receive a JWT.
-- `POST /auth/google/register`: verified Google ID token plus profile details, with optional multipart `image`. Creates the pending member after first-time profile completion.
+- `POST /auth/register`: JSON registration, or multipart `profile` JSON text plus optional `image`. Returns 201 with status PENDING and no token; emails a verification code.
+- `POST /auth/verify-email`: accepts email and six-digit OTP; verified members then wait for administrator approval.
+- `POST /auth/resend-verification`: accepts email; returns a generic response regardless of account existence.
+- `POST /auth/login`: email/password; unverified, pending, or suspended account cannot sign in.
 - `POST /auth/forgot-password`: accepts an email and sends a reset OTP when the account exists; the response does not reveal account existence.
 - `POST /auth/reset-password`: accepts email, six-digit OTP, and a new password; consumes the OTP and revokes older JWTs.
 
@@ -32,6 +32,8 @@ Push request shapes, credential setup, and delivery semantics are documented in 
 ## Admin workspace
 
 - `GET /admin/workspace`: summary, pending approvals, member rows and adherence series, plans, attention, meal insights
+- `GET /admin/members`: lightweight member list if the full workspace report is temporarily unavailable
+- `GET /admin/approvals`: lightweight verified pending-approval list for the same fallback
 - `PATCH /admin/users/{id}/approval`: decision APPROVE or DECLINE
 - `GET /admin/users/{id}/journal`: profile, today's shared snapshot and recent history
 - `GET /admin/users/{id}/profile-photo`

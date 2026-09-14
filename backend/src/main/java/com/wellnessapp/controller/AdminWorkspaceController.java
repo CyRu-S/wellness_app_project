@@ -9,6 +9,8 @@ public class AdminWorkspaceController {
     private final AdminWorkspaceService workspace;
     private final ReminderService reminders;
     @GetMapping("/workspace") Map<String, Object> get() { return workspace.workspace(); }
+    @GetMapping("/members") java.util.List<Map<String, Object>> members() { return workspace.members(); }
+    @GetMapping("/approvals") java.util.List<Map<String, Object>> approvals() { return workspace.pendingApprovals(); }
     public record Decision(@jakarta.validation.constraints.NotBlank String decision) {}
     @PatchMapping("/users/{id}/approval") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     void decide(@PathVariable Long id, @jakarta.validation.Valid @RequestBody Decision request) { workspace.decide(id, request.decision()); }

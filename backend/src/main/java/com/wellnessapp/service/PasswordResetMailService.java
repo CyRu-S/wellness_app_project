@@ -57,7 +57,7 @@ public class PasswordResetMailService {
                 || ("brevo".equals(provider) && brevoApiKey.isBlank())
                 || (!"smtp".equals(provider) && !"brevo".equals(provider))) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Password recovery email is not configured yet");
+                    "Account email is not configured yet");
         }
     }
 
@@ -68,6 +68,20 @@ public class PasswordResetMailService {
                 + "Your Mr_Care password reset code is: " + otp + "\n\n"
                 + "It expires in " + expirationMinutes + " minutes. If you did not request this, "
                 + "you can safely ignore this email. Never share this code with anyone.\n\nMr_Care";
+        sendMessage(recipient, subject, body);
+    }
+
+    public void sendVerificationOtp(String recipient, String displayName, String otp, long expirationMinutes) {
+        ensureConfigured();
+        String subject = "Verify your Mr_Care email address";
+        String body = "Hello " + displayName + ",\n\n"
+                + "Your Mr_Care email verification code is: " + otp + "\n\n"
+                + "It expires in " + expirationMinutes + " minutes. Enter it in the app to submit your account for admin approval. "
+                + "If you did not create an account, you can ignore this email. Never share this code.\n\nMr_Care";
+        sendMessage(recipient, subject, body);
+    }
+
+    private void sendMessage(String recipient, String subject, String body) {
         if ("brevo".equals(provider)) {
             sendWithBrevo(recipient, subject, body);
             return;
@@ -79,11 +93,11 @@ public class PasswordResetMailService {
         message.setText(body);
         try {
             mailSender.send(message);
-            log.info("Password reset email accepted by the configured SMTP server");
+            log.info("Account email accepted by the configured SMTP server");
         } catch (MailException exception) {
-            log.error("Password reset email could not be delivered through the configured SMTP server", exception);
+            log.error("Account email could not be delivered through the configured SMTP server", exception);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "The reset email could not be sent. Check the backend SMTP log and Gmail App Password.");
+                    "The account email could not be sent. Check the backend mail provider configuration.");
         }
     }
 
@@ -100,11 +114,11 @@ public class PasswordResetMailService {
                             "textContent", body))
                     .retrieve()
                     .toBodilessEntity();
-            log.info("Password reset email accepted by Brevo");
+            log.info("Account email accepted by Brevo");
         } catch (RestClientException exception) {
-            log.error("Password reset email was rejected by Brevo: {}", exception.getClass().getSimpleName());
+            log.error("Account email was rejected by Brevo: {}", exception.getClass().getSimpleName());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "The reset email could not be sent. Check the backend mail provider configuration.");
+                    "The account email could not be sent. Check the backend mail provider configuration.");
         }
     }
 }

@@ -4,21 +4,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import AnimatedLogo from '../../components/auth/AnimatedLogo';
-import AuthDivider from '../../components/auth/AuthDivider';
-import GoogleButton from '../../components/auth/GoogleButton';
 import StaggeredView from '../../components/auth/StaggeredView';
 import AmbientBackground from '../../components/common/AmbientBackground';
 import BrandMark from '../../components/common/BrandMark';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import { finishOnboarding } from '../../store/slices/authSlice';
-import useGoogleSignIn from '../../hooks/useGoogleSignIn';
 import { colors, fonts, radius, type } from '../../theme';
 
 export default function GetStartedScreen({ navigation }) {
   const dispatch = useDispatch();
-  const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn(navigation);
   const open = (screen) => { dispatch(finishOnboarding()); navigation.navigate(screen); };
-  const continueWithGoogle = () => { dispatch(finishOnboarding()); startGoogleSignIn(); };
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
@@ -40,8 +35,6 @@ export default function GetStartedScreen({ navigation }) {
           <StaggeredView delay={350} style={styles.actions}>
             <PrimaryButton title="Sign up" onPress={() => open('Register')} icon="person-add-outline" />
             <PrimaryButton title="Sign in to my account" onPress={() => open('Login')} secondary icon={null} />
-            <AuthDivider label="OR" />
-            <GoogleButton onPress={continueWithGoogle} disabled={!googleReady} />
           </StaggeredView>
         </View>
       </ScrollView>

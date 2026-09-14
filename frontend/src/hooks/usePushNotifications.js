@@ -28,11 +28,13 @@ export default function usePushNotifications(navigationRef) {
     let stopped = false;
     const subscriptions = [];
     dispatch(loadNotificationPreferences());
-    const sync = async (devicePushToken) => {
-      try { const result = await syncPushRegistration(s, false, devicePushToken); if (!stopped) dispatch(setPushState(result)); }
+    const sync = async (devicePushToken, askPermission = false) => {
+      try { const result = await syncPushRegistration(s, askPermission, devicePushToken); if (!stopped) dispatch(setPushState(result)); }
       catch (error) { if (!stopped) dispatch(setPushState({ status: 'error', message: error.message })); }
     };
-    sync();
+    // Ask once when an authenticated account first starts on an installed APK.
+    // The operating system still controls the permission decision.
+    sync(undefined, true);
     notificationModule().then((Notifications) => {
       if (!Notifications || stopped) return;
       Notifications.setNotificationHandler({ handleNotification: async (notification) => {

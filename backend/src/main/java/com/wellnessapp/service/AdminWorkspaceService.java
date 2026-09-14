@@ -24,6 +24,43 @@ public class AdminWorkspaceService {
     private final ReminderService reminders;
     private final ProductRepository products;
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> members() {
+        return users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE).stream().map(user -> {
+            var profile = profiles.findByUserId(user.getId()).orElse(null);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", user.getId()); row.put("name", user.getFullName()); row.put("email", user.getEmail());
+            row.put("status", user.getStatus()); row.put("initials", initials(user.getFullName()));
+            row.put("goal", profile == null ? null : profile.getGoal());
+            row.put("age", profile == null ? null : profile.getAge());
+            row.put("profileImageUrl", profile == null || profile.getPhotoMediaKey() == null ? null
+                    : "/api/admin/users/" + user.getId() + "/profile-photo?v=" + profile.getPhotoMediaKey());
+            row.put("plan", "No plan assigned"); row.put("adherence", 0); row.put("meals", 0); row.put("hydration", 0);
+            row.put("streak", 0); row.put("lastActiveAt", "Activity temporarily unavailable");
+            row.put("attentionLevel", "NONE"); row.put("attentionReason", ""); row.put("adherenceSeries", List.of());
+            return row;
+        }).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> pendingApprovals() {
+        return users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.PENDING).stream()
+                .filter(user -> user.getEmailVerifiedAt() != null).map(user -> {
+                    var profile = profiles.findByUserId(user.getId()).orElse(null);
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", user.getId()); row.put("name", user.getFullName()); row.put("email", user.getEmail());
+                    row.put("status", user.getStatus()); row.put("initials", initials(user.getFullName()));
+                    row.put("goal", profile == null ? null : profile.getGoal());
+                    row.put("age", profile == null ? null : profile.getAge());
+                    row.put("profileImageUrl", profile == null || profile.getPhotoMediaKey() == null ? null
+                            : "/api/admin/users/" + user.getId() + "/profile-photo?v=" + profile.getPhotoMediaKey());
+                    row.put("requestedAt", user.getCreatedAt().atZone(applicationZoneId)
+                            .format(DateTimeFormatter.ofPattern("d MMM, h:mm a")));
+                    row.put("recommendedPlan", "Not assigned");
+                    return row;
+                }).toList();
+    }
+
     @Transactional
     public Map<String, Object> workspace() {
         var all = users.findAll().stream().filter(u -> u.getRole() == User.Role.USER).sorted(Comparator.comparing(User::getId)).toList();
@@ -38,7 +75,7 @@ public class AdminWorkspaceService {
             row.put("status", user.getStatus()); row.put("initials", initials(user.getFullName()));
             row.put("goal", profile == null ? null : profile.getGoal()); row.put("age", profile == null ? null : profile.getAge());
             row.put("profileImageUrl", profile == null || profile.getPhotoMediaKey() == null ? null : "/api/admin/users/" + user.getId() + "/profile-photo?v=" + profile.getPhotoMediaKey());
-            if (user.getStatus() == User.Status.PENDING) {
+            if (user.getStatus() == User.Status.PENDING && user.getEmailVerifiedAt() != null) {
                 row.put("requestedAt", user.getCreatedAt().atZone(applicationZoneId).format(DateTimeFormatter.ofPattern("d MMM, h:mm a")));
                 row.put("recommendedPlan", "Not assigned"); approvals.add(row); continue;
             }
@@ -48,7 +85,8 @@ public class AdminWorkspaceService {
             var plan = plans.memberPlan(user.getId()); memberPlans.put(user.getId(), plan);
             row.put("plan", ((String) plan.get("planName")).isBlank() ? "No plan assigned" : plan.get("planName"));
             row.put("adherence", s.plannedMeals() == 0 ? 0 : Math.min(100, s.completedMeals() * 100 / s.plannedMeals()));
-            row.put("meals", s.mealPosts()); row.put("hydration", Math.min(100, s.hydrationMl() * 100 / (profile == null ? 2000 : profile.getWaterGoalMl())));
+            int waterGoal = profile == null || profile.getWaterGoalMl() == null || profile.getWaterGoalMl() <= 0 ? 2000 : profile.getWaterGoalMl();
+            row.put("meals", s.mealPosts()); row.put("hydration", Math.min(100, s.hydrationMl() * 100 / waterGoal));
             row.put("streak", streak(user.getId())); row.put("lastActiveAt", user.getLastSeenAt() == null ? "No activity yet" :
                     user.getLastSeenAt().isAfter(clock.instant().minusSeconds(120)) ? "Active now" : user.getLastSeenAt().atZone(applicationZoneId).format(DateTimeFormatter.ofPattern("d MMM, h:mm a")));
             row.put("attentionLevel", "NONE"); row.put("attentionReason", ""); members.add(row);
@@ -118,6 +156,7 @@ public class AdminWorkspaceService {
     @Transactional public void decide(Long id, String decision) {
         var user = users.lockById(id).filter(u -> u.getRole() == User.Role.USER).orElseThrow(() -> new NotFoundException("Member not found"));
         if (user.getStatus() != User.Status.PENDING) throw new ConflictException("This request has already been reviewed");
+        if (user.getEmailVerifiedAt() == null) throw new ConflictException("The member must verify their email before approval");
         user.setStatus(switch (decision) { case "APPROVE" -> User.Status.ACTIVE; case "DECLINE" -> User.Status.SUSPENDED; default -> throw new BadRequestException("Invalid decision"); });
         users.save(user);
         if (user.getStatus() == User.Status.ACTIVE) notices.notify(user, PushDelivery.Kind.APPROVAL, "approval-" + user.getId(),

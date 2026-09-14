@@ -34,5 +34,6 @@ public class User {
     @CreationTimestamp @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
     @Column(name = "last_seen_at") private Instant lastSeenAt;
+    @Column(name = "email_verified_at") private Instant emailVerifiedAt;
 }
 

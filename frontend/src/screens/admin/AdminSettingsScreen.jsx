@@ -94,7 +94,6 @@ export default function AdminSettingsScreen({ navigation }) {
       </View>
 
       <NotificationSettings />
-      <Text style={styles.sessionNote}>Preferences are saved to your account. The optional morning digest follows the app timezone.</Text>
       <AccountRow icon="notifications-outline" title="Notification inbox" detail="Signup requests, member updates and daily summaries" onPress={() => navigation.navigate('AdminNotifications')} last />
 
       <SectionHeading eyebrow="ACCOUNT & ACCESS" title="The essentials" />
@@ -120,7 +119,6 @@ export default function AdminSettingsScreen({ navigation }) {
         <Ionicons name="arrow-forward" size={18} color={adminColors.coral} />
       </Pressable>
       <SyncFeedback error={logoutError} label="Sign out" onRetry={logout} />
-      <Text style={styles.version}>Mr_Care Admin · Prototype 0.2</Text>
     </AdminScreen>
   );
 }
@@ -157,7 +155,6 @@ const styles = StyleSheet.create({
   preferenceControl: { width: 52, alignItems: 'center', gap: 3 },
   preferenceState: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 10, lineHeight: 13, letterSpacing: 0.8 },
   preferenceStateActive: { color: adminColors.teal },
-  sessionNote: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, lineHeight: 17, marginTop: 9, marginLeft: 3 },
   accountList: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line },
   accountRow: { minHeight: 79, flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 4 },
   accountDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: adminColors.line },
@@ -174,6 +171,5 @@ const styles = StyleSheet.create({
   trustText: { maxWidth: 310, color: '#C7E5E1', fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 20, marginTop: 7 },
   logout: { minHeight: 59, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0CBC7', marginTop: 31 },
   logoutText: { flex: 1, color: adminColors.coral, fontFamily: adminFonts.semibold, fontSize: 15, lineHeight: 20 },
-  version: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 18 },
   pressed: { opacity: 0.66, transform: [{ scale: 0.99 }] },
 });

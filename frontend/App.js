@@ -1,17 +1,26 @@
 import 'react-native-gesture-handler';
-import React from 'react';
-import { Provider } from 'react-redux';
+import React, { useEffect } from 'react';
+import { Provider, useDispatch, useSelector } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { Text, TextInput, View } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { store } from './src/store';
+import { restoreSession } from './src/store/slices/authSlice';
 
 Text.defaultProps = Text.defaultProps || {};
 Text.defaultProps.style = [{ fontFamily: 'Chillax-Regular' }, Text.defaultProps.style];
 TextInput.defaultProps = TextInput.defaultProps || {};
 TextInput.defaultProps.style = [{ fontFamily: 'Chillax-Regular' }, TextInput.defaultProps.style];
+
+function AppContent() {
+  const dispatch = useDispatch();
+  const bootstrapped = useSelector((state) => state.auth.bootstrapped);
+  useEffect(() => { dispatch(restoreSession()); }, [dispatch]);
+  if (!bootstrapped) return <View style={{ flex: 1, backgroundColor: '#002E36' }} />;
+  return <AppNavigator />;
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -27,7 +36,7 @@ export default function App() {
     <Provider store={store}>
       <SafeAreaProvider>
         <StatusBar style="auto" />
-        <AppNavigator />
+        <AppContent />
       </SafeAreaProvider>
     </Provider>
   );

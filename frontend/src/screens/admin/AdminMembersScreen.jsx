@@ -89,6 +89,7 @@ export default function AdminMembersScreen({ navigation }) {
   const summary = useSelector(selectAdminSummary);
   const token = useSelector((state) => state.auth.token);
   const membersStatus = useSelector((state) => state.admin.membersStatus);
+  const membersError = useSelector((state) => state.admin.membersError);
   const { width, fontScale } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
@@ -171,6 +172,7 @@ export default function AdminMembersScreen({ navigation }) {
       </View>
 
       <View style={styles.list}>
+        {membersError ? <Text accessibilityRole="alert" style={styles.loadError}>{membersError}</Text> : null}
         {visibleMembers.map((member) => (
           <MemberCard key={member.id} member={member} token={token} onPress={() => navigation.navigate('UserDetails', { id: member.id })} />
         ))}
@@ -220,6 +222,7 @@ const styles = StyleSheet.create({
   listTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 27, letterSpacing: -0.4, marginTop: 2 },
   listCount: { color: adminColors.muted, fontFamily: adminFonts.medium, fontSize: 12, marginBottom: 3 },
   list: { gap: 11 },
+  loadError: { color: adminColors.coral, fontFamily: adminFonts.medium, fontSize: 13, lineHeight: 19, paddingVertical: 8 },
   memberShell: { borderTopLeftRadius: 22, borderTopRightRadius: 32, borderBottomRightRadius: 22, borderBottomLeftRadius: 32, backgroundColor: '#D8E8E4', ...adminShadow },
   memberShellAttention: { backgroundColor: '#EED7D3' },
   memberCard: { overflow: 'hidden', padding: 15, borderTopLeftRadius: 22, borderTopRightRadius: 32, borderBottomRightRadius: 22, borderBottomLeftRadius: 32, borderWidth: 1, borderColor: adminColors.line },

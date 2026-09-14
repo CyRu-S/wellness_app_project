@@ -3,7 +3,16 @@ import { request } from '../../services/api/client';
 import { normalizeMeal } from './mealSlice';
 
 const headers = (getState) => ({ Authorization: `Bearer ${getState().auth.token}` });
-export const loadAdminMembers = createAsyncThunk('admin/loadMembers', async (_, { getState }) => request('/admin/workspace', { headers: headers(getState) }), {
+export const loadAdminMembers = createAsyncThunk('admin/loadMembers', async (_, { getState }) => {
+  try { return await request('/admin/workspace', { headers: headers(getState) }); }
+  catch (workspaceError) {
+    const [members, approvals] = await Promise.all([
+      request('/admin/members', { headers: headers(getState) }),
+      request('/admin/approvals', { headers: headers(getState) }),
+    ]);
+    return { members, approvals, fallback: true, workspaceError: workspaceError.message };
+  }
+}, {
   condition: (_, { getState }) => !getState().admin.readId && !Object.keys(getState().admin.writes).length,
 });
 const decision = (name, value) => createAsyncThunk(name, async (id, { getState }) => {
@@ -52,6 +61,15 @@ const slice = createSlice({
     .addCase(loadAdminMembers.fulfilled, (state, action) => {
       if (state.readId !== action.meta.requestId) return;
       state.readId = null;
+      if (action.payload.fallback) {
+        state.members = action.payload.members;
+        state.approvals = action.payload.approvals;
+        state.summary.totalMembers = action.payload.members.length;
+        state.summary.pendingApprovals = action.payload.approvals.length;
+        state.membersStatus = 'degraded';
+        state.membersError = 'Live progress is temporarily unavailable. Member profiles are still shown.';
+        return;
+      }
       const selectedRange = state.mealInsights.selectedRange;
       Object.assign(state, action.payload, { membersStatus: 'succeeded', membersError: null });
       state.mealInsights.selectedRange = selectedRange;

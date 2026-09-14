@@ -35,8 +35,8 @@ class AuthenticationSecurityTests {
             User saved = invocation.getArgument(0); saved.setId(42L); return saved;
         });
         AuthService service = new AuthService(users, encoder, mock(AuthenticationManager.class),
-                mock(JwtTokenProvider.class), mock(GoogleIdentityService.class), profiles,
-                mock(MediaStorageService.class), mock(WorkflowNotificationService.class));
+                mock(JwtTokenProvider.class), profiles,
+                mock(MediaStorageService.class), mock(EmailVerificationService.class));
 
         service.register(new RegisterRequest("Test Member", "member@example.com", "MemberPass123!",
                 28, 170, 65.0, "Wellness", "Vegetarian"));

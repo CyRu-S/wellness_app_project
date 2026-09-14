@@ -1,24 +1,20 @@
 package com.wellnessapp.service;
 
 import com.wellnessapp.dto.auth.*;
-import com.wellnessapp.entity.PushDelivery;
 import com.wellnessapp.entity.User;
 import com.wellnessapp.entity.UserProfile;
-import com.wellnessapp.exception.BadRequestException;
 import com.wellnessapp.exception.ConflictException;
 import com.wellnessapp.repository.UserProfileRepository;
 import com.wellnessapp.repository.UserRepository;
 import com.wellnessapp.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.UUID;
 
 @Service @RequiredArgsConstructor
 public class AuthService {
@@ -26,10 +22,9 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokens;
-    private final GoogleIdentityService googleIdentities;
     private final UserProfileRepository profiles;
     private final MediaStorageService mediaStorage;
-    private final WorkflowNotificationService notices;
+    private final EmailVerificationService emailVerification;
 
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
@@ -43,6 +38,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request, MultipartFile image) {
+        emailVerification.ensureConfigured();
         if (users.existsByEmailIgnoreCase(request.email().trim())) {
             throw new ConflictException("An account already exists for this email");
         }
@@ -55,64 +51,8 @@ public class AuthService {
                 .build());
         createProfile(user, request.age(), request.heightCm(), request.weightKg(),
                 request.goal(), request.notes(), image);
-        notifySignup(user);
+        emailVerification.sendInitial(user);
         return response(user, null);
-    }
-
-    @Transactional
-    public AuthResponse google(GoogleLoginRequest request) {
-        var identity = googleIdentities.verify(request.idToken());
-        var existing = users.findByEmailIgnoreCase(identity.email());
-        if (existing.isEmpty()) return profileRequired(identity);
-
-        User user = existing.get();
-        linkGoogleIdentity(user, identity.subject());
-        if (user.getStatus() == User.Status.SUSPENDED) {
-            throw new DisabledException("This account is not active");
-        }
-        if (user.getRole() == User.Role.USER && !profiles.existsByUserId(user.getId())) {
-            return profileRequired(identity);
-        }
-        if (user.getStatus() == User.Status.PENDING) return response(user, null);
-        return response(user, issueToken(user));
-    }
-
-    @Transactional
-    public AuthResponse registerGoogle(GoogleRegisterRequest request) { return registerGoogle(request, null); }
-
-    @Transactional
-    public AuthResponse registerGoogle(GoogleRegisterRequest request, MultipartFile image) {
-        var identity = googleIdentities.verify(request.idToken());
-        User user = users.findByEmailIgnoreCase(identity.email()).orElseGet(() -> users.save(User.builder()
-                .fullName(identity.name())
-                .email(identity.email())
-                .passwordHash(encoder.encode(UUID.randomUUID().toString()))
-                .googleSubject(identity.subject())
-                .role(User.Role.USER)
-                .status(User.Status.PENDING)
-                .build()));
-
-        linkGoogleIdentity(user, identity.subject());
-        if (user.getRole() != User.Role.USER) {
-            throw new BadRequestException("Administrator accounts do not use member profile registration");
-        }
-        if (user.getStatus() == User.Status.SUSPENDED) {
-            throw new DisabledException("This account is not active");
-        }
-        if (!profiles.existsByUserId(user.getId())) {
-            createProfile(user, request.age(), request.heightCm(), request.weightKg(),
-                    request.goal(), request.notes(), image);
-            notifySignup(user);
-        }
-        if (user.getStatus() == User.Status.PENDING) return response(user, null);
-        return response(user, issueToken(user));
-    }
-
-    private void linkGoogleIdentity(User user, String subject) {
-        if (user.getGoogleSubject() != null && !user.getGoogleSubject().equals(subject)) {
-            throw new BadRequestException("This email is linked to a different Google identity");
-        }
-        if (user.getGoogleSubject() == null) user.setGoogleSubject(subject);
     }
 
     private void createProfile(User user, Integer age, Integer heightCm, Double weightKg,
@@ -127,17 +67,6 @@ public class AuthService {
             profile.setPhotoSize(stored.size());
         }
         profiles.save(profile);
-    }
-
-    private void notifySignup(User user) {
-        notices.admins(PushDelivery.Kind.SIGNUP, "signup-" + user.getId(),
-                "New signup request",
-                user.getFullName() + " has requested membership. Review the approval request.");
-    }
-
-    private AuthResponse profileRequired(GoogleIdentityService.GoogleIdentity identity) {
-        return new AuthResponse(null, null, identity.name(), identity.email(),
-                User.Role.USER.name(), "PROFILE_REQUIRED");
     }
 
     private String issueToken(User user) {

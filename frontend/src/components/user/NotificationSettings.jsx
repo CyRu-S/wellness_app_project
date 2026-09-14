@@ -23,12 +23,13 @@ export default function NotificationSettings() {
         trackColor={{ false: colors.line, true: colors.accent }} thumbColor={colors.white} /></View>)}
     {!n.preferencesLoaded && !n.preferencesError ? <ActivityIndicator accessibilityLabel="Loading notification preferences" color={colors.tealMid} /> : null}
     <SyncFeedback pending={n.savingPreferences} error={n.preferencesError} label="Notification preferences" onRetry={retry} />
-    <Text style={styles.note}>{n.push.message || 'Checking phone notification support…'}</Text>
-    {n.preferencesLoaded && !n.pushAvailable ? <Text style={styles.note}>Backend push sending is not enabled yet. In-app reminders still work.</Text> : null}
+    {n.push.status === 'enabled' && n.pushAvailable ? <Text style={styles.note}>Phone notifications are on.</Text> : null}
+    {n.preferencesLoaded && !n.pushAvailable ? <Text style={styles.note}>Phone delivery is not enabled on the server yet.</Text> : null}
+    {['unsupported', 'denied', 'error'].includes(n.push.status) && n.push.message ? <Text style={styles.note}>{n.push.message}</Text> : null}
     {!['unsupported', 'enabled', 'registering'].includes(n.push.status) ? <Pressable style={styles.button} accessibilityRole="button"
       onPress={() => n.push.status === 'denied' ? Linking.openSettings().catch(() => dispatch(retryPushRegistration())) : dispatch(retryPushRegistration())}>
       <Text style={styles.buttonText}>{n.push.status === 'denied' ? 'Open Android settings' : 'Enable phone notifications'}</Text></Pressable> : null}
-    {n.push.status === 'registering' ? <ActivityIndicator color={colors.tealMid} /> : null}
+    {n.push.status === 'registering' ? <ActivityIndicator accessibilityLabel="Connecting phone notifications" color={colors.tealMid} /> : null}
     {n.push.status === 'enabled' && n.pushAvailable ? <Pressable style={styles.button} accessibilityRole="button" disabled={n.testing} onPress={() => dispatch(sendTestNotification())}>
       <Text style={styles.buttonText}>{n.testing ? 'Queuing test…' : 'Send a test notification'}</Text></Pressable> : null}
     {n.testMessage ? <Text accessibilityLiveRegion="polite" style={styles.note}>{n.testMessage}</Text> : null}

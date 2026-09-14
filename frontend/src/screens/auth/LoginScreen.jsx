@@ -2,20 +2,16 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import AuthDivider from '../../components/auth/AuthDivider';
 import AuthField from '../../components/auth/AuthField';
 import AuthHeader from '../../components/auth/AuthHeader';
-import GoogleButton from '../../components/auth/GoogleButton';
 import StaggeredView from '../../components/auth/StaggeredView';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import { signIn } from '../../store/slices/authSlice';
-import useGoogleSignIn from '../../hooks/useGoogleSignIn';
 import { colors, fonts, type } from '../../theme';
 
 export default function LoginScreen({ navigation }) {
   const dispatch = useDispatch();
   const auth = useSelector((state) => state.auth);
-  const { startGoogleSignIn, ready: googleReady } = useGoogleSignIn(navigation);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const submit = () => dispatch(signIn({ email, password }));
@@ -31,8 +27,7 @@ export default function LoginScreen({ navigation }) {
             <Pressable accessibilityRole="button" onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgot}><Text style={styles.link}>Forgot password?</Text></Pressable>
             {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
             <PrimaryButton title={auth.status === 'loading' ? 'Signing in…' : 'Sign in'} onPress={submit} disabled={!email || !password || auth.status === 'loading'} />
-            <AuthDivider />
-            <GoogleButton onPress={startGoogleSignIn} disabled={!googleReady || auth.status === 'loading'} loading={auth.status === 'loading'} />
+            <Pressable accessibilityRole="button" onPress={() => navigation.navigate('VerifyEmail', { email: email.trim().toLowerCase() })}><Text style={styles.register}>Need to verify your email? <Text style={styles.strong}>Enter the code</Text></Text></Pressable>
             <Pressable onPress={() => navigation.navigate('Register')}><Text style={styles.register}>New to Mr_Care? <Text style={styles.strong}>Create account</Text></Text></Pressable>
           </StaggeredView>
         </ScrollView>

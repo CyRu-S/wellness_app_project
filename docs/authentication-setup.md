@@ -1,67 +1,28 @@
-# Authentication setup
+# Authentication and email setup
 
-The code paths are implemented, but Google and Gmail must be supplied with credentials before they can make live external requests. Keep every backend secret in `backend/application-local.properties` for local development or in the deployment platform's secret manager. Never place an SMTP app password or JWT secret in `frontend/.env.local`.
+Mr_Care uses email/password registration, email verification, admin approval, and JWT-protected sessions. Google sign-in is not used. A custom domain or Google OAuth consent screen is not needed for this login flow. Firebase Android configuration is still needed for push notifications; it is unrelated to Google sign-in.
 
-## Gmail SMTP and password reset
+Keep backend credentials in Git-ignored `backend/application-local.properties` locally or in Railway variables. Never place a mail API key, SMTP password, database password, or JWT secret in the Expo app.
 
-Add the SMTP app password now, after enabling two-step verification on the sender Google account and creating a Google **App Password** for Mail. Copy `backend/application-local.properties.example` to the Git-ignored `backend/application-local.properties`, preserve the existing database settings, and add:
+## Production email on Railway
 
-```properties
-spring.mail.username=your-sender@gmail.com
-spring.mail.password=the-16-character-app-password
-app.mail.from=your-sender@gmail.com
-app.mail.enabled=true
-```
+Configure `MAIL_PROVIDER=brevo`, `MAIL_ENABLED=true`, `MAIL_FROM=<verified sender address>`, and `BREVO_API_KEY=<secret>` in Railway. The sender must be verified with Brevo. Both new-account verification codes and password-reset codes use the same HTTPS mail transport. Do not use a Gmail SMTP app password on Railway Free.
 
-Remove spaces from the displayed app password. Do not use the normal Gmail account password. Restart the backend after changing the properties. Until `app.mail.enabled=true` and the sender is configured, the forgot-password endpoint intentionally returns HTTP 503 instead of pretending that an email was sent.
+For local development on a host that permits SMTP, set `spring.mail.username`, `spring.mail.password`, `app.mail.from`, and `app.mail.enabled=true`. Use a Google App Password, not the account password. Set `spring.mail.test-connection=true` to detect an invalid SMTP login at startup.
 
-For local development, set `spring.mail.test-connection=true` in `backend/application-local.properties`. Spring will then verify the Gmail SMTP login during startup and fail immediately with the actual SMTP reason if the address or App Password is rejected. Reset emails are only generated for email addresses already registered in Mr_Care; the endpoint intentionally returns the same success text for unknown addresses to prevent account discovery. Check Spam once after first setup.
+Registration fails if email delivery is not configured or the provider rejects the message. This prevents creating an account with no way to verify it. Unknown addresses receive a generic response from resend and forgot-password requests.
 
-The reset flow uses a six-digit, cryptographically generated OTP. Only its BCrypt hash is stored. A code expires after 10 minutes, is limited to five failed attempts, and a resend is limited to once per minute per account. A successful reset consumes the code, BCrypt-hashes the new password, and increments the account token version so older JWTs stop authenticating.
+## Account flow
 
-## Google OAuth
+1. A member completes the registration form. The password is BCrypt-hashed, the account is PENDING, and a six-digit verification code is emailed.
+2. The member enters the code on the verification screen. A valid code marks the email verified and notifies administrators that approval is needed.
+3. An administrator approves the verified account in Access. Only then can the member sign in and use protected APIs.
+4. The app saves the JWT in Android encrypted storage and restores it after a restart. The backend checks account status and token version on every authenticated request. Sign-out clears the local token.
 
-In Google Cloud Console, configure the OAuth consent screen and create clients for the platforms you will run:
+Verification and reset codes are stored only as BCrypt hashes. They expire after 10 minutes, allow at most five failed attempts, and are subject to a resend cooldown. Password reset invalidates earlier JWTs.
 
-- **Web application client (required):** this is the ID-token audience used by the native app and backend. No client secret belongs in the mobile app.
-- Android client using package `com.wellnessapp.mobile` and the signing certificate SHA-1 for each build profile.
-- iOS client using bundle identifier `com.wellnessapp.mobile`.
+## JWT and admin bootstrap
 
-Put the public client IDs in `frontend/.env.local`:
+Set `JWT_SECRET` to a unique Base64 value containing at least 32 random bytes. The backend refuses to start with a missing or weak secret. For a new database only, set `ADMIN_EMAIL` and `ADMIN_INITIAL_PASSWORD` (at least 12 characters) for first startup, then remove the initial password from Railway variables.
 
-```dotenv
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
-EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=your-android-client-id.apps.googleusercontent.com
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=your-ios-client-id.apps.googleusercontent.com
-```
-
-Put the Web client ID in the backend's accepted audience list. Additional IDs may be comma-separated when another platform legitimately issues tokens to them:
-
-```properties
-app.google.client-ids=WEB_CLIENT_ID
-```
-
-The Android app uses native Google Credential Manager rather than a browser redirect. Install a new development build after adding the native dependency or changing OAuth configuration; Metro reload alone is insufficient, and Google sign-in does not run in Expo Go. Start Metro with `npm start` after installing that build.
-
-For a local Android build, `npx expo run:android` reads the client IDs from `frontend/.env.local`. For an EAS cloud build, `.env.local` is intentionally excluded from the upload, so add both `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` to the EAS **development** environment before running `eas build --platform android --profile development`. These client IDs are public identifiers; never add the OAuth client secret to Expo or the mobile app.
-
-An error such as `Failed to get NitroModules` means the JavaScript bundle was opened in Expo Go or in an older APK that was built before native Google Sign-In was installed. Install a newly generated native APK and open **Mr_Care**, not Expo Go.
-
-If a development client is not wanted, build the `standalone` profile with `npm run build:android:apk`. It produces an installable release-style APK containing native Google Sign-In and does not need Metro. This local-backend profile permits HTTP so it must not be distributed publicly. The `npm run build:android:store` profile produces the HTTPS-only Android App Bundle intended for Google Play.
-
-Restart both the development app and backend after setting the client IDs. The backend verifies the Google ID token's signature, audience, and verified-email flag. A first-time Google user is sent to profile setup; the account is created only after those details are submitted, and it follows the existing admin-approval workflow. The Google subject identifier is stored so a linked email cannot later be presented by a different Google identity.
-
-`google-services.json` is Android Firebase application configuration and is not a replacement for the OAuth client IDs above.
-
-## JWT and local passwords
-
-`JWT_SECRET` (or `app.jwt.secret`) is required and must be valid Base64 representing at least 32 random bytes. The API fails at startup when it is missing or weak, preventing accidental use of a public development key. All protected API calls require `Authorization: Bearer <token>` and the backend remains stateless.
-
-Manual registration and password resets use Spring Security BCrypt. Raw passwords are never persisted. For a brand-new database only, configure `ADMIN_INITIAL_PASSWORD` (or `app.admin.initial-password`) with at least 12 characters; no hard-coded administrator password is created.
-
-## Smoke checklist
-
-1. Register manually, confirm the database value starts with a BCrypt prefix rather than matching the password, approve the member, and sign in.
-2. Call forgot password, enter the emailed code on the verification screen, reset the password, and confirm an older JWT receives HTTP 401.
-3. Sign in with a new Google account, complete the profile, approve it as admin, then sign in with Google again.
-4. Verify a suspended or pending user cannot access protected APIs even with a structurally valid JWT.
+Do not publish a new APK until its EAS `preview` environment points to the Railway HTTPS URL ending in `/api`, the backend has completed the email-verification migration, and both email and push delivery have been checked on an installed build.

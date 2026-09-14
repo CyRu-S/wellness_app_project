@@ -13,7 +13,7 @@ import toast, { showToast } from './slices/toastSlice';
 
 const combined = combineReducers({ auth, dashboard, plan, meals, activity, notifications, admin, profile, memberAccess, adminMemberJournal, toast });
 const reducer = (state, action) => {
-  if (action.type === 'auth/signOut' || ['auth/signIn/fulfilled', 'auth/signInWithGoogle/fulfilled'].includes(action.type)) {
+  if (action.type === 'auth/signOut' || action.type === 'auth/signIn/fulfilled') {
     state = { auth: state?.auth };
   }
   return combined(state, action);
