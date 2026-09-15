@@ -54,7 +54,6 @@ export default function AdminSettingsScreen({ navigation }) {
     catch { setLoggingOut(false); setLogoutError('Could not disconnect notifications. Check your connection and retry.'); }
   };
 
-  const comingNext = (title) => Alert.alert(title, 'This destination is planned for the next admin release.');
   const confirmSignOut = () => {
     if (Platform.OS === 'web') {
       if (globalThis.confirm?.('Sign out of admin?\n\nYou will return to the login screen.')) logout();
@@ -99,7 +98,11 @@ export default function AdminSettingsScreen({ navigation }) {
       <SectionHeading eyebrow="ACCOUNT & ACCESS" title="The essentials" />
       <View style={styles.accountList}>
         <AccountRow icon="person-outline" title="Profile details" detail="Name, contact and club information" onPress={() => navigation.navigate('AdminProfile')} />
-        <AccountRow icon="key-outline" title="Security" detail="Password and signed-in devices" onPress={() => comingNext('Security')} last />
+        <AccountRow icon="key-outline" title="Security" detail="Reset your password" onPress={() => navigation.navigate('AdminPasswordReset', {
+          email: admin?.email,
+          verifyRoute: 'AdminVerifyOtp',
+          signedInReset: true,
+        })} last />
       </View>
 
       <SectionHeading eyebrow="TRUST CENTER" title="Care beyond coaching" />

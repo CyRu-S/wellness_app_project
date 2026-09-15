@@ -36,6 +36,7 @@ class PersistentWorkflowIntegrationTests {
     @Autowired MealRepository meals;
     @Autowired MealPostRepository posts;
     @Autowired NotificationRepository notifications;
+    @Autowired NotificationService notificationService;
     @Autowired JwtTokenProvider tokens;
     @Autowired PlanService plans;
     @Autowired ReminderService reminders;
@@ -78,6 +79,18 @@ class PersistentWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.members").isEmpty()).andExpect(jsonPath("$.approvals").isEmpty())
                 .andExpect(jsonPath("$.attention").isEmpty()).andExpect(jsonPath("$.summary.mealLogsToday").value(0))
                 .andExpect(jsonPath("$.mealInsights.ranges.TODAY.series").isEmpty());
+    }
+
+    @Test void adminInboxKeepsOnlyTodaysNotifications() {
+        User admin = users.findByEmailIgnoreCase("admin@mr-care.app").orElseThrow();
+        NotificationEvent yesterday = notifications.save(NotificationEvent.builder().user(admin).title("Yesterday")
+                .body("Old admin notice").scheduledAt(Instant.parse("2026-09-04T04:30:00Z")).build());
+        NotificationEvent today = notifications.save(NotificationEvent.builder().user(admin).title("Today")
+                .body("Current admin notice").scheduledAt(Instant.parse("2026-09-05T04:30:00Z")).build());
+
+        assertThat(notificationService.list(admin.getEmail())).extracting(NotificationEvent::getId)
+                .containsExactly(today.getId());
+        assertThat(notifications.findById(yesterday.getId())).isEmpty();
     }
 
     @Test void registrationRequiresApprovalAndApprovedMemberStartsEmpty() throws Exception {

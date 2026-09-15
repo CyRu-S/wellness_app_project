@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDispatch } from 'react-redux';
 import AuthField from '../../components/auth/AuthField';
 import AuthHeader from '../../components/auth/AuthHeader';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import { requestPasswordReset, resetPassword } from '../../services/api/authApi';
+import { expireSession } from '../../store/slices/authSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
 export default function VerifyOtpScreen({ navigation, route }) {
+  const dispatch = useDispatch();
   const email = route.params?.email || '';
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
@@ -21,7 +24,10 @@ export default function VerifyOtpScreen({ navigation, route }) {
     setLoading(true); setError(null); setNotice(null);
     try {
       const result = await resetPassword(email, otp, password);
-      Alert.alert('Password reset', result.message, [{ text: 'Sign in', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] }) }]);
+      const signIn = () => route.params?.signedInReset
+        ? dispatch(expireSession())
+        : navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      Alert.alert('Password reset', result.message, [{ text: 'Sign in', onPress: signIn }]);
     } catch (requestError) {
       setError(requestError.message || 'Could not reset your password.');
     } finally { setLoading(false); }

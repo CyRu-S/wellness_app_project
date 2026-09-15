@@ -15,6 +15,8 @@ import AdminSettingsScreen from '../screens/admin/AdminSettingsScreen';
 import AdminNotificationsScreen from '../screens/admin/AdminNotificationsScreen';
 import UserDetailsScreen from '../screens/admin/UserDetailsScreen';
 import ManageMemberAccessScreen from '../screens/admin/ManageMemberAccessScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import VerifyOtpScreen from '../screens/auth/VerifyOtpScreen';
 import { adminColors } from '../theme/admin';
 
 const Tab = createBottomTabNavigator();
@@ -69,6 +71,8 @@ export default function AdminNavigator() {
       {Object.keys(variants).map((name) => <Stack.Screen key={name} name={name} component={Variant} />)}
       <Stack.Screen name="UserDetails" component={UserDetailsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="AdminProfile" component={AdminProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="AdminPasswordReset" component={ForgotPasswordScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="AdminVerifyOtp" component={VerifyOtpScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ManageMemberAccess" component={ManageMemberAccessScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );

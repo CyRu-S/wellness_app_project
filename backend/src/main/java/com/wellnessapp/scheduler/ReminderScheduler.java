@@ -6,6 +6,11 @@ import org.springframework.stereotype.Component;
 @Slf4j @Component @lombok.RequiredArgsConstructor public class ReminderScheduler {
     private final com.wellnessapp.service.ReminderService reminders;
     private final com.wellnessapp.service.WorkflowNotificationService notices;
-    @Scheduled(cron = "0 * * * * *") public void queueDueReminders() { reminders.refresh(); notices.morningDigest(); }
+    private final com.wellnessapp.service.NotificationService notifications;
+    @Scheduled(cron = "0 * * * * *") public void queueDueReminders() {
+        notifications.removeExpiredAdminNotifications();
+        reminders.refresh();
+        notices.morningDigest();
+    }
 }
 

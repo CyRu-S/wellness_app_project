@@ -68,7 +68,7 @@ const slice = createSlice({
         state.summary.totalMembers = action.payload.members.length;
         state.summary.pendingApprovals = action.payload.approvals.length;
         state.membersStatus = 'degraded';
-        state.membersError = 'Live progress is temporarily unavailable. Member profiles are still shown.';
+        state.membersError = null;
         return;
       }
       const selectedRange = state.mealInsights.selectedRange;
