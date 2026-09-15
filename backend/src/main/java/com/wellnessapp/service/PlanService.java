@@ -18,6 +18,7 @@ public class PlanService {
     private final PlanItemRepository items;
     private final MealRepository meals;
     private final MealItemRepository ingredients;
+    private final MealPostRepository posts;
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final WorkflowNotificationService notices;
@@ -56,31 +57,69 @@ public class PlanService {
         var previousIds = new HashSet<Long>();
         for (PlanItem item : previousItems) previousIds.add(item.getId());
         var seenIds = new HashSet<Long>();
-        var seenMeals = new HashSet<String>();
+        var occupiedTimes = new HashSet<LocalTime>();
         for (var item : request.items()) {
             if (item.id() != null && (!previousIds.contains(item.id()) || !seenIds.add(item.id())))
                 throw new BadRequestException("The meal plan contains an invalid or repeated existing meal");
-            String signature = item.type().trim().toLowerCase(Locale.ROOT) + "|" + item.name().trim().toLowerCase(Locale.ROOT) + "|" + item.time();
-            if (!seenMeals.add(signature)) throw new BadRequestException("The same meal and time appears more than once");
+            if (!occupiedTimes.add(item.time()))
+                throw new BadRequestException("Only one meal can be scheduled at the same time");
         }
         var todayMeals = meals.findByUserIdAndMealDateOrderByMealTime(memberId, today());
-        if (previous != null) { previous.setActive(false); plans.save(previous); }
-        for (Meal meal : todayMeals) {
-            if (!meal.isConsumed()) { ingredients.deleteAll(ingredients.findByMealId(meal.getId())); meals.delete(meal); }
+        Plan plan = previous;
+        if (plan == null) {
+            plan = plans.save(Plan.builder().user(user).title(request.planName().trim()).goal("")
+                    .startDate(today()).endDate(LocalDate.of(9999, 12, 31)).active(true).build());
+        } else {
+            plan.setTitle(request.planName().trim());
+            plans.save(plan);
         }
-        Plan plan = plans.save(Plan.builder().user(user).title(request.planName().trim()).goal("")
-                .startDate(today()).endDate(LocalDate.of(9999, 12, 31)).active(true).build());
+
+        // Removing a slot removes it from today's schedule too. Any associated
+        // MealPost is retained with a null planned-meal reference for history.
+        Set<Long> retainedIds = request.items().stream().map(SaveMealPlanRequest.Item::id)
+                .filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        for (PlanItem item : previousItems) {
+            if (retainedIds.contains(item.getId())) continue;
+            todayMeals.stream().filter(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId()))
+                    .forEach(this::removeTodayMeal);
+        }
+        meals.flush();
+        for (PlanItem item : previousItems) if (!retainedIds.contains(item.getId())) items.delete(item);
+
+        Map<Long, PlanItem> existingItems = previousItems.stream()
+                .collect(java.util.stream.Collectors.toMap(PlanItem::getId, item -> item));
         int order = 0;
         for (var item : request.items()) {
-            PlanItem savedItem = items.save(PlanItem.builder().plan(plan).type(PlanItem.Type.MEAL).title(item.name().trim()).detail(item.type())
-                    .mealType(item.type()).scheduledTime(item.time()).calories(item.calories()).proteinGrams(item.protein())
-                    .ingredients(String.join("\n", item.ingredients() == null ? List.of() : item.ingredients())).sortOrder(order++).build());
-            // A logged check-in belongs to the same recurring slot even when the coach
-            // adds another meal later. Reattach it so today's schedule does not clone it.
-            todayMeals.stream().filter(Meal::isConsumed)
-                    .filter(meal -> meal.getPlanItem() != null && item.id() != null
-                            && item.id().equals(meal.getPlanItem().getId()))
-                    .forEach(meal -> { meal.setPlanItem(savedItem); meals.save(meal); });
+            String ingredientText = String.join("\n", item.ingredients() == null ? List.of() : item.ingredients());
+            PlanItem savedItem = item.id() == null
+                    ? PlanItem.builder().plan(plan).type(PlanItem.Type.MEAL).build()
+                    : existingItems.get(item.id());
+            savedItem.setTitle(item.name().trim());
+            savedItem.setDetail(item.type());
+            savedItem.setMealType(item.type());
+            savedItem.setScheduledTime(item.time());
+            savedItem.setCalories(item.calories());
+            savedItem.setProteinGrams(item.protein());
+            savedItem.setIngredients(ingredientText);
+            savedItem.setSortOrder(order++);
+            savedItem = items.save(savedItem);
+
+            // Existing, unposted slots keep their identity while reflecting edits
+            // immediately; posted meals remain an immutable check-in for the day.
+            PlanItem planItem = savedItem;
+            todayMeals.stream().filter(meal -> !meal.isConsumed() && meal.getPlanItem() != null
+                            && meal.getPlanItem().getId().equals(planItem.getId()))
+                    .forEach(meal -> {
+                        meal.setType(planItem.getMealType());
+                        meal.setName(planItem.getTitle());
+                        meal.setMealTime(planItem.getScheduledTime());
+                        meal.setCalories(planItem.getCalories());
+                        meal.setProteinGrams(planItem.getProteinGrams());
+                        ingredients.deleteAll(ingredients.findByMealId(meal.getId()));
+                        for (String name : split(planItem.getIngredients()))
+                            ingredients.save(MealItem.builder().meal(meal).name(name).quantity("").build());
+                        meals.save(meal);
+                    });
         }
         ensureDailyMeals(memberId);
         notices.notify(user, PushDelivery.Kind.PLAN, "plan-" + plan.getId(), "Your meal plan was updated", "Your coach has assigned an updated meal plan. Open your daily plan to review it.");
@@ -108,6 +147,16 @@ public class PlanService {
                 .filter(plan -> !today().isBefore(plan.getStartDate()) && !today().isAfter(plan.getEndDate())).orElse(null);
     }
     private LocalDate today() { return LocalDate.now(clock.withZone(applicationZoneId)); }
+    private void removeTodayMeal(Meal meal) {
+        // Keep the uploaded evidence, but detach it before deleting its schedule
+        // entry so the persistence context and the database agree on the history link.
+        posts.findByPlannedMealId(meal.getId()).ifPresent(post -> {
+            post.setPlannedMeal(null);
+            posts.save(post);
+        });
+        ingredients.deleteAll(ingredients.findByMealId(meal.getId()));
+        meals.delete(meal);
+    }
     private String coachName() {
         String name = users.findByEmailIgnoreCase(adminEmail).filter(user -> user.getRole() == User.Role.ADMIN)
                 .map(User::getFullName).filter(value -> !value.isBlank()).orElse("Arjun");

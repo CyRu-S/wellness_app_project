@@ -368,9 +368,9 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
       Alert.alert('Check the daily plan', 'Add a plan name, meal name, and time such as 8:00 AM for every meal.');
       return;
     }
-    const identities = items.map((item) => `${item.type.trim().toLowerCase()}|${item.name.trim().toLowerCase()}|${item.time.trim().toUpperCase().replace(/\s+/g, '')}`);
-    if (new Set(identities).size !== identities.length) {
-      Alert.alert('Duplicate meal', 'The same meal is already scheduled at that time. Change its name or time instead of adding it twice.');
+    const timeSlots = items.map((item) => item.time.trim().toUpperCase().replace(/\s+/g, ''));
+    if (new Set(timeSlots).size !== timeSlots.length) {
+      Alert.alert('Time already in use', 'Only one meal can be scheduled at a time. Choose another time before saving.');
       return;
     }
     setSaving(true);

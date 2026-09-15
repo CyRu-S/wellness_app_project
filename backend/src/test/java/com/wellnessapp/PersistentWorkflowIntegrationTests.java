@@ -3,6 +3,7 @@ package com.wellnessapp;
 import com.fasterxml.jackson.databind.*;
 import com.wellnessapp.dto.plan.SaveMealPlanRequest;
 import com.wellnessapp.entity.*;
+import com.wellnessapp.exception.BadRequestException;
 import com.wellnessapp.repository.*;
 import com.wellnessapp.security.JwtTokenProvider;
 import com.wellnessapp.service.*;
@@ -174,6 +175,34 @@ class PersistentWorkflowIntegrationTests {
         setTime("2026-09-06T04:30:00Z");
         plans.ensureDailyMeals(user.getId());
         assertThat(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 6))).hasSize(2);
+    }
+
+    @Test void editingPlanReservesTimeSlotsAndRemovesDeletedMealsWithoutRemovingPostedHistory() throws Exception {
+        var user = approve("plan-remove@example.com");
+        plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of(
+                new SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 400, 20, List.of(), null),
+                new SaveMealPlanRequest.Item("Dinner", "Rice", LocalTime.of(20, 0), 440, 15, List.of(), null))));
+        var breakfast = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
+        var dinner = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getLast();
+        var metadata = new MockMultipartFile("metadata", "", "text/plain", json.writeValueAsBytes(Map.of(
+                "plannedMealId", breakfast.getId(), "mealType", "Breakfast", "mealName", "Oats", "calories", 400,
+                "proteinGrams", 20, "carbsGrams", 50, "fatGrams", 10, "clientRequestId", "removed-slot-post")));
+        mvc.perform(multipart("/api/meal-posts").file(metadata).file(new MockMultipartFile("image", "meal.png", "image/png", png))
+                .header("Authorization", token(user))).andExpect(status().isCreated());
+
+        plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of(
+                new SaveMealPlanRequest.Item("Dinner", "Rice", LocalTime.of(20, 0), 440, 15, List.of(), dinner.getPlanItem().getId()))));
+
+        mvc.perform(get("/api/meals/today").header("Authorization", token(user)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("Rice"));
+        mvc.perform(get("/api/meal-posts").header("Authorization", token(user)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].mealName").value("Oats"));
+        assertThatThrownBy(() -> plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of(
+                new SaveMealPlanRequest.Item("Breakfast", "Eggs", LocalTime.of(8, 0), 300, 20, List.of(), null),
+                new SaveMealPlanRequest.Item("Snack", "Fruit", LocalTime.of(8, 0), 120, 2, List.of(), null)))))
+                .isInstanceOf(BadRequestException.class).hasMessage("Only one meal can be scheduled at the same time");
     }
 
     @Test void adminProfileDetailsAreSavedAndMemberCannotChangeClubDetails() throws Exception {
