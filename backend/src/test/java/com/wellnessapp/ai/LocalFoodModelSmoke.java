@@ -27,7 +27,9 @@ class LocalFoodModelSmoke {
         var result = client.analyse(Files.readAllBytes(Path.of(filename)), "image/jpeg", "meal");
         assertFalse(result.items().isEmpty());
         assertEquals("PER_100_G", result.portionBasis());
-        assertTrue(result.calories() >= 0);
+        assertNotNull(result.calories(), "This known-food fixture must have available nutrition");
+        assertTrue(result.calories() > 0, "Zero placeholders must not pass a nutrition smoke check");
+        assertTrue(result.items().stream().allMatch(item -> item.nutritionAvailable() && item.calories() > 0));
         String expectedFoods = System.getProperty("expectedFoods", "");
         for (String expected : expectedFoods.split(",")) {
             if (!expected.isBlank()) assertTrue(result.name().toLowerCase(java.util.Locale.ROOT)

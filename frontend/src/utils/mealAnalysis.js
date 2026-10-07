@@ -8,6 +8,11 @@ export function manualMealAnalysis(meal = {}, warning) {
     warning: warning || 'Enter the nutrition for the serving you used, using the product label or your plan.' };
 }
 const nutrientKeys = ['calories', 'protein', 'carbs', 'fat'];
+export function hasFoodNutrition(item) {
+  return item.nutritionAvailable !== false && nutrientKeys.every((key) =>
+    typeof item[key] === 'number' && Number.isFinite(item[key]) && item[key] >= 0)
+    && (item.calories > 0 || item.nutritionSource === 'manual');
+}
 export function portionWeight(value) {
   const text = String(value ?? '').trim();
   if (!/^(?:\d+(?:[.,]\d{0,2})?|[.,]\d{1,2})$/.test(text)) return null;
@@ -16,11 +21,12 @@ export function portionWeight(value) {
 }
 export function hasValidFoodPortions(analysis) {
   const included = (analysis.items || []).filter((item) => !item.excluded);
-  return included.length > 0 && included.every((item) => portionWeight(item.consumedGrams) !== null);
+  return included.length > 0 && included.every((item) => hasFoodNutrition(item) && portionWeight(item.consumedGrams) !== null);
 }
 function calculatePortions(analysis, items) {
   const included = items.filter((item) => !item.excluded);
-  const total = (key) => Math.round(included.reduce((sum, item) =>
+  const complete = hasValidFoodPortions({ items });
+  const total = (key) => !complete ? null : Math.round(included.reduce((sum, item) =>
     sum + item[key] * (portionWeight(item.consumedGrams) ?? 0) / 100, 0) * 10) / 10;
   return { ...analysis, items, name: included.map((item) => item.name).join(', ').slice(0, 200),
     calories: total('calories'), protein: total('protein'), carbs: total('carbs'), fat: total('fat') };
@@ -30,11 +36,16 @@ export function withPortionInputs(analysis) {
     // Accept the previous backend's reference weights while an update is being deployed.
     const referenceGrams = Number(item.portionGrams ?? 100);
     if (!Number.isFinite(referenceGrams) || referenceGrams <= 0) throw new Error('Invalid food nutrition reference weight');
+    if (!hasFoodNutrition(item)) return { ...item,
+      ...Object.fromEntries(nutrientKeys.map((key) => [key, null])),
+      standardPortion: '100 g', portionGrams: 100, consumedGrams: '', excluded: false,
+      nutritionAvailable: false, referenceInputs: Object.fromEntries(nutrientKeys.map((key) => [key, ''])) };
     const nutrition = Object.fromEntries(nutrientKeys.map((key) => {
       if (typeof item[key] !== 'number' || !Number.isFinite(item[key]) || item[key] < 0) throw new Error('Invalid food nutrition');
       return [key, item[key] * 100 / referenceGrams];
     }));
-    return { ...item, ...nutrition, standardPortion: '100 g', portionGrams: 100, consumedGrams: '', excluded: false };
+    return { ...item, ...nutrition, standardPortion: '100 g', portionGrams: 100, consumedGrams: '', excluded: false,
+      nutritionAvailable: true, nutritionSource: item.nutritionSource || 'estimated' };
   });
   return calculatePortions({ ...analysis, portionBasis: 'PER_100_G' }, items);
 }
@@ -45,4 +56,26 @@ export function changeFoodPortion(analysis, index, value) {
 export function toggleFoodExcluded(analysis, index) {
   return calculatePortions(analysis, analysis.items.map((item, position) =>
     position === index ? { ...item, excluded: !item.excluded } : item));
+}
+export function changeFoodReference(analysis, index, key, value) {
+  if (!nutrientKeys.includes(key)) return analysis;
+  const items = analysis.items.map((item, position) => {
+    if (position !== index) return item;
+    const referenceInputs = { ...item.referenceInputs, [key]: String(value) };
+    const nutrition = Object.fromEntries(nutrientKeys.map((nutrient) => {
+      const text = String(referenceInputs[nutrient] ?? '').trim();
+      const number = /^\d+(?:[.,]\d{0,4})?$/.test(text) ? Number(text.replace(',', '.')) : NaN;
+      return [nutrient, Number.isFinite(number) && number >= 0 && number <= (nutrient === 'calories' ? 1000 : 100) ? number : null];
+    }));
+    const nutritionAvailable = nutrientKeys.every((nutrient) => nutrition[nutrient] !== null)
+      && nutrition.protein + nutrition.carbs + nutrition.fat <= 115;
+    return { ...item, ...nutrition, referenceInputs, nutritionAvailable, nutritionSource: 'manual' };
+  });
+  return calculatePortions(analysis, items);
+}
+export function editFoodReference(analysis, index) {
+  return calculatePortions(analysis, analysis.items.map((item, position) => position !== index ? item : {
+    ...item, nutritionSource: 'manual',
+    referenceInputs: Object.fromEntries(nutrientKeys.map((key) => [key, item[key] === null ? '' : String(item[key])])),
+  }));
 }

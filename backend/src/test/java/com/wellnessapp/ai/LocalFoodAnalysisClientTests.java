@@ -56,6 +56,8 @@ class LocalFoodAnalysisClientTests {
             .andExpect(jsonPath("$.format.type").value("object"))
             .andExpect(jsonPath("$.format.properties.items.maxItems").value(12))
             .andExpect(jsonPath("$.format.properties.items.items.properties.portionGrams.const").value(100))
+            .andExpect(jsonPath("$.format.properties.items.items.properties.nutritionAvailable.type").value("boolean"))
+            .andExpect(jsonPath("$.format.properties.items.items.required").value(org.hamcrest.Matchers.hasItem("nutritionAvailable")))
             .andExpect(jsonPath("$.messages[0].content").value(org.hamcrest.Matchers.containsString("PER 100 GRAMS")))
             .andExpect(jsonPath("$.messages[1].content").value(org.hamcrest.Matchers.containsString("Cooked rice and dal are visible.")))
             .andExpect(jsonPath("$.messages[1].images").doesNotExist())
@@ -65,6 +67,65 @@ class LocalFoodAnalysisClientTests {
         assertEquals(356.8, result.calories()); assertEquals(13.2, result.protein());
         assertEquals("PER_100_G", result.portionBasis());
         assertTrue(result.warning().contains("Enter the eaten weight")); server.verify();
+    }
+    @Test void ladduGetsAnExplicitBesanReferenceWhenTheModelReturnsZeroOrImplausiblyLowValues() throws Exception {
+        for (String name : List.of("Laddu", "Ladoo", "Laddoo", "Besan laddu", "Besan Ladoo", "बेसन लड्डू")) {
+            for (double carbs : List.of(0.0, 10.0)) {
+                var result = LocalFoodAnalysisClient.normalize(mapper.valueToTree(Map.of("foodDetected", true,
+                    "items", List.of(food(name, 0, 0, carbs, 0)))));
+                var item = result.items().getFirst();
+                assertEquals(name, item.name()); assertEquals(506, item.calories());
+                assertEquals(8.4, item.protein()); assertEquals(63.42, item.carbs()); assertEquals(24.32, item.fat());
+                assertEquals(100, item.portionGrams()); assertTrue(item.nutritionAvailable());
+                assertEquals("reference", item.nutritionSource()); assertTrue(item.nutritionReference().contains("Besan"));
+                assertEquals(506, result.calories());
+            }
+        }
+    }
+    @Test void otherLadduRecipesAndMixedNamesDoNotInheritBesanNutrition() {
+        for (String name : List.of("Coconut laddu", "Ragi ladoo", "Motichoor laddu", "Roti, Laddu")) {
+            var result = LocalFoodAnalysisClient.normalize(mapper.valueToTree(Map.of("foodDetected", true,
+                "items", List.of(food(name, 0, 0, 0, 0)))));
+            var item = result.items().getFirst();
+            assertEquals(name, item.name()); assertFalse(item.nutritionAvailable());
+            assertEquals("unavailable", item.nutritionSource()); assertNull(item.calories()); assertNull(result.calories());
+        }
+    }
+    @Test void unknownNutritionIsSerializedAsUnavailableWhilePreservingTheDetectedFood() throws Exception {
+        var item = new HashMap<String, Object>(food("Unknown sweet", 0, 0, 0, 0));
+        expectObservation("An unknown sweet is visible.");
+        server.expect(anything()).andRespond(withSuccess(provider(Map.of("foodDetected", true, "items", List.of(item))), MediaType.APPLICATION_JSON));
+        var result = client.analyse(new byte[]{1}, "image/jpeg", "snacks");
+        assertEquals("Unknown sweet", result.name()); assertNull(result.calories());
+        assertFalse(result.items().getFirst().nutritionAvailable());
+        assertTrue(result.warning().contains("unavailable"));
+        var json = mapper.readTree(mapper.writeValueAsString(result));
+        assertTrue(json.path("calories").isNull());
+        assertTrue(json.path("items").get(0).path("protein").isNull());
+        assertFalse(json.path("items").get(0).path("nutritionAvailable").asBoolean());
+        assertEquals("Unknown sweet", json.path("items").get(0).path("name").asText());
+        server.verify();
+    }
+    @Test void explicitUnknownNutritionDoesNotProducePartialMealTotals() {
+        var unknown = new HashMap<String, Object>(food("Unidentified curry", 160, 9, 20, 5));
+        unknown.put("nutritionAvailable", false);
+        var result = LocalFoodAnalysisClient.normalize(mapper.valueToTree(Map.of("foodDetected", true,
+            "items", List.of(food("Dal", 160, 9, 20, 5), unknown))));
+        assertEquals(2, result.items().size()); assertTrue(result.items().getFirst().nutritionAvailable());
+        assertFalse(result.items().get(1).nutritionAvailable()); assertNull(result.items().get(1).fat());
+        assertNull(result.calories()); assertNull(result.protein()); assertNull(result.carbs()); assertNull(result.fat());
+    }
+    @Test void availableNutritionWinsWhenADishWasAlsoReturnedAsUnknown() {
+        var result = LocalFoodAnalysisClient.normalize(mapper.valueToTree(Map.of("foodDetected", true,
+            "items", List.of(food("Dal", 0, 0, 0, 0), food("Dal", 160, 9, 20, 5)))));
+        assertEquals(1, result.items().size()); assertTrue(result.items().getFirst().nutritionAvailable());
+        assertEquals("estimated", result.items().getFirst().nutritionSource()); assertEquals(161, result.calories());
+    }
+    @Test void invalidAvailabilityIsRejected() {
+        var item = new HashMap<String, Object>(food("Dal", 160, 9, 20, 5));
+        item.put("nutritionAvailable", "true");
+        assertThrows(IllegalArgumentException.class, () -> LocalFoodAnalysisClient.normalize(mapper.valueToTree(
+            Map.of("foodDetected", true, "items", List.of(item)))));
     }
     @Test void noFoodPhotoIsRejectedInsteadOfInventingNutrition() throws Exception {
         expectObservation("No food is visible.");

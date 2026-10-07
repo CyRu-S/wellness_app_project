@@ -35,7 +35,7 @@ test('regular meals show per-100-g nutrition and require manually entered portio
     assert.equal(result.source, 'live'); assert.equal(result.items.length, 2);
     assert.equal(result.items[1].consumedGrams, ''); assert.equal(result.items[1].portionGrams, 100);
     assert.equal(result.items[0].calories, 100 * 100 / 30);
-    assert.equal(result.calories, 0); assert.equal(helpers.hasValidFoodPortions(result), false);
+    assert.equal(result.calories, null); assert.equal(helpers.hasValidFoodPortions(result), false);
   }
 });
 test('manually entered gram weights scale per-100-g nutrients and excluded foods do not count', () => {
@@ -44,7 +44,7 @@ test('manually entered gram weights scale per-100-g nutrients and excluded foods
     { name: 'Dal', calories: 160, protein: 9, carbs: 20, fat: 5 },
   ] });
   result = helpers.changeFoodPortion(result, 0, '250');
-  assert.equal(result.calories, 250); assert.equal(result.protein, 7.5);
+  assert.equal(result.calories, null); assert.equal(result.protein, null);
   assert.equal(helpers.hasValidFoodPortions(result), false);
   result = helpers.changeFoodPortion(result, 1, '150');
   assert.equal(result.calories, 490); assert.equal(result.protein, 21);
@@ -62,7 +62,7 @@ test('invalid, missing and zero portion weights cannot be saved as valid meals',
   for (const value of ['', '0', '-10', 'abc', 'Infinity', '2000.01', '1.234', '1e2']) {
     const result = helpers.changeFoodPortion(initial, 0, value);
     assert.equal(helpers.hasValidFoodPortions(result), false, value);
-    assert.equal(result.calories, 0, value);
+    assert.equal(result.calories, null, value);
   }
   assert.equal(helpers.hasValidFoodPortions(helpers.changeFoodPortion(initial, 0, '2000')), true);
   assert.equal(helpers.hasValidFoodPortions(helpers.toggleFoodExcluded(initial, 0)), false);
@@ -72,4 +72,82 @@ test('recognition failures preserve manual entry with the actual reason, never p
   const result = await analyze({ meal: { type: 'Lunch', name: 'Planned meal', calories: 300 } });
   assert.equal(result.source, 'manual'); assert.equal(result.name, 'Planned meal'); assert.equal(result.items.length, 0);
   assert.match(result.warning, /No food/);
+});
+
+test('laddu reference remains visible before weight entry and scales to the eaten portion', () => {
+  let result = helpers.withPortionInputs({ items: [{ name: 'Laddu', calories: 506, protein: 8.4, carbs: 63.42, fat: 24.32,
+    nutritionAvailable: true, nutritionSource: 'reference', nutritionReference: 'Besan laddu reference' }] });
+  assert.equal(result.items[0].calories, 506);
+  assert.equal(result.items[0].nutritionSource, 'reference');
+  assert.equal(result.items[0].nutritionReference, 'Besan laddu reference');
+  assert.equal(result.calories, null);
+  result = helpers.changeFoodPortion(result, 0, '40');
+  assert.equal(result.calories, 202.4); assert.equal(result.protein, 3.4);
+  assert.equal(result.carbs, 25.4); assert.equal(result.fat, 9.7);
+  assert.equal(helpers.hasValidFoodPortions(result), true);
+});
+
+test('zero or missing model nutrition keeps the detected name and requires a manual reference', async () => {
+  for (const nutrition of [
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    { calories: null, protein: null, carbs: null, fat: null, nutritionAvailable: false },
+    { calories: 50, protein: 1, carbs: 10, fat: 0, nutritionAvailable: false },
+  ]) {
+    const analyze = captured(async () => ({ source: 'live', items: [{ name: 'Laddu', ...nutrition }] }));
+    let result = await analyze({ meal: { type: 'Snacks', name: 'Planned snack', calories: 300 } });
+    assert.equal(result.name, 'Laddu'); assert.equal(result.items[0].calories, null);
+    assert.equal(helpers.hasFoodNutrition(result.items[0]), false);
+    assert.equal(result.items[0].referenceInputs.calories, '');
+    result = helpers.changeFoodPortion(result, 0, '50');
+    assert.equal(result.calories, null); assert.equal(helpers.hasValidFoodPortions(result), false);
+    for (const [key, value] of Object.entries({ calories: '506', protein: '8,4', carbs: '63.42', fat: '24.32' })) {
+      result = helpers.changeFoodReference(result, 0, key, value);
+    }
+    assert.equal(result.calories, 253); assert.equal(result.protein, 4.2);
+    assert.equal(helpers.hasValidFoodPortions(result), true);
+    assert.equal(result.items[0].nutritionSource, 'manual');
+  }
+});
+
+test('a missing food reference prevents misleading partial totals until corrected or excluded', () => {
+  let result = helpers.withPortionInputs({ items: [
+    { name: 'Dal', calories: 160, protein: 9, carbs: 20, fat: 5 },
+    { name: 'Unknown sweet', nutritionAvailable: false },
+  ] });
+  result = helpers.changeFoodPortion(result, 0, '100');
+  result = helpers.changeFoodPortion(result, 1, '40');
+  assert.equal(result.calories, null); assert.equal(helpers.hasValidFoodPortions(result), false);
+  result = helpers.toggleFoodExcluded(result, 1);
+  assert.equal(result.calories, 160); assert.equal(result.name, 'Dal');
+  assert.equal(helpers.hasValidFoodPortions(result), true);
+  result = helpers.toggleFoodExcluded(result, 1);
+  assert.equal(result.calories, null); assert.equal(result.items[1].consumedGrams, '40');
+});
+
+test('editing reference values retains the portion and recalculates the total', () => {
+  let result = helpers.withPortionInputs({ items: [{ name: 'Laddu', calories: 506, protein: 8.4, carbs: 63.42, fat: 24.32, nutritionSource: 'reference' }] });
+  result = helpers.changeFoodPortion(result, 0, '40');
+  result = helpers.editFoodReference(result, 0);
+  assert.equal(result.items[0].referenceInputs.calories, '506');
+  assert.equal(result.items[0].referenceInputs.carbs, '63.42');
+  assert.equal(result.items[0].consumedGrams, '40');
+  assert.equal(result.calories, 202.4);
+  result = helpers.changeFoodReference(result, 0, 'calories', '450');
+  assert.equal(result.calories, 180);
+  for (const value of ['', '-1', '1000.01', '1e2', '1.12345', 'Infinity']) {
+    const invalid = helpers.changeFoodReference(result, 0, 'calories', value);
+    assert.equal(helpers.hasValidFoodPortions(invalid), false, value);
+    assert.equal(invalid.calories, null, value);
+  }
+  assert.equal(helpers.hasValidFoodPortions(helpers.changeFoodReference(result, 0, 'fat', '100.01')), false);
+  assert.equal(helpers.hasValidFoodPortions(helpers.changeFoodReference(result, 0, 'carbs', '100')), false);
+});
+
+test('explicit manual zero values are accepted but automatic zero placeholders are not', () => {
+  let result = helpers.withPortionInputs({ items: [{ name: 'Unsweetened tea', calories: 0, protein: 0, carbs: 0, fat: 0 }] });
+  result = helpers.changeFoodPortion(result, 0, '100');
+  assert.equal(helpers.hasValidFoodPortions(result), false);
+  for (const key of ['calories', 'protein', 'carbs', 'fat']) result = helpers.changeFoodReference(result, 0, key, '0');
+  assert.equal(helpers.hasValidFoodPortions(result), true);
+  assert.equal(result.calories, 0);
 });
