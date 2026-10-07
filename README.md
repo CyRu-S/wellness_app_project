@@ -53,7 +53,7 @@ Web defaults to `http://localhost:8080/api`; Android emulators use `http://10.0.
 
 ## Optional integrations
 
-Meal-image analysis needs backend `GEMINI_API_KEY` and a supported `GEMINI_MODEL`. Without configuration, the client allows manual nutrition entry; it does not invent image-analysis results.
+Meal-image analysis uses a self-hosted Ollama service with the downloaded `qwen3-vl:2b-instruct` model, without an AI provider API key. Configure `FOOD_ANALYSIS_URL` for the backend to reach it; unavailable recognition retains manual nutrition entry. See [local setup and Oracle deployment guidance](docs/indian-food-recognition.md).
 
 Google sign-in needs backend `GOOGLE_CLIENT_IDS` plus the matching client settings `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Gmail password recovery needs `SMTP_USERNAME`, `SMTP_APP_PASSWORD`, `SMTP_FROM`, and `SMTP_ENABLED=true`. Follow [the authentication setup guide](docs/authentication-setup.md) for credential placement and the end-to-end checklist.
 

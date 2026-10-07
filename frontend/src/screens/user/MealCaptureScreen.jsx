@@ -8,7 +8,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { analyzeCapturedMeal } from '../../services/api/capturedMealAnalysis';
-import { changeFoodServings, isManualProduct } from '../../utils/mealAnalysis';
+import { changeFoodPortion, hasValidFoodPortions, isManualProduct, portionWeight, toggleFoodExcluded } from '../../utils/mealAnalysis';
 import { formatNutrition } from '../../utils/formatNutrition';
 import { postMeal } from '../../store/slices/mealSlice';
 import { preparePhotoUpload } from '../../utils/preparePhotoUpload';
@@ -35,6 +35,8 @@ export default function MealCaptureScreen({ navigation, route }) {
   const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [posting, setPosting] = useState(false);
+  const needsPortions = !!analysis?.items?.length;
+  const portionsReady = !needsPortions || hasValidFoodPortions(analysis);
   const clientRequestId = useRef(null);
   const [scan] = useState(() => new Animated.Value(0));
   const [sheet] = useState(() => new Animated.Value(0));
@@ -103,6 +105,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   const confirm = async () => {
     if (posting || pendingPost || !analysis || !photo) return;
     if (!targetMeal || targetMeal.consumed) { Alert.alert('No meal available', 'Choose an unlogged meal from your assigned plan.'); return; }
+    if (!portionsReady) { Alert.alert('Enter food portions', 'Enter the eaten weight of each included food in grams, up to 2000 g each.'); return; }
     const nutritionLimits = { calories: 10000, protein: 1000, carbs: 2000, fat: 1000 };
     const nutrition = Object.fromEntries(Object.keys(nutritionLimits).map((key) => [key, Number(String(analysis[key]).replace(',', '.'))]));
     if (!analysis.name.trim() || Object.entries(nutrition).some(([key, value]) =>
@@ -166,27 +169,31 @@ export default function MealCaptureScreen({ navigation, route }) {
         <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.resultHandle} />
         <View style={styles.resultTop}><View><Text style={styles.resultLabel}>{analysis.source === 'live' ? 'ESTIMATED FOOD NUTRITION' : manualProduct ? 'MANUAL PRODUCT ENTRY' : 'ENTER MEAL DETAILS'}</Text><Text style={styles.resultTitle}>{analysis.name}</Text></View></View>
+        {needsPortions ? <Text style={styles.totalLabel}>TOTAL FOR ENTERED PORTIONS</Text> : null}
         <View style={styles.nutrition}><View><Text style={styles.value}>{formatNutrition(analysis.calories)}</Text><Text style={styles.valueLabel}>KCAL</Text></View><View><Text style={styles.value}>{formatNutrition(analysis.protein)}g</Text><Text style={styles.valueLabel}>PROTEIN</Text></View><View><Text style={styles.value}>{formatNutrition(analysis.carbs)}g</Text><Text style={styles.valueLabel}>CARBS</Text></View><View><Text style={styles.value}>{formatNutrition(analysis.fat)}g</Text><Text style={styles.valueLabel}>FAT</Text></View></View>
         {analysis.warning ? <View style={styles.demoNote}><Ionicons name="information-circle-outline" size={16} color={colors.tealDark} /><Text style={styles.demoText}>{analysis.warning}</Text></View> : null}
         {analysis.items?.length ? <View style={styles.foodItems}>
-          <Text style={styles.servingTitle}>Detected foods & standard servings</Text>
-          <Text style={styles.demoText}>Each dish starts at one standard serving. Adjust servings or remove a mistaken dish with the minus button; the final totals are saved.</Text>
+          <Text style={styles.servingTitle}>Detected foods & portion weights</Text>
+          <Text style={styles.demoText}>Nutrition is shown per 100 g. Enter how many grams you ate of each food. Remove any incorrectly detected food.</Text>
           {analysis.items.map((item, index) => <View key={`${item.name}-${index}`} style={styles.foodItem}>
             <Text style={styles.foodName}>{item.name}</Text>
-            <Text style={styles.demoText}>{item.standardPortion} ({formatNutrition(item.portionGrams)} g) per serving</Text>
-            <Text style={styles.demoText}>{formatNutrition(item.calories)} kcal | P {formatNutrition(item.protein)} g | C {formatNutrition(item.carbs)} g | F {formatNutrition(item.fat)} g per serving</Text>
+            <Text style={styles.demoText}>{formatNutrition(item.calories)} kcal | P {formatNutrition(item.protein)} g | C {formatNutrition(item.carbs)} g | F {formatNutrition(item.fat)} g per 100 g</Text>
             <View style={styles.servingControls}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Decrease ${item.name} servings`} disabled={item.servings <= 0}
-                style={styles.servingButton} onPress={() => setAnalysis((current) => changeFoodServings(current, index, item.servings - 0.5))}><Text>-</Text></Pressable>
-              <Text style={styles.demoText}>{item.servings === 0 ? 'Excluded' : `${formatNutrition(item.servings)} serving(s)`}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Increase ${item.name} servings`} disabled={item.servings >= 5}
-                style={styles.servingButton} onPress={() => setAnalysis((current) => changeFoodServings(current, index, item.servings + 0.5))}><Text>+</Text></Pressable>
+              <View style={styles.portionField}><Text style={styles.demoText}>{item.excluded ? 'Excluded' : 'Portion eaten (g)'}</Text>
+                <TextInput accessibilityLabel={`${item.name} portion in grams`} keyboardType="decimal-pad" placeholder="Enter grams" maxLength={8}
+                  editable={!item.excluded && !posting} value={item.consumedGrams} style={[styles.portionInput, item.excluded && styles.disabled]}
+                  onChangeText={(value) => setAnalysis((current) => changeFoodPortion(current, index, value))} />
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel={`${item.excluded ? 'Include' : 'Remove'} ${item.name}`} disabled={posting}
+                style={styles.servingButton} onPress={() => setAnalysis((current) => toggleFoodExcluded(current, index))}><Text>{item.excluded ? 'Include' : 'Remove'}</Text></Pressable>
             </View>
+            {!item.excluded && item.consumedGrams && portionWeight(item.consumedGrams) === null ? <Text style={styles.portionError}>Enter a weight above 0 and up to 2000 g, with at most 2 decimal places.</Text> : null}
           </View>)}
         </View> : null}
         <TextInput accessibilityLabel="Meal name" value={analysis.name} onChangeText={(name) => setAnalysis((current) => ({ ...current, name }))} style={{ padding: 8, color: colors.ink }} />
-        <View style={{ flexDirection: 'row', gap: 8 }}>{['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key} style={{ flex: 1 }}><Text>{key}</Text><TextInput accessibilityLabel={key} keyboardType="decimal-pad" value={String(analysis[key] ?? '')} onChangeText={(value) => setAnalysis((current) => ({ ...current, [key]: value }))} style={{ padding: 8, borderBottomWidth: 1, color: colors.ink }} /></View>)}</View>
-        <View style={styles.resultActions}><Pressable onPress={retake} disabled={posting} style={[styles.retake, posting && styles.disabled]}><Text style={styles.retakeText}>Retake</Text></Pressable><Pressable accessibilityState={{ busy: posting, disabled: posting }} onPress={confirm} disabled={posting} style={[styles.confirm, posting && styles.disabled]}><Text style={styles.confirmText}>{posting ? 'Saving meal…' : 'Add to dashboard'}</Text><Ionicons name={posting ? 'cloud-upload-outline' : 'arrow-forward'} size={17} color={colors.white} /></Pressable></View>
+        {!needsPortions ? <View style={{ flexDirection: 'row', gap: 8 }}>{['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key} style={{ flex: 1 }}><Text>{key}</Text><TextInput accessibilityLabel={key} keyboardType="decimal-pad" value={String(analysis[key] ?? '')} onChangeText={(value) => setAnalysis((current) => ({ ...current, [key]: value }))} style={{ padding: 8, borderBottomWidth: 1, color: colors.ink }} /></View>)}</View> : null}
+        {needsPortions && !portionsReady ? <Text style={styles.demoText}>Include at least one food and enter valid gram weights for all included foods to save.</Text> : null}
+        <View style={styles.resultActions}><Pressable onPress={retake} disabled={posting} style={[styles.retake, posting && styles.disabled]}><Text style={styles.retakeText}>Retake</Text></Pressable><Pressable accessibilityState={{ busy: posting, disabled: posting || !portionsReady }} onPress={confirm} disabled={posting || !portionsReady} style={[styles.confirm, (posting || !portionsReady) && styles.disabled]}><Text style={styles.confirmText}>{posting ? 'Saving meal…' : 'Add to dashboard'}</Text><Ionicons name={posting ? 'cloud-upload-outline' : 'arrow-forward'} size={17} color={colors.white} /></Pressable></View>
         </ScrollView>
       </Animated.View> : null}
       </KeyboardAvoidingView>
@@ -208,6 +215,9 @@ const styles = StyleSheet.create({
   foodName: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 14 },
   servingControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   servingButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft, borderRadius: 12 },
+  totalLabel: { ...type.label, color: colors.tealMid, fontSize: 10, marginTop: 12 },
+  portionField: { flex: 1, gap: 4 }, portionInput: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: 10, color: colors.ink, backgroundColor: colors.white },
+  portionError: { color: colors.danger, fontSize: 12, lineHeight: 17 },
   disabled: { opacity: 0.58 },
   permission: { flex: 1, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', padding: 30 }, permissionTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 24, marginTop: 18 }, permissionCopy: { color: '#A9C7C9', fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 8 }, permissionButton: { minHeight: 52, borderRadius: radius.md, backgroundColor: colors.tealMid, paddingHorizontal: 26, alignItems: 'center', justifyContent: 'center', marginTop: 24 }, permissionButtonText: { color: colors.white, fontFamily: fonts.semibold }, libraryLink: { color: colors.accent, fontFamily: fonts.medium, marginTop: 20 },
 });

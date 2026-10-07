@@ -1,6 +1,6 @@
 package com.wellnessapp.service;
 
-import com.wellnessapp.ai.GeminiClient;
+import com.wellnessapp.ai.LocalFoodAnalysisClient;
 import com.wellnessapp.dto.meal.MealAnalysisResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,7 +16,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 @RequiredArgsConstructor
 public class AiMealAnalysisService {
-    private final GeminiClient gemini;
+    private final LocalFoodAnalysisClient localModel;
 
     public MealAnalysisResponse analyse(MultipartFile image, String category) {
         String normalized = category == null ? "meal" : category.strip().toLowerCase(Locale.ROOT);
@@ -30,7 +30,7 @@ public class AiMealAnalysisService {
         if (contentType == null || !Set.of("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif").contains(contentType))
             throw new ResponseStatusException(BAD_REQUEST, "Upload a JPEG, PNG, WebP or HEIC food photo");
         try {
-            return gemini.analyse(image.getBytes(), contentType, normalized);
+            return localModel.analyse(image.getBytes(), contentType, normalized);
         } catch (IOException exception) {
             throw new ResponseStatusException(BAD_REQUEST, "Unable to read the uploaded image", exception);
         }

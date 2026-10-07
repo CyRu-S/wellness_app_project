@@ -25,7 +25,7 @@ test('direct product analysis calls also bypass image upload and the backend', a
   assert.equal((await api.analyzeMealPhoto({ uri: 'file:///product.jpg', category: 'product' })).source, 'manual');
   assert.equal(requests, 0);
 });
-test('regular meals retain each detected dish and initialize one standard serving', async () => {
+test('regular meals show per-100-g nutrition and require manually entered portion weights', async () => {
   const analyze = captured(async ({ token }) => { assert.equal(token, 'jwt'); return { source: 'live', name: 'Roti, Dal', items: [
     { name: 'Roti', standardPortion: '1 medium', portionGrams: 30, calories: 100, protein: 3, carbs: 20, fat: 1 },
     { name: 'Dal', standardPortion: '1 katori', portionGrams: 150, calories: 160, protein: 9, carbs: 20, fat: 5 },
@@ -33,21 +33,39 @@ test('regular meals retain each detected dish and initialize one standard servin
   for (const type of ['Breakfast', 'Lunch', 'Dinner', 'Snacks']) {
     const result = await analyze({ uri: 'photo', meal: { type }, token: 'jwt' });
     assert.equal(result.source, 'live'); assert.equal(result.items.length, 2);
-    assert.equal(result.items[1].servings, 1); assert.equal(result.items[1].portionGrams, 150);
+    assert.equal(result.items[1].consumedGrams, ''); assert.equal(result.items[1].portionGrams, 100);
+    assert.equal(result.items[0].calories, 100 * 100 / 30);
+    assert.equal(result.calories, 0); assert.equal(helpers.hasValidFoodPortions(result), false);
   }
 });
-test('serving adjustments recalculate totals and excluded dishes are omitted from the saved name', () => {
-  let result = helpers.withStandardServings({ items: [
+test('manually entered gram weights scale per-100-g nutrients and excluded foods do not count', () => {
+  let result = helpers.withPortionInputs({ items: [
     { name: 'Roti', calories: 100, protein: 3, carbs: 20, fat: 1 },
     { name: 'Dal', calories: 160, protein: 9, carbs: 20, fat: 5 },
   ] });
-  result = helpers.changeFoodServings(result, 0, 2);
-  assert.equal(result.calories, 360); assert.equal(result.protein, 15);
-  result = helpers.changeFoodServings(result, 1, 0);
-  assert.equal(result.calories, 200); assert.equal(result.name, 'Roti');
-  result = helpers.changeFoodServings(result, 0, 0.5);
-  assert.equal(result.calories, 50); assert.equal(result.protein, 1.5);
-  assert.equal(helpers.changeFoodServings(result, 0, -2).calories, 0);
+  result = helpers.changeFoodPortion(result, 0, '250');
+  assert.equal(result.calories, 250); assert.equal(result.protein, 7.5);
+  assert.equal(helpers.hasValidFoodPortions(result), false);
+  result = helpers.changeFoodPortion(result, 1, '150');
+  assert.equal(result.calories, 490); assert.equal(result.protein, 21);
+  assert.equal(helpers.hasValidFoodPortions(result), true);
+  result = helpers.toggleFoodExcluded(result, 1);
+  assert.equal(result.calories, 250); assert.equal(result.name, 'Roti');
+  result = helpers.changeFoodPortion(result, 0, '50,5');
+  assert.equal(result.calories, 50.5); assert.equal(result.protein, 1.5);
+  result = helpers.toggleFoodExcluded(result, 1);
+  assert.equal(result.calories, 290.5); assert.equal(result.name, 'Roti, Dal');
+  assert.equal(result.items[1].calories, 160);
+});
+test('invalid, missing and zero portion weights cannot be saved as valid meals', () => {
+  const initial = helpers.withPortionInputs({ items: [{ name: 'Dal', calories: 160, protein: 9, carbs: 20, fat: 5 }] });
+  for (const value of ['', '0', '-10', 'abc', 'Infinity', '2000.01', '1.234', '1e2']) {
+    const result = helpers.changeFoodPortion(initial, 0, value);
+    assert.equal(helpers.hasValidFoodPortions(result), false, value);
+    assert.equal(result.calories, 0, value);
+  }
+  assert.equal(helpers.hasValidFoodPortions(helpers.changeFoodPortion(initial, 0, '2000')), true);
+  assert.equal(helpers.hasValidFoodPortions(helpers.toggleFoodExcluded(initial, 0)), false);
 });
 test('recognition failures preserve manual entry with the actual reason, never pretend to detect food', async () => {
   const analyze = captured(async () => { throw new Error('No food could be identified.'); });

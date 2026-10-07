@@ -7,5 +7,5 @@ export async function analyzeMealPhoto({ uri, category = 'meal', token }) {
   form.append('category', category);
   await appendImage(form, { uri, fileName: 'meal.jpg' });
   return { ...await request('/meals/analyze', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
-    timeoutMs: 60000 }), source: 'live' };
+    timeoutMs: 120000 }), source: 'live' };
 }

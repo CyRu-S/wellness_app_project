@@ -16,3 +16,7 @@ app.mail.enabled=true
 # Only needed when initializing a brand-new database with no administrator.
 app.admin.email=admin@mr-care.app
 app.admin.initial-password=USE_A_UNIQUE_PASSWORD_WITH_AT_LEAST_12_CHARACTERS
+
+# Downloaded local food recognition model; no AI provider key is needed.
+app.food-analysis.url=http://127.0.0.1:11434
+app.food-analysis.model=qwen3-vl:2b-instruct

@@ -17,4 +17,6 @@ frontend/.env.local
 frontend/google-services.json
 **/*service-account*.json
 .DS_Store
-
+# Local inference runtime and model weights
+.local-ai/
+backend/local-ai/
