@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import usePageRefresh from '../../hooks/usePageRefresh';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { adminColors } from '../../theme/admin';
 
 export default function AdminScreen({ children, contentStyle, keyboardShouldPersistTaps = 'handled', scroll = true }) {
+  const pageRefresh = usePageRefresh();
   const reduceMotion = useReducedMotion();
   const [progress] = useState(() => new Animated.Value(0));
 
@@ -25,7 +27,7 @@ export default function AdminScreen({ children, contentStyle, keyboardShouldPers
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {scroll ? (
-        <ScrollView
+        <ScrollView refreshControl={pageRefresh.enabled ? <RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} /> : undefined} alwaysBounceVertical
           contentContainerStyle={[styles.content, contentStyle]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps={keyboardShouldPersistTaps}

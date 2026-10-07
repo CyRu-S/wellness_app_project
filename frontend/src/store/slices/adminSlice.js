@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { request } from '../../services/api/client';
 import { normalizeMeal } from './mealSlice';
 
+const pageReadOptions = { condition: (_, { getState }) => !Object.keys(getState().admin.writes).length };
 const headers = (getState) => ({ Authorization: `Bearer ${getState().auth.token}` });
 export const loadAdminMembers = createAsyncThunk('admin/loadMembers', async (_, { getState }) => {
   try { return await request('/admin/workspace', { headers: headers(getState) }); }
@@ -15,6 +16,14 @@ export const loadAdminMembers = createAsyncThunk('admin/loadMembers', async (_, 
 }, {
   condition: (_, { getState }) => !getState().admin.readId && !Object.keys(getState().admin.writes).length,
 });
+export const loadAdminAttention = createAsyncThunk('admin/loadAttention', async (_, { getState }) =>
+  request('/admin/attention', { headers: headers(getState) }), pageReadOptions);
+export const loadAdminDirectory = createAsyncThunk('admin/loadDirectory', async (_, { getState }) =>
+  request('/admin/members', { headers: headers(getState) }), pageReadOptions);
+export const loadAdminApprovals = createAsyncThunk('admin/loadApprovals', async (_, { getState }) =>
+  request('/admin/approvals', { headers: headers(getState) }), pageReadOptions);
+export const loadAdminMemberPlan = createAsyncThunk('admin/loadMemberPlan', async (memberId, { getState }) =>
+  request(`/admin/plans/members/${memberId}`, { headers: headers(getState) }), pageReadOptions);
 const decision = (name, value) => createAsyncThunk(name, async (id, { getState }) => {
   const member = getState().admin.approvals.find((r) => r.id === id);
   await request(`/admin/users/${id}/approval`, { method: 'PATCH', headers: headers(getState), body: JSON.stringify({ decision: value }) });
@@ -48,7 +57,7 @@ const initialState = {
   members: [], approvals: [], attention: [], memberMealPlans: {}, memberMealPostHistory: {},
   mealInsights: { selectedRange: 'TODAY', ranges: { TODAY: emptyRange, '7D': emptyRange, '30D': emptyRange }, mealTypes: [], missingMembers: [] },
   preferences: { signupAlerts: true, deadlineAlerts: true, dailyDigest: false },
-  readId: null, writes: {}, attentionRollbacks: {}, membersStatus: 'idle', membersError: null, lastApprovalDecision: null,
+  attentionError: null, pageReads: {}, readId: null, writes: {}, attentionRollbacks: {}, membersStatus: 'idle', membersError: null, lastApprovalDecision: null,
 };
 const slice = createSlice({
   name: 'admin', initialState,
@@ -58,6 +67,37 @@ const slice = createSlice({
     setPreference: (state, action) => { state.preferences[action.payload.key] = action.payload.value; },
   },
   extraReducers: (builder) => builder
+    .addCase(loadAdminAttention.pending, (state, action) => { state.pageReads['attention'] = action.meta.requestId; state.attentionError = null; })
+    .addCase(loadAdminAttention.fulfilled, (state, action) => {
+      if (state.pageReads['attention'] !== action.meta.requestId || Object.keys(state.writes).length) return;
+      delete state.pageReads['attention'];
+      state.attention = action.payload; state.summary.missedItems = action.payload.length;
+    })
+    .addCase(loadAdminAttention.rejected, (state, action) => {
+      if (state.pageReads.attention !== action.meta.requestId) return;
+      delete state.pageReads.attention; state.attentionError = action.error.message;
+    })
+    .addCase(loadAdminDirectory.pending, (state, action) => { state.pageReads['directory'] = action.meta.requestId; })
+    .addCase(loadAdminDirectory.fulfilled, (state, action) => {
+      if (state.pageReads['directory'] !== action.meta.requestId || Object.keys(state.writes).length) return;
+      delete state.pageReads['directory'];
+      state.members = action.payload; state.membersStatus = 'succeeded'; state.membersError = null;
+      state.summary.totalMembers = action.payload.length;
+      state.summary.activeUsers = action.payload.filter((member) => member.online).length;
+      state.summary.averageAdherence = action.payload.length ? Math.round(action.payload.reduce((sum, member) => sum + Number(member.adherence || 0), 0) / action.payload.length) : 0;
+    })
+    .addCase(loadAdminDirectory.rejected, (state, action) => {
+      if (state.pageReads.directory !== action.meta.requestId) return;
+      delete state.pageReads.directory; state.membersError = action.error.message;
+    })
+    .addCase(loadAdminApprovals.pending, (state, action) => { state.pageReads['approvals'] = action.meta.requestId; })
+    .addCase(loadAdminApprovals.fulfilled, (state, action) => {
+      if (state.pageReads['approvals'] !== action.meta.requestId || Object.keys(state.writes).length) return;
+      delete state.pageReads['approvals']; state.approvals = action.payload; state.summary.pendingApprovals = action.payload.length; })
+    .addCase(loadAdminMemberPlan.pending, (state, action) => { state.pageReads['plan'] = action.meta.requestId; })
+    .addCase(loadAdminMemberPlan.fulfilled, (state, action) => {
+      if (state.pageReads['plan'] !== action.meta.requestId || Object.keys(state.writes).length) return;
+      delete state.pageReads['plan']; state.memberMealPlans[action.meta.arg] = { ...action.payload, items: action.payload.items.map(normalizeMeal) }; })
     .addCase(loadAdminMembers.pending, (state, action) => { state.membersStatus = 'loading'; state.readId = action.meta.requestId; })
     .addCase(loadAdminMembers.fulfilled, (state, action) => {
       if (state.readId !== action.meta.requestId) return;
@@ -114,7 +154,7 @@ const slice = createSlice({
       delete state.attentionRollbacks[action.meta.requestId];
     })
     .addMatcher((action) => writes.some((write) => write.pending.match(action)), (state, action) => {
-      state.writes[action.meta.requestId] = true; state.readId = null;
+      state.writes[action.meta.requestId] = true; state.readId = null; state.pageReads = {};
     })
     .addMatcher((action) => writes.some((write) => write.fulfilled.match(action) || write.rejected.match(action)), (state, action) => {
       delete state.writes[action.meta.requestId]; state.readId = null;

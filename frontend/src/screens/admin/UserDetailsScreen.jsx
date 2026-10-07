@@ -475,6 +475,7 @@ function PhotoViewer({ meal, token, memberName, onClose }) {
 export default function UserDetailsScreen({ route, navigation }) {
   const dispatch = useDispatch();
   const members = useSelector(selectAdminMembers);
+  const directMember = useSelector((state) => selectAdminMemberJournal(state, route.params?.id)?.member);
   const memberPlans = useSelector(selectAdminMemberMealPlans);
   const accessOverview = useSelector((state) => state.memberAccess.overview);
   const token = useSelector((state) => state.auth.token);
@@ -484,17 +485,17 @@ export default function UserDetailsScreen({ route, navigation }) {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const member = useMemo(
-    () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name),
-    [members, route.params],
+    () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name) || directMember,
+    [members, route.params, directMember],
   );
-  const journal = useSelector((state) => selectAdminMemberJournal(state, member?.id));
-  const journalRequest = useSelector((state) => selectAdminMemberJournalRequest(state, member?.id));
+  const journal = useSelector((state) => selectAdminMemberJournal(state, member?.id ?? route.params?.id));
+  const journalRequest = useSelector((state) => selectAdminMemberJournalRequest(state, member?.id ?? route.params?.id));
   const waterGoalRequest = useSelector((state) => selectAdminMemberWaterGoalRequest(state, member?.id));
   const profileMember = { ...member, ...(journal?.member || {}), id: member?.id, initials: member?.initials };
   const memberAvatarSource = avatarFailed ? null : profileImageSource(profileMember.profileImageUrl, token);
   const plan = memberPlans[member?.id] || { planName: '', items: [] };
   const todaySnapshot = journal?.today || null;
-  const memberId = member?.id;
+  const memberId = member?.id ?? route.params?.id;
   const memberEmail = member?.email;
   useFocusedPolling(React.useCallback(() => {
     if (memberId) return dispatch(loadAdminMemberJournal({ memberId, email: memberEmail }));
@@ -528,7 +529,7 @@ export default function UserDetailsScreen({ route, navigation }) {
     }
   };
 
-  if (!member) return <AdminScreen><Text>Member not found.</Text></AdminScreen>;
+  if (!member) return <AdminScreen><AdminHeader title="Member" back onBackPress={() => navigation.goBack()} /><Text>{journalRequest.status === 'failed' ? 'Member could not be loaded. Pull down to retry.' : 'Loading member...'}</Text></AdminScreen>;
   return (
     <AdminScreen>
       <AdminHeader title="Member profile" back onBackPress={() => navigation.goBack()} />

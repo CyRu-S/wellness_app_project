@@ -18,6 +18,10 @@ public class ReminderService {
     private final PushQueueService push;
     private final WorkflowNotificationService notices;
     private final PlanService plans;
+    private final UserProfileRepository profiles;
+    private final WaterLogRepository water;
+    @org.springframework.beans.factory.annotation.Value("${app.hydration.deadline:20:00}")
+    private String hydrationDeadline;
     private final Clock clock;
     private final ZoneId applicationZoneId;
 
@@ -42,14 +46,41 @@ public class ReminderService {
                             .body(meal.getName() + " is scheduled for " + meal.getMealTime()).scheduledAt(due.minusSeconds(1800)).build());
                     push.enqueue(notification, PushDelivery.Kind.MEAL, due.plusSeconds(3600));
                 }
-                if (clock.instant().isAfter(due.plusSeconds(3600))) {
+                if (clock.instant().isAfter(due)) {
                     var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user).sourceKey(key)
                             .itemType("Meals").itemTitle(meal.getType() + " check-in is overdue").missedAt(due).build()));
                     if (!attention.isResolved()) {
-                        notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "A member may need support", user.getFullName() + " has an overdue meal check-in. Open Attention to review it.");
+                        notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "A member may need support", user.getFullName() + " missed posting " + meal.getName() + " (" + meal.getType() + ") by " + meal.getMealTime() + ". Open Attention to review it.");
                         notices.notify(user, PushDelivery.Kind.DEADLINE, "member-deadline-" + attention.getId(),
                                 "Your meal check-in is overdue", "Open your timeline to review your missed meal check-in.");
                     }
+                }
+            }
+            // A daily goal is assessed at the configured local deadline, never early in the day.
+            for (var day : List.of(today.minusDays(1), today)) {
+                var deadline = day.atTime(LocalTime.parse(hydrationDeadline)).atZone(applicationZoneId).toInstant();
+                if (!clock.instant().isAfter(deadline)) continue;
+                var profile = profiles.findByUserId(user.getId()).orElse(null);
+                int goal = profile == null || profile.getWaterGoalMl() == null || profile.getWaterGoalMl() <= 0
+                        ? 2000 : profile.getWaterGoalMl();
+                int logged = water.findByUserIdAndLoggedAtGreaterThanEqualAndLoggedAtLessThanOrderByLoggedAt(user.getId(),
+                        day.atStartOfDay(applicationZoneId).toInstant(), day.plusDays(1).atStartOfDay(applicationZoneId).toInstant())
+                        .stream().mapToInt(WaterLog::getAmountMl).sum();
+                String key = "hydration-" + user.getId() + "-" + day;
+                if (logged >= goal) {
+                    missed.findBySourceKey(key).ifPresent(event -> { event.setResolved(true); missed.save(event); });
+                    continue;
+                }
+                // Do not invent a missed day before this account was created.
+                if (user.getCreatedAt().isAfter(deadline)) continue;
+                var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
+                        .sourceKey(key).itemType("Hydration").itemTitle("Daily hydration goal is overdue")
+                        .missedAt(deadline).build()));
+                if (!attention.isResolved()) {
+                    notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "A member missed their hydration goal",
+                            user.getFullName() + " logged " + logged + " of " + goal + " ml for " + day + ". Open Attention to review it.");
+                    notices.notify(user, PushDelivery.Kind.DEADLINE, "member-deadline-" + attention.getId(),
+                            "Your hydration goal needs a check-in", "You logged " + logged + " of " + goal + " ml for " + day + ".");
                 }
             }
         }

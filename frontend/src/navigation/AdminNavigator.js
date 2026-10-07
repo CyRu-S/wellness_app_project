@@ -38,6 +38,7 @@ function AdminTabs() {
     <Tab.Navigator
       initialRouteName="AdminDashboard"
       screenOptions={{
+        lazy: true,
         headerShown: false,
         sceneStyle: { backgroundColor: adminColors.canvas, paddingBottom: dockSpace },
         animation: 'none',

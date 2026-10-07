@@ -26,7 +26,7 @@ public class SecurityConfig {
                 }).accessDeniedHandler((request, response, ex) -> {
                     response.setStatus(403); response.setContentType("application/json"); response.getWriter().write("{\"message\":\"You do not have access to this action\"}");
                 }))
-                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
+                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**", "/api/health", "/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN").anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class).build();
     }

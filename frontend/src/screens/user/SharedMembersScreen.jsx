@@ -14,6 +14,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
 import UserHeader from '../../components/user/UserHeader';
+import usePageRefresh from '../../hooks/usePageRefresh';
 import { loadSharedMembers } from '../../store/slices/memberAccessSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
@@ -103,6 +104,7 @@ function EmptyState() {
 }
 
 export default function SharedMembersScreen({ navigation }) {
+  const pageRefresh = usePageRefresh();
   const dispatch = useDispatch();
   const access = useSelector((state) => state.memberAccess || {});
   const payload = access.sharedMembers;
@@ -180,7 +182,7 @@ export default function SharedMembersScreen({ navigation }) {
         ListFooterComponent={members.length ? <View style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={16} color={colors.tealDark} /><Text style={styles.privacyText}>You can only view today’s wellness activity. Access is managed by your club admin.</Text></View> : null}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading && members.length > 0} onRefresh={refresh} colors={[colors.tealMid]} tintColor={colors.tealMid} />}
+        refreshControl={<RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} />}
       />
     </SafeAreaView>
   );

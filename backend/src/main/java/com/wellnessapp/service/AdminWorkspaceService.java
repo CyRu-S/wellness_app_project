@@ -24,10 +24,17 @@ public class AdminWorkspaceService {
     private final ReminderService reminders;
     private final ProductRepository products;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<Map<String, Object>> members() {
+        var date = LocalDate.now(clock.withZone(applicationZoneId));
+        var history = meals.findByMealDateBetween(date.minusDays(6), date);
+        var attention = reminders.attention();
         return users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE).stream().map(user -> {
             var profile = profiles.findByUserId(user.getId()).orElse(null);
+            var summary = access.adminMemberToday(user.getId()).summary();
+            var plan = plans.memberPlan(user.getId());
+            var memberHistory = history.stream().filter(meal -> meal.getUser().getId().equals(user.getId())).toList();
+            var alerts = attention.stream().filter(alert -> alert.get("memberId").equals(user.getId())).toList();
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", user.getId()); row.put("name", user.getFullName()); row.put("email", user.getEmail());
             row.put("status", user.getStatus()); row.put("initials", initials(user.getFullName()));
@@ -35,9 +42,22 @@ public class AdminWorkspaceService {
             row.put("age", profile == null ? null : profile.getAge());
             row.put("profileImageUrl", profile == null || profile.getPhotoMediaKey() == null ? null
                     : "/api/admin/users/" + user.getId() + "/profile-photo?v=" + profile.getPhotoMediaKey());
-            row.put("plan", "No plan assigned"); row.put("adherence", 0); row.put("meals", 0); row.put("hydration", 0);
-            row.put("streak", 0); row.put("lastActiveAt", "Activity temporarily unavailable");
-            row.put("attentionLevel", "NONE"); row.put("attentionReason", ""); row.put("adherenceSeries", List.of());
+            row.put("plan", ((String) plan.get("planName")).isBlank() ? "No plan assigned" : plan.get("planName"));
+            row.put("adherence", memberHistory.isEmpty() ? 0 : memberHistory.stream().filter(Meal::isConsumed).count() * 100 / memberHistory.size());
+            row.put("meals", summary.mealPosts());
+            int goal = profile == null || profile.getWaterGoalMl() == null || profile.getWaterGoalMl() <= 0 ? 2000 : profile.getWaterGoalMl();
+            row.put("hydration", Math.min(100, summary.hydrationMl() * 100 / goal));
+            row.put("streak", streak(user.getId())); presence(row, user);
+            row.put("attentionLevel", alerts.isEmpty() ? "NONE" : "NEEDS_ATTENTION");
+            row.put("attentionReason", alerts.isEmpty() ? "" : alerts.getFirst().get("title"));
+            List<Map<String, Object>> series = new ArrayList<>();
+            if (!memberHistory.isEmpty()) for (int i = 6; i >= 0; i--) {
+                var day = date.minusDays(i);
+                var dayMeals = memberHistory.stream().filter(meal -> meal.getMealDate().equals(day)).toList();
+                series.add(Map.of("label", day.format(DateTimeFormatter.ofPattern("d MMM")), "value",
+                        dayMeals.isEmpty() ? 0 : dayMeals.stream().filter(Meal::isConsumed).count() * 100 / dayMeals.size()));
+            }
+            row.put("adherenceSeries", series);
             return row;
         }).toList();
     }
@@ -61,7 +81,7 @@ public class AdminWorkspaceService {
                 }).toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> workspace() {
         var all = users.findAll().stream().filter(u -> u.getRole() == User.Role.USER).sorted(Comparator.comparing(User::getId)).toList();
         var active = all.stream().filter(u -> u.getStatus() == User.Status.ACTIVE).toList();
@@ -87,8 +107,7 @@ public class AdminWorkspaceService {
             row.put("adherence", s.plannedMeals() == 0 ? 0 : Math.min(100, s.completedMeals() * 100 / s.plannedMeals()));
             int waterGoal = profile == null || profile.getWaterGoalMl() == null || profile.getWaterGoalMl() <= 0 ? 2000 : profile.getWaterGoalMl();
             row.put("meals", s.mealPosts()); row.put("hydration", Math.min(100, s.hydrationMl() * 100 / waterGoal));
-            row.put("streak", streak(user.getId())); row.put("lastActiveAt", user.getLastSeenAt() == null ? "No activity yet" :
-                    user.getLastSeenAt().isAfter(clock.instant().minusSeconds(120)) ? "Active now" : user.getLastSeenAt().atZone(applicationZoneId).format(DateTimeFormatter.ofPattern("d MMM, h:mm a")));
+            row.put("streak", streak(user.getId())); presence(row, user);
             row.put("attentionLevel", "NONE"); row.put("attentionReason", ""); members.add(row);
         }
         var attention = reminders.attention();
@@ -160,6 +179,13 @@ public class AdminWorkspaceService {
         users.save(user);
         if (user.getStatus() == User.Status.ACTIVE) notices.notify(user, PushDelivery.Kind.APPROVAL, "approval-" + user.getId(),
                 "Your membership is approved", "Your admin approved your registration. You can now use your member account.");
+    }
+    private void presence(Map<String, Object> row, User user) {
+        boolean online = user.getLastSeenAt() != null && user.getLastSeenAt().isAfter(clock.instant().minusSeconds(120));
+        row.put("online", online);
+        row.put("lastSeenAt", user.getLastSeenAt());
+        row.put("lastActiveAt", user.getLastSeenAt() == null ? "No activity yet" : online ? "Active now" :
+                user.getLastSeenAt().atZone(applicationZoneId).format(DateTimeFormatter.ofPattern("d MMM, h:mm a")));
     }
     private int comparison(long current, long previous) { return previous == 0 ? 0 : (int) Math.round((current - previous) * 100.0 / previous); }
     private int streak(Long id) {

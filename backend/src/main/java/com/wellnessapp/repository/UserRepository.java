@@ -7,6 +7,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("select u from User u where u.id = :id")
     Optional<User> lockById(Long id);
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("update User u set u.lastSeenAt = :seenAt where lower(u.email) = lower(:email) and (u.lastSeenAt is null or u.lastSeenAt < :seenAt)")
+    int recordPresence(String email, java.time.Instant seenAt);
     Optional<User> findByEmailIgnoreCase(String email);
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<User> findForUpdateByEmailIgnoreCase(String email);

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
+import usePageRefresh from '../../hooks/usePageRefresh';
 import useFocusedPolling from '../../hooks/useFocusedPolling';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
 import { clearSharedMemberToday, loadSharedMemberToday } from '../../store/slices/memberAccessSlice';
@@ -35,6 +36,7 @@ function FailedState({ revoked, message, onRetry, onBack }) {
 }
 
 export default function SharedMemberTodayScreen({ navigation, route }) {
+  const pageRefresh = usePageRefresh();
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
   const access = useSelector((state) => state.memberAccess || {});
@@ -87,7 +89,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} colors={[colors.tealMid]} tintColor={colors.tealMid} />}
+        refreshControl={<RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} />}
       >
         <BackHeader navigation={navigation} />
         <MemberTodaySnapshot snapshot={today} token={token} onOpenPhoto={openPhoto} showAccessNote />

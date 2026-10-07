@@ -37,11 +37,22 @@ const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout >
 // short-lived, account-scoped disk cache; data-changing writes invalidate it.
 const inFlightReads = new Map();
 let readGeneration = 0;
+const freshPaths = new Set();
+
+// Invalidate only this page's reads. Keep other pages available offline.
+export function refreshPageResponses(paths) {
+  readGeneration += 1;
+  inFlightReads.clear();
+  paths.forEach((path) => freshPaths.add(path));
+}
+
 
 export function request(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
   const isRead = method === 'GET';
-  const mutatesData = !isRead && path !== '/meals/analyze';
+  const mutatesData = !isRead && path !== '/meals/analyze' && path !== '/presence';
+  const forceFresh = isRead && freshPaths.has(path);
+  const generation = readGeneration;
   const cacheable = isRead && !options.signal && options.cachePolicy !== 'network-only';
   if (mutatesData) { readGeneration += 1; inFlightReads.clear(); invalidateCachedResponses(); }
   if (cacheable) {
@@ -51,15 +62,18 @@ export function request(path, options = {}) {
       const version = cacheVersion();
       const authorization = options.headers?.Authorization;
       const cached = await readCachedResponse(path, authorization);
-      if (version === cacheVersion() && cached.hit && (options.cachePolicy === 'stale-ok' || !cached.stale)) return cached.value;
+      if (!forceFresh && version === cacheVersion() && cached.hit && (options.cachePolicy === 'stale-ok' || !cached.stale)) return cached.value;
       try {
         const value = await performRequest(path, options);
-        await saveCachedResponse(path, authorization, value, version);
+        if (generation === readGeneration) {
+          await saveCachedResponse(path, authorization, value, version);
+          freshPaths.delete(path);
+        }
         return value;
       } catch (error) {
         // Preserve already-fetched read-only data through a cold start or outage.
         // Mutations and explicit authentication checks never use this fallback.
-        if (cached.hit && version === cacheVersion() && (error.status === undefined || [429, 502, 503, 504].includes(error.status))) return cached.value;
+        if (!forceFresh && cached.hit && version === cacheVersion() && (error.status === undefined || [429, 502, 503, 504].includes(error.status))) return cached.value;
         throw error;
       }
     })().finally(() => {

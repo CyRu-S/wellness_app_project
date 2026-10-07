@@ -36,6 +36,8 @@ class PersistentWorkflowIntegrationTests {
     @Autowired MealRepository meals;
     @Autowired MealPostRepository posts;
     @Autowired NotificationRepository notifications;
+    @Autowired WaterLogRepository water;
+    @Autowired jakarta.persistence.EntityManager entityManager;
     @Autowired NotificationService notificationService;
     @Autowired JwtTokenProvider tokens;
     @Autowired PlanService plans;
@@ -286,4 +288,48 @@ class PersistentWorkflowIntegrationTests {
         var meal = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
         meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); assertThat(reminders.attention()).isEmpty();
     }
+    @Test void mealDeadlineAppearsImmediatelyAndNotifiesAdminOnlyOnce() throws Exception {
+        var user = approve("deadline@example.com"); plan(user);
+        setTime("2026-09-05T02:30:00Z");
+        reminders.refresh(); assertThat(reminders.attention()).isEmpty();
+        setTime("2026-09-05T02:30:01Z");
+        mvc.perform(get("/api/admin/attention").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].memberId").value(user.getId()))
+                .andExpect(jsonPath("$[0].category").value("Meals"));
+        reminders.refresh();
+        assertThat(notifications.findAll().stream().filter(event -> event.getUser().getRole() == User.Role.ADMIN
+                && event.getKind() == PushDelivery.Kind.DEADLINE).toList())
+                .hasSize(1).allMatch(event -> event.getBody().contains("Oats") && event.getBody().contains("08:00"));
+    }
+
+    @Test void hydrationDeadlineUsesLocalDayGoalAndResolvesWhenGoalIsMet() throws Exception {
+        var user = approve("hydration@example.com");
+        user.setCreatedAt(Instant.parse("2026-09-05T00:00:00Z"));
+        var profile = profiles.findByUserId(user.getId()).orElseThrow();
+        profile.setWaterGoalMl(2500); profiles.save(profile);
+        setTime("2026-09-05T14:30:00Z");
+        reminders.refresh(); assertThat(reminders.attention()).isEmpty();
+        setTime("2026-09-05T14:30:01Z");
+        reminders.refresh(); reminders.refresh();
+        assertThat(reminders.attention()).hasSize(1).allMatch(event -> event.get("category").equals("Hydration"));
+        assertThat(notifications.findAll().stream().filter(event -> event.getUser().getRole() == User.Role.ADMIN
+                && event.getKind() == PushDelivery.Kind.DEADLINE).toList()).hasSize(1);
+        water.save(WaterLog.builder().user(user).amountMl(2500).loggedAt(clock.instant()).build());
+        reminders.refresh(); assertThat(reminders.attention()).isEmpty();
+    }
+
+    @Test void memberPresenceExpiresAndRequiresAnAuthenticatedHeartbeat() throws Exception {
+        var user = approve("presence@example.com");
+        mvc.perform(post("/api/presence")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/presence").header("Authorization", token(user))).andExpect(status().isNoContent());
+        entityManager.flush(); entityManager.clear();
+        mvc.perform(get("/api/admin/members").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].online").value(true))
+                .andExpect(jsonPath("$[0].lastActiveAt").value("Active now"));
+        setTime("2026-09-05T04:32:01Z");
+        mvc.perform(get("/api/admin/members").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].online").value(false));
+        mvc.perform(get("/api/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP"));
+    }
+
 }

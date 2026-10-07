@@ -31,6 +31,7 @@ export default function UserNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
+        lazy: true,
         headerShown: false,
         animation: 'none',
         sceneStyle: { backgroundColor: colors.paper, paddingBottom: dockSpace },

@@ -9,6 +9,7 @@ let pendingClear = Promise.resolve();
 
 const lifetime = (path) => {
   // Frequently changing views must still notice changes made on another phone.
+  if (path === '/admin/members' || path === '/admin/attention') return 30000;
   if (path.startsWith('/notifications') || path.startsWith('/admin/approvals')) return 30000;
   if (path.startsWith('/shared-members') || path.startsWith('/admin/members/') || path.startsWith('/admin/member-access')) return 30000;
   if (path.startsWith('/dashboard') || path.startsWith('/admin/workspace') || path.startsWith('/plans/today')

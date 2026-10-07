@@ -1,13 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import Image from '../../components/common/ProtectedImage';
 import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl';
-import { loadAdminMembers, selectAdminMembers, selectAdminSummary } from '../../store/slices/adminSlice';
+import { selectAdminMembers, selectAdminSummary } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 import { profileImageSource } from '../../utils/profilePhoto';
 
@@ -23,9 +24,11 @@ function PulseMetric({ value, label, last, stacked }) {
   );
 }
 
-function MemberCard({ member, onPress, token }) {
+const isOnline = (member, now) => member.online === true && Number.isFinite(Date.parse(member.lastSeenAt)) && Date.parse(member.lastSeenAt) > now - 120000;
+
+function MemberCard({ member, onPress, token, now }) {
   const needsAttention = member.attentionLevel === 'NEEDS_ATTENTION';
-  const active = member.status === 'ACTIVE';
+  const active = isOnline(member, now);
   const [imageFailed, setImageFailed] = useState(false);
   const avatarSource = imageFailed ? null : profileImageSource(member.profileImageUrl, token);
 
@@ -50,7 +53,7 @@ function MemberCard({ member, onPress, token }) {
             <Text numberOfLines={1} style={styles.memberName}>{member.name}</Text>
             <View style={styles.presenceRow}>
               <View style={[styles.presenceDot, !active && styles.presenceDotAway]} />
-              <Text numberOfLines={1} style={styles.presence}>{member.lastActiveAt}</Text>
+              <Text numberOfLines={1} style={styles.presence}>{active ? 'Active now' : member.lastActiveAt === 'Active now' ? 'Recently active' : member.lastActiveAt}</Text>
             </View>
           </View>
           <View style={styles.openProfile}><Text style={styles.openProfileText}>Profile</Text></View>
@@ -84,30 +87,30 @@ function MemberCard({ member, onPress, token }) {
 }
 
 export default function AdminMembersScreen({ navigation }) {
-  const dispatch = useDispatch();
   const members = useSelector(selectAdminMembers);
   const summary = useSelector(selectAdminSummary);
   const token = useSelector((state) => state.auth.token);
-  const membersStatus = useSelector((state) => state.admin.membersStatus);
   const membersError = useSelector((state) => state.admin.membersError);
   const { width, fontScale } = useWindowDimensions();
+  const [now, setNow] = useState(Date.now);
+  useFocusEffect(useCallback(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []));
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
 
-  useEffect(() => {
-    if (membersStatus === 'idle') dispatch(loadAdminMembers());
-  }, [dispatch, membersStatus]);
 
   const visibleMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return members.filter((member) => {
       const matchesSearch = !normalized || `${member.name} ${member.plan}`.toLowerCase().includes(normalized);
       const matchesFilter = filter === 'All'
-        || (filter === 'Active' && member.status === 'ACTIVE')
+        || (filter === 'Active' && isOnline(member, now))
         || (filter === 'Needs attention' && member.attentionLevel === 'NEEDS_ATTENTION');
       return matchesSearch && matchesFilter;
     });
-  }, [filter, members, query]);
+  }, [filter, members, query, now]);
 
   const attentionCount = members.filter((member) => member.attentionLevel === 'NEEDS_ATTENTION').length;
   const stackedPulse = width < 340 || fontScale > 1.35;
@@ -135,7 +138,7 @@ export default function AdminMembersScreen({ navigation }) {
             <Text style={styles.heroTitle}>people sharing one healthier rhythm.</Text>
           </View>
           <View style={[styles.pulseRail, stackedPulse && styles.pulseRailStacked]}>
-            <PulseMetric value={summary.activeUsers} label="active now" stacked={stackedPulse} />
+            <PulseMetric value={members.filter((member) => isOnline(member, now)).length} label="active now" stacked={stackedPulse} />
             <PulseMetric value={attentionCount} label="need care" stacked={stackedPulse} />
             <PulseMetric value={`${summary.averageAdherence}%`} label="average adherence" last stacked={stackedPulse} />
           </View>
@@ -174,7 +177,7 @@ export default function AdminMembersScreen({ navigation }) {
       <View style={styles.list}>
         {membersError ? <Text accessibilityRole="alert" style={styles.loadError}>{membersError}</Text> : null}
         {visibleMembers.map((member) => (
-          <MemberCard key={member.id} member={member} token={token} onPress={() => navigation.navigate('UserDetails', { id: member.id })} />
+          <MemberCard key={member.id} member={member} token={token} now={now} onPress={() => navigation.navigate('UserDetails', { id: member.id })} />
         ))}
         {visibleMembers.length === 0 && (
           <View style={styles.empty}>

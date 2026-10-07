@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import usePageRefresh from '../../hooks/usePageRefresh';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { colors } from '../../theme';
 
 export default function Screen({ children, scroll = true, contentStyle, style, keyboardShouldPersistTaps = 'handled' }) {
+  const pageRefresh = usePageRefresh();
   const reduceMotion = useReducedMotion();
   const [progress] = useState(() => new Animated.Value(0));
 
@@ -29,7 +31,7 @@ export default function Screen({ children, scroll = true, contentStyle, style, k
   return (
     <SafeAreaView style={[styles.safe, style]} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        {scroll ? <ScrollView keyboardShouldPersistTaps={keyboardShouldPersistTaps} keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>{content}</ScrollView> : <View style={styles.fill}>{content}</View>}
+        {scroll ? <ScrollView refreshControl={pageRefresh.enabled ? <RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} /> : undefined} alwaysBounceVertical keyboardShouldPersistTaps={keyboardShouldPersistTaps} keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>{content}</ScrollView> : <View style={styles.fill}>{content}</View>}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

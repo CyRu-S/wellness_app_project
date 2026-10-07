@@ -123,6 +123,7 @@ function Group({ eyebrow, title, description, items, token, navigation, dispatch
 export default function AdminAttentionScreen({ navigation }) {
   const dispatch = useDispatch();
   const attention = useSelector(selectAdminAttention);
+  const attentionError = useSelector((state) => state.admin.attentionError);
   const members = useSelector(selectAdminMembers);
   const token = useSelector((state) => state.auth.token);
   const [filter, setFilter] = useState('All');
@@ -141,6 +142,7 @@ export default function AdminAttentionScreen({ navigation }) {
   return (
     <AdminScreen>
       <AdminHeader title="Attention" back onBackPress={() => navigation.navigate('AdminDashboard')} />
+      {attentionError ? <Text accessibilityRole="alert" style={{ color: adminColors.coral, marginTop: 12 }}>{attentionError}</Text> : null}
 
       <View style={styles.heading}>
         <Text style={styles.eyebrow}>CARE QUEUE</Text>

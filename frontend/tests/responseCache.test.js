@@ -58,3 +58,52 @@ test('a timed-out GET retains stale read-only data, but a failed write is never 
   assert.equal(fetches, 4);
   assert.equal(invalidations, afterWrite, 'analysis must not discard otherwise valid dashboard data');
 });
+
+
+test('pull-to-refresh fetches only selected paths, updates the cache, and reports offline errors', async () => {
+  const calls = [];
+  const saved = [];
+  let offline = false;
+  const cache = new Map([['/dashboard', { count: 1 }], ['/profile', { name: 'Cached' }]]);
+  const client = loadModule('../src/services/api/client.js', {
+    'react-native': { Platform: { OS: 'android' } },
+    'expo-constants': { expoConfig: null },
+    './responseCache': {
+      cacheVersion: () => 0,
+      invalidateCachedResponses: async () => {},
+      readCachedResponse: async (path) => ({ hit: cache.has(path), stale: false, value: cache.get(path) }),
+      saveCachedResponse: async (path, authorization, value) => { saved.push(path); cache.set(path, value); },
+    },
+  }, { fetch: async (url) => {
+    calls.push(url);
+    if (offline) throw new TypeError('Offline');
+    return { ok: true, status: 200, text: async () => JSON.stringify({ count: 2 }) };
+  } });
+  const options = { headers: { Authorization: 'Bearer jwt' } };
+  assert.equal((await client.request('/dashboard', options)).count, 1);
+  client.refreshPageResponses(['/dashboard']);
+  assert.equal((await client.request('/dashboard', options)).count, 2);
+  assert.equal((await client.request('/profile', options)).name, 'Cached');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(saved, ['/dashboard']);
+  client.refreshPageResponses(['/dashboard']); offline = true;
+  await assert.rejects(client.request('/dashboard', options), /Offline/);
+  assert.equal(cache.get('/dashboard').count, 2, 'failed refresh retains previously displayed data');
+});
+
+test('presence heartbeats leave cached pages intact', async () => {
+  let invalidations = 0;
+  const client = loadModule('../src/services/api/client.js', {
+    'react-native': { Platform: { OS: 'android' } },
+    'expo-constants': { expoConfig: null },
+    './responseCache': {
+      cacheVersion: () => 0,
+      invalidateCachedResponses: async () => { invalidations += 1; },
+      readCachedResponse: async () => ({ hit: true, stale: false, value: { count: 3 } }),
+      saveCachedResponse: async () => {},
+    },
+  }, { fetch: async () => ({ ok: true, status: 204 }) });
+  await client.request('/presence', { method: 'POST', headers: { Authorization: 'Bearer jwt' } });
+  assert.equal(invalidations, 0);
+  assert.equal((await client.request('/dashboard', { headers: { Authorization: 'Bearer jwt' } })).count, 3);
+});
