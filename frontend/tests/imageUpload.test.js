@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { File } from 'node:buffer';
+import * as mealAnalysis from '../src/utils/mealAnalysis.js';
 import { appendImage as appendWebImage } from '../src/services/api/imageUpload.web.js';
 
 const require = createRequire(import.meta.url);
@@ -51,6 +52,7 @@ test('all four photo workflows use the SDK-compatible upload helper', async () =
   const paths = [];
   let appended = 0;
   const dependencies = {
+    '../../utils/mealAnalysis': mealAnalysis,
     './client': { API_URL: 'https://example.invalid/api', request: async (path, options) => { paths.push(path); assert.ok(options.body instanceof FormData); assert.ok(options.body.get('image') instanceof File); return {}; } },
     './imageUpload': { appendImage: async (form) => { appended++; form.append('image', new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })); } },
     '../storage/protectedImageCache': { primeProtectedImageCache: async () => {} },

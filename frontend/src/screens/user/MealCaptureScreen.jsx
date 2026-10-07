@@ -7,7 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { analyzeMealPhoto } from '../../services/api/mealAnalysisApi';
+import { analyzeCapturedMeal } from '../../services/api/capturedMealAnalysis';
+import { changeFoodServings, isManualProduct } from '../../utils/mealAnalysis';
+import { formatNutrition } from '../../utils/formatNutrition';
 import { postMeal } from '../../store/slices/mealSlice';
 import { preparePhotoUpload } from '../../utils/preparePhotoUpload';
 import { colors, fonts, radius, shadows, type } from '../../theme';
@@ -20,7 +22,8 @@ export default function MealCaptureScreen({ navigation, route }) {
   const allMeals = useSelector((state) => state.meals.items);
   const pendingPost = useSelector((state) => state.meals.pendingPost);
   const targetMeal = useSelector((state) => state.meals.items.find((meal) => meal.id === targetMealId));
-  const analysisCategory = targetMeal?.type === 'Herbalife product' ? 'product' : category;
+  const manualProduct = isManualProduct(targetMeal) || isManualProduct(category);
+  const analysisCategory = manualProduct ? 'product' : 'meal';
   const token = useSelector((state) => state.auth.token);
   const userId = useSelector((state) => state.auth.user?.id);
   const dispatch = useDispatch();
@@ -59,11 +62,12 @@ export default function MealCaptureScreen({ navigation, route }) {
     try {
       const prepared = await preparePhotoUpload({ uri });
       setPhoto(prepared.uri);
-      const result = await analyzeMealPhoto({ uri: prepared.uri, category: analysisCategory, token });
+      const result = await analyzeCapturedMeal({ uri: prepared.uri, meal: targetMeal, category: analysisCategory, token });
       setAnalysis(result);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (error) {
-      setAnalysis({ name: targetMeal?.name || '', calories: targetMeal?.calories || 0, protein: targetMeal?.protein || 0, carbs: 0, fat: 0, confidence: 0, source: 'manual', warning: error.message });
+      setPhoto(null);
+      Alert.alert('Photo unavailable', error.message || 'Retake the photo or choose another image.');
     } finally {
       setAnalyzing(false);
     }
@@ -81,8 +85,11 @@ export default function MealCaptureScreen({ navigation, route }) {
   };
 
   const choosePhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.78 });
-    if (!result.canceled && result.assets?.[0]?.uri) await processPhoto(result.assets[0].uri);
+    if (analyzing || posting) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.78 });
+      if (!result.canceled && result.assets?.[0]?.uri) await processPhoto(result.assets[0].uri);
+    } catch (error) { Alert.alert('Photo unavailable', error.message || 'Choose another image.'); }
   };
 
   const retake = () => {
@@ -131,8 +138,8 @@ export default function MealCaptureScreen({ navigation, route }) {
   };
 
   if (!targetMeal) return <SafeAreaView style={styles.permission}><Text style={styles.permissionTitle}>No meal assigned</Text><Text style={styles.permissionCopy}>Your admin must assign a diet plan before you can post a meal.</Text><Pressable onPress={() => navigation.goBack()}><Text style={styles.libraryLink}>Go back</Text></Pressable></SafeAreaView>;
-  if (!permission) return <View style={styles.loading} />;
-  if (!permission.granted) {
+  if (!permission && !photo) return <View style={styles.loading} />;
+  if (!permission?.granted && !photo) {
     return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Use the camera to log meals and estimate their nutritional values.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
   }
 
@@ -140,7 +147,7 @@ export default function MealCaptureScreen({ navigation, route }) {
     <SafeAreaView style={styles.page} edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.visual}>
-        {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : focused ? <CameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch} /> : null}
+        {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : focused && permission?.granted ? <CameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch} /> : null}
         <View pointerEvents="none" style={styles.scrim} />
         <View style={styles.topbar}>
           <Pressable accessibilityLabel="Close camera" onPress={() => navigation.goBack()} style={styles.roundButton}><Ionicons name="close" size={21} color={colors.white} /></Pressable>
@@ -148,7 +155,7 @@ export default function MealCaptureScreen({ navigation, route }) {
           <Pressable accessibilityLabel="Toggle camera" onPress={() => setFacing((value) => value === 'back' ? 'front' : 'back')} style={styles.roundButton}><Ionicons name="camera-reverse-outline" size={20} color={colors.white} /></Pressable>
         </View>
 
-        <View style={styles.instruction}><Text style={styles.instructionTitle}>{analyzing ? 'Analysing your photo' : analysis ? 'Review the estimate' : category === 'meal' ? 'Frame the complete meal' : 'Frame the serving and label'}</Text><Text style={styles.instructionCopy}>{analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Adjustments can be added after saving.' : 'Keep the item inside the guides and hold steady.'}</Text></View>
+        <View style={styles.instruction}><Text style={styles.instructionTitle}>{analyzing ? 'Analysing your photo' : analysis ? 'Review the estimate' : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Review the food and nutrition before saving.' : manualProduct ? 'You will enter product nutrition manually.' : 'Keep the complete meal inside the guides and hold steady.'}</Text></View>
 
         {!analysis ? <View pointerEvents="none" style={styles.frame}><View style={[styles.corner, styles.tl]} /><View style={[styles.corner, styles.tr]} /><View style={[styles.corner, styles.bl]} /><View style={[styles.corner, styles.br]} />{analyzing ? <Animated.View style={[styles.scan, { transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [0, 220] }) }] }]} /> : <View style={styles.centerTarget}><Ionicons name="scan-outline" size={27} color="rgba(255,255,255,0.75)" /></View>}</View> : null}
 
@@ -158,9 +165,25 @@ export default function MealCaptureScreen({ navigation, route }) {
       {analysis ? <Animated.View style={[styles.result, { maxHeight: height * 0.6, flexShrink: 1 }, { opacity: sheet, transform: [{ translateY: sheet.interpolate({ inputRange: [0, 1], outputRange: [70, 0] }) }] }]}>
         <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.resultHandle} />
-        <View style={styles.resultTop}><View><Text style={styles.resultLabel}>{analysis.source === 'live' ? 'LIVE ANALYSIS' : 'ENTER MEAL DETAILS'}</Text><Text style={styles.resultTitle}>{analysis.name}</Text></View><View style={styles.confidence}><Text style={styles.confidenceValue}>{analysis.confidence}%</Text><Text style={styles.confidenceLabel}>MATCH</Text></View></View>
-        <View style={styles.nutrition}><View><Text style={styles.value}>{analysis.calories}</Text><Text style={styles.valueLabel}>KCAL</Text></View><View><Text style={styles.value}>{analysis.protein}g</Text><Text style={styles.valueLabel}>PROTEIN</Text></View><View><Text style={styles.value}>{analysis.carbs}g</Text><Text style={styles.valueLabel}>CARBS</Text></View><View><Text style={styles.value}>{analysis.fat}g</Text><Text style={styles.valueLabel}>FAT</Text></View></View>
-        {analysis.source !== 'live' ? <View style={styles.demoNote}><Ionicons name="information-circle-outline" size={16} color={colors.tealDark} /><Text style={styles.demoText}>Photo analysis is unavailable. Review the planned values below and enter the nutrition you want to log.</Text></View> : null}
+        <View style={styles.resultTop}><View><Text style={styles.resultLabel}>{analysis.source === 'live' ? 'ESTIMATED FOOD NUTRITION' : manualProduct ? 'MANUAL PRODUCT ENTRY' : 'ENTER MEAL DETAILS'}</Text><Text style={styles.resultTitle}>{analysis.name}</Text></View></View>
+        <View style={styles.nutrition}><View><Text style={styles.value}>{formatNutrition(analysis.calories)}</Text><Text style={styles.valueLabel}>KCAL</Text></View><View><Text style={styles.value}>{formatNutrition(analysis.protein)}g</Text><Text style={styles.valueLabel}>PROTEIN</Text></View><View><Text style={styles.value}>{formatNutrition(analysis.carbs)}g</Text><Text style={styles.valueLabel}>CARBS</Text></View><View><Text style={styles.value}>{formatNutrition(analysis.fat)}g</Text><Text style={styles.valueLabel}>FAT</Text></View></View>
+        {analysis.warning ? <View style={styles.demoNote}><Ionicons name="information-circle-outline" size={16} color={colors.tealDark} /><Text style={styles.demoText}>{analysis.warning}</Text></View> : null}
+        {analysis.items?.length ? <View style={styles.foodItems}>
+          <Text style={styles.servingTitle}>Detected foods & standard servings</Text>
+          <Text style={styles.demoText}>Each dish starts at one standard serving. Adjust servings or remove a mistaken dish with the minus button; the final totals are saved.</Text>
+          {analysis.items.map((item, index) => <View key={`${item.name}-${index}`} style={styles.foodItem}>
+            <Text style={styles.foodName}>{item.name}</Text>
+            <Text style={styles.demoText}>{item.standardPortion} ({formatNutrition(item.portionGrams)} g) per serving</Text>
+            <Text style={styles.demoText}>{formatNutrition(item.calories)} kcal | P {formatNutrition(item.protein)} g | C {formatNutrition(item.carbs)} g | F {formatNutrition(item.fat)} g per serving</Text>
+            <View style={styles.servingControls}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Decrease ${item.name} servings`} disabled={item.servings <= 0}
+                style={styles.servingButton} onPress={() => setAnalysis((current) => changeFoodServings(current, index, item.servings - 0.5))}><Text>-</Text></Pressable>
+              <Text style={styles.demoText}>{item.servings === 0 ? 'Excluded' : `${formatNutrition(item.servings)} serving(s)`}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Increase ${item.name} servings`} disabled={item.servings >= 5}
+                style={styles.servingButton} onPress={() => setAnalysis((current) => changeFoodServings(current, index, item.servings + 0.5))}><Text>+</Text></Pressable>
+            </View>
+          </View>)}
+        </View> : null}
         <TextInput accessibilityLabel="Meal name" value={analysis.name} onChangeText={(name) => setAnalysis((current) => ({ ...current, name }))} style={{ padding: 8, color: colors.ink }} />
         <View style={{ flexDirection: 'row', gap: 8 }}>{['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key} style={{ flex: 1 }}><Text>{key}</Text><TextInput accessibilityLabel={key} keyboardType="decimal-pad" value={String(analysis[key] ?? '')} onChangeText={(value) => setAnalysis((current) => ({ ...current, [key]: value }))} style={{ padding: 8, borderBottomWidth: 1, color: colors.ink }} /></View>)}</View>
         <View style={styles.resultActions}><Pressable onPress={retake} disabled={posting} style={[styles.retake, posting && styles.disabled]}><Text style={styles.retakeText}>Retake</Text></Pressable><Pressable accessibilityState={{ busy: posting, disabled: posting }} onPress={confirm} disabled={posting} style={[styles.confirm, posting && styles.disabled]}><Text style={styles.confirmText}>{posting ? 'Saving meal…' : 'Add to dashboard'}</Text><Ionicons name={posting ? 'cloud-upload-outline' : 'arrow-forward'} size={17} color={colors.white} /></Pressable></View>
@@ -180,6 +203,11 @@ const styles = StyleSheet.create({
   result: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, backgroundColor: colors.paper, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 22, paddingTop: 11, paddingBottom: 22, ...shadows.raised }, resultHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: colors.line, alignSelf: 'center', marginBottom: 16 }, resultTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, resultLabel: { ...type.label, color: colors.tealMid, fontSize: 11 }, resultTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 22, marginTop: 4 }, confidence: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }, confidenceValue: { color: colors.tealDark, fontFamily: fonts.bold, fontSize: 14 }, confidenceLabel: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 10, lineHeight: 13, letterSpacing: 0.5 },
   nutrition: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 18, marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, value: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 19, textAlign: 'center' }, valueLabel: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 10, lineHeight: 14, letterSpacing: 0.5, marginTop: 2, textAlign: 'center' }, demoNote: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 }, demoText: { flex: 1, color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17 },
   resultActions: { flexDirection: 'row', gap: 10, marginTop: 15 }, retake: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 19 }, retakeText: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 13 }, confirm: { flex: 1, minHeight: 52, borderRadius: radius.md, backgroundColor: colors.tealMid, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }, confirmText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 13 },
+  foodItems: { marginTop: 16, gap: 10 }, servingTitle: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 15 },
+  foodItem: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: 12, gap: 4 },
+  foodName: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 14 },
+  servingControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  servingButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft, borderRadius: 12 },
   disabled: { opacity: 0.58 },
   permission: { flex: 1, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', padding: 30 }, permissionTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 24, marginTop: 18 }, permissionCopy: { color: '#A9C7C9', fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 8 }, permissionButton: { minHeight: 52, borderRadius: radius.md, backgroundColor: colors.tealMid, paddingHorizontal: 26, alignItems: 'center', justifyContent: 'center', marginTop: 24 }, permissionButtonText: { color: colors.white, fontFamily: fonts.semibold }, libraryLink: { color: colors.accent, fontFamily: fonts.medium, marginTop: 20 },
 });
