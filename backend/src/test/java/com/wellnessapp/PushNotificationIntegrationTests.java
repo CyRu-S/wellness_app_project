@@ -46,6 +46,8 @@ class PushNotificationIntegrationTests {
     @Autowired MemberAccessService access;
     @Autowired AdminWorkspaceService workspace;
     @Autowired JwtTokenProvider tokens;
+    @Autowired WebPushAccountService webAccounts;
+    @MockitoBean WebPushClient web;
     @MockitoBean ExpoPushClient expo;
     @MockitoBean PasswordResetMailService mail;
     @MockitoBean Clock clock;
@@ -274,4 +276,70 @@ class PushNotificationIntegrationTests {
         mvc.perform(patch("/api/notifications/" + event.getId() + "/read").header("Authorization", auth(admin))).andExpect(status().isNoContent());
         assertThat(event.isRead()).isTrue();
     }
+    String webEndpoint = "https://web.push.apple.com/test-subscription";
+    String browserKey() { byte[] key = new byte[65]; key[0] = 4; return Base64.getUrlEncoder().withoutPadding().encodeToString(key); }
+    String browserAuth() { return Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[16]); }
+    void enableWeb() {
+        when(web.available()).thenReturn(true); when(web.publicKey()).thenReturn(browserKey());
+        org.springframework.test.util.ReflectionTestUtils.setField(webAccounts, "schedulersEnabled", true);
+    }
+    @Test void webDeliveryIsOffByDefaultAndExpoDevicesKeepTheirProvider() throws Exception {
+        accounts.register(member.getEmail(), pushToken, registration);
+        assertThat(devices.findAll()).allMatch(device -> device.getProvider() == PushDevice.Provider.EXPO);
+        mvc.perform(get("/api/notifications/web/config").header("Authorization", auth(member)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.available").value(false)).andExpect(jsonPath("$.publicKey").value(""));
+        mvc.perform(put("/api/notifications/web/subscriptions").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("endpoint", webEndpoint, "p256dh", browserKey(), "auth", browserAuth(), "registrationId", registration))))
+                .andExpect(status().isConflict());
+    }
+    @Test void webRegistrationRejectsUnauthenticatedRequestsAndUntrustedEndpoints() throws Exception {
+        enableWeb();
+        var body = Map.of("endpoint", "https://127.0.0.1/private", "p256dh", browserKey(), "auth", browserAuth(), "registrationId", registration);
+        mvc.perform(put("/api/notifications/web/subscriptions").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(put("/api/notifications/web/subscriptions").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(body))).andExpect(status().isBadRequest());
+        assertThatThrownBy(() -> webAccounts.register(member.getEmail(), "https://web.push.apple.com.evil.example/test", browserKey(), browserAuth(), registration))
+                .isInstanceOf(com.wellnessapp.exception.BadRequestException.class);
+        assertThatThrownBy(() -> webAccounts.register(member.getEmail(), webEndpoint, "bad-key", browserAuth(), registration))
+                .isInstanceOf(com.wellnessapp.exception.BadRequestException.class);
+    }
+    @Test void webAndAndroidDeliveriesUseSeparateProvidersAndGenericPayloads() throws Exception {
+        enableWeb(); accounts.register(member.getEmail(), pushToken, registration);
+        webAccounts.register(member.getEmail(), webEndpoint, browserKey(), browserAuth(), registration);
+        var event = events.save(NotificationEvent.builder().user(member).title("Private title").body("Private meal details").scheduledAt(now).build());
+        queue.enqueue(event, PushDelivery.Kind.TEST, now.plusSeconds(3600));
+        when(web.send(any(), anyMap(), anyInt())).thenAnswer(call -> {
+            String payload = json.writeValueAsString(call.getArgument(1));
+            assertThat(payload).contains("userId", "registrationId", "notificationId").doesNotContain("Private", member.getEmail()); return 201;
+        });
+        when(expo.send(anyList())).thenAnswer(call -> {
+            List<?> messages = call.getArgument(0);
+            assertThat(messages).hasSize(1); assertThat(json.writeValueAsString(messages)).contains(pushToken).doesNotContain("web:");
+            return json.readTree("[{\"status\":\"ok\",\"id\":\"android-receipt\"}]");
+        });
+        worker.sendPending();
+        assertThat(deliveries.findAll()).anyMatch(delivery -> delivery.getDevice().getProvider() == PushDevice.Provider.WEB && delivery.getStatus() == PushDelivery.Status.DELIVERED)
+                .anyMatch(delivery -> delivery.getDevice().getProvider() == PushDevice.Provider.EXPO && delivery.getStatus() == PushDelivery.Status.RECEIPT);
+    }
+    @Test void expiredWebSubscriptionIsDisabledWithoutCallingExpo() throws Exception {
+        enableWeb(); webAccounts.register(member.getEmail(), webEndpoint, browserKey(), browserAuth(), registration);
+        var event = events.save(NotificationEvent.builder().user(member).title("Test").body("Test").scheduledAt(now).build());
+        queue.enqueue(event, PushDelivery.Kind.TEST, now.plusSeconds(3600));
+        when(web.send(any(), anyMap(), anyInt())).thenReturn(410);
+        worker.sendPending();
+        assertThat(devices.findAll().getFirst().isEnabled()).isFalse();
+        assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.FAILED);
+        verifyNoInteractions(expo);
+    }
+    @Test void oldBrowserRegistrationCannotRevokeANewSession() {
+        enableWeb(); webAccounts.register(member.getEmail(), webEndpoint, browserKey(), browserAuth(), registration);
+        String replacement = "a2222222-2222-4222-a222-222222222222";
+        webAccounts.register(member.getEmail(), webEndpoint, browserKey(), browserAuth(), replacement);
+        webAccounts.unregister(member.getEmail(), webEndpoint, registration);
+        assertThat(devices.findAll().getFirst().isEnabled()).isTrue();
+        webAccounts.unregister(member.getEmail(), webEndpoint, replacement);
+        assertThat(devices.findAll().getFirst().isEnabled()).isFalse();
+    }
+
 }

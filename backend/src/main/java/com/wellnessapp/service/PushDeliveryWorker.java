@@ -18,6 +18,7 @@ public class PushDeliveryWorker {
     private final UserRepository users;
     private final PushQueueService queue;
     private final ExpoPushClient expo;
+    private final WebPushClient web;
     private final Clock clock;
     private final ZoneId applicationZoneId;
 
@@ -104,6 +105,27 @@ public class PushDeliveryWorker {
             if (!clock.instant().isBefore(d.getExpiresAt()) || !valid(d)) d.setStatus(PushDelivery.Status.CANCELLED);
             else { d.setAttempts(d.getAttempts() + 1); ready.add(d); }
         }
+        // Only explicitly registered WEB devices use the optional browser transport.
+        for (var delivery : ready.stream().filter(d -> d.getDevice().getProvider() == PushDevice.Provider.WEB).toList()) {
+            if (!web.available()) { fail(delivery, "WebPushUnavailable", false); continue; }
+            try {
+                var original = message(delivery);
+                var data = new LinkedHashMap<>((Map<String, Object>) original.get("data"));
+                data.put("registrationId", delivery.getRegistrationId());
+                int status = web.send(delivery.getDevice(), Map.of("title", original.get("title"),
+                        "body", original.get("body"), "data", data),
+                        (int) Math.max(1, Duration.between(clock.instant(), delivery.getExpiresAt()).getSeconds()));
+                if (status >= 200 && status < 300) { delivery.setStatus(PushDelivery.Status.DELIVERED); delivery.setLastError(null); }
+                else if (status == 404 || status == 410) {
+                    if (delivery.getDevice().getRegistrationId().equals(delivery.getRegistrationId())) delivery.getDevice().setEnabled(false);
+                    fail(delivery, "DeviceNotRegistered", false);
+                } else fail(delivery, "WebProviderRejected", status == 429 || status >= 500);
+            } catch (Exception error) {
+                if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+                fail(delivery, "WebTransportError", true);
+            }
+        }
+        ready.removeIf(d -> d.getDevice().getProvider() == PushDevice.Provider.WEB);
         if (ready.isEmpty()) return;
         try {
             var results = expo.send(ready.stream().map(this::message).toList());

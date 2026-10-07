@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { Text, TextInput, View } from 'react-native';
+import PwaStatus from './src/components/common/PwaStatus';
 import AppNavigator from './src/navigation/AppNavigator';
 import { store } from './src/store';
 import { restoreSession } from './src/store/slices/authSlice';
@@ -55,6 +56,7 @@ export default function App() {
     <Provider store={store}>
       <SafeAreaProvider>
         <StatusBar style="auto" />
+        <PwaStatus />
         <AppContent />
       </SafeAreaProvider>
     </Provider>

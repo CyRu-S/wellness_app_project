@@ -1,0 +1,4 @@
+ALTER TABLE push_devices ADD COLUMN provider VARCHAR(16) NOT NULL DEFAULT 'EXPO';
+ALTER TABLE push_devices ADD COLUMN web_endpoint VARCHAR(2048);
+ALTER TABLE push_devices ADD COLUMN web_p256dh VARCHAR(128);
+ALTER TABLE push_devices ADD COLUMN web_auth VARCHAR(64);
