@@ -1,0 +1,60 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as toolkit from '@reduxjs/toolkit';
+import { loadModule, deferred } from './loadModule.js';
+
+function harness(request) {
+  const alerts = [], invalidated = [];
+  const admin = loadModule('../src/store/slices/adminSlice.js', {
+    '@reduxjs/toolkit': toolkit, '../../services/api/client': { request },
+    './mealSlice': { normalizeMeal: (meal) => meal },
+  });
+  const store = toolkit.configureStore({ reducer: { auth: () => ({ token: 'jwt' }), admin: admin.default } });
+  let now = 0;
+  const module = loadModule('../src/hooks/usePageRefresh.js', {
+    react: { useCallback: (callback) => callback, useRef: (current) => ({ current }), useState: (value) => [value, () => {}] },
+    'react-native': { Alert: { alert: (...args) => alerts.push(args) }, AppState: { currentState: 'active' } },
+    '@react-navigation/native': { useRoute: () => ({ name: 'AdminDashboard' }), useFocusEffect: () => {} },
+    'react-redux': { useDispatch: () => store.dispatch, useSelector: (selector) => selector(store.getState()) },
+    '../services/api/client': { refreshPageResponses: (paths) => invalidated.push(paths) },
+    '../store/slices/adminSlice': admin,
+    '../store/slices/dashboardSlice': {}, '../store/slices/mealSlice': {}, '../store/slices/planSlice': {},
+    '../store/slices/activitySlice': {}, '../store/slices/profileSlice': {}, '../store/slices/notificationSlice': {},
+    '../store/slices/memberAccessSlice': {}, '../store/slices/adminMemberJournalSlice': {},
+  }, { Date: { now: () => { now += 1000; return now; } }, setTimeout: (callback) => { callback(); } });
+  return { admin, store, refresh: module.default().onRefresh, alerts, invalidated };
+}
+
+test('manual admin home refresh fetches fresh data during an older dashboard read', async () => {
+  const old = deferred(); let calls = 0;
+  const app = harness(async () => { calls += 1; return calls === 1 ? old.promise : { members: [{ id: 2, name: 'Updated' }] }; });
+  const loading = app.store.dispatch(app.admin.loadAdminMembers());
+  await app.refresh();
+  assert.equal(app.alerts.length, 0, 'concurrent reads must not display a condition-callback failure');
+  assert.equal(calls, 2, 'pull to refresh must start a fresh request');
+  assert.equal(app.store.getState().admin.members[0].name, 'Updated');
+  assert.equal(app.invalidated.length, 1);
+  old.resolve({ members: [{ id: 1, name: 'Old' }] }); await loading;
+  assert.equal(app.store.getState().admin.members[0].name, 'Updated', 'late older data must not overwrite the refresh');
+});
+
+test('admin refresh still reports a real server failure', async () => {
+  const app = harness(async () => { throw new Error('Server unavailable'); });
+  await app.refresh();
+  assert.equal(app.alerts.length, 1);
+  assert.equal(app.alerts[0][1], 'Server unavailable');
+});
+
+test('admin refresh keeps the save guard and explains a busy sync without internal Redux errors', async () => {
+  const saving = deferred(); let calls = 0;
+  const app = harness(async () => { calls += 1; return saving.promise; });
+  const write = app.store.dispatch(app.admin.updateMemberMealPlan({ memberId: 7, planName: 'Plan', items: [] }));
+  const read = await app.store.dispatch(app.admin.loadAdminMembers({ force: true }));
+  assert.equal(read.meta.condition, true);
+  await app.refresh();
+  assert.equal(calls, 1, 'refresh must not read over an unfinished save');
+  assert.equal(app.alerts.length, 1);
+  assert.doesNotMatch(app.alerts[0][1], /condition callback/i);
+  assert.match(app.alerts[0][1], /sync/i);
+  saving.resolve({ items: [] }); await write;
+});

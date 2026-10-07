@@ -21,9 +21,9 @@ export default function usePageRefresh() {
   const [refreshing, setRefreshing] = useState(false);
   const name = route.name;
   const memberId = route.params?.memberId ?? route.params?.id;
-  const config = useCallback(() => {
+  const config = useCallback((force = false) => {
     if (['AdminDashboard', 'Reports', 'DietPlans', 'Products'].includes(name))
-      return { paths: ['/admin/workspace', '/admin/members', '/admin/approvals'], actions: [loadAdminMembers()] };
+      return { paths: ['/admin/workspace', '/admin/members', '/admin/approvals'], actions: [loadAdminMembers({ force })] };
     if (name === 'Alerts') return { paths: ['/admin/attention'], actions: [loadAdminAttention()] };
     if (name === 'UserList') return { paths: ['/admin/members'], actions: [loadAdminDirectory()] };
     if (name === 'UserRequests') return { paths: ['/admin/approvals'], actions: [loadAdminApprovals()] };
@@ -42,7 +42,7 @@ export default function usePageRefresh() {
   }, [name, memberId, token]);
   const load = useCallback(async (force = false) => {
     if (!token || busy.current || (AppState.currentState && AppState.currentState !== 'active')) return;
-    const page = config();
+    const page = config(force);
     if (!page) return;
     busy.current = true;
     if (force) { setRefreshing(true); refreshPageResponses(page.paths); }
@@ -57,8 +57,12 @@ export default function usePageRefresh() {
         }
         return result;
       }));
-      const failed = results.find((result) => result.meta?.requestStatus === 'rejected');
-      if (force && failed) Alert.alert('Refresh failed', failed.payload?.message || failed.error?.message || 'Please try again.');
+      const rejected = results.filter((result) => result.meta?.requestStatus === 'rejected');
+      const failed = rejected.find((result) => !result.meta?.condition) || rejected[0];
+      if (force && failed) {
+        if (failed.meta?.condition) Alert.alert('Refresh pending', 'Updates are still syncing. Please try again shortly.');
+        else Alert.alert('Refresh failed', failed.payload?.message || failed.error?.message || 'Please try again.');
+      }
     } finally { busy.current = false; if (force) setRefreshing(false); }
   }, [token, config, dispatch]);
   useFocusEffect(useCallback(() => {

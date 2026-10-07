@@ -14,7 +14,10 @@ export const loadAdminMembers = createAsyncThunk('admin/loadMembers', async (_, 
     return { members, approvals, fallback: true, workspaceError: workspaceError.message };
   }
 }, {
-  condition: (_, { getState }) => !getState().admin.readId && !Object.keys(getState().admin.writes).length,
+  // A manual refresh has already invalidated this page's response cache.
+  // Let it supersede an older read; the reducer accepts only the latest request ID.
+  condition: (options, { getState }) => (!getState().admin.readId || options?.force === true)
+    && !Object.keys(getState().admin.writes).length,
 });
 export const loadAdminAttention = createAsyncThunk('admin/loadAttention', async (_, { getState }) =>
   request('/admin/attention', { headers: headers(getState) }), pageReadOptions);
