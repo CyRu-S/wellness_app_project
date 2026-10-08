@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Image from '../../components/common/ProtectedImage';
-import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import SyncFeedback from '../../components/common/SyncFeedback';

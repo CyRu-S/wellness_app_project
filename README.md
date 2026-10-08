@@ -47,13 +47,14 @@ Web defaults to `http://localhost:8080/api`; Android emulators use `http://10.0.
 - Meal photos, profile images, water logs, and timer sessions are stored in PostgreSQL. Image access requires the owner's, authorized viewer's, or admin's JWT.
 - Admin journals show posted food photos followed by movement. Adherence and meal-rhythm graphs use saved records, with explicit empty states.
 - Water, meal logs, activity sessions, and profile edits update locally while saving, with rollback/retry feedback on failure. Permission changes still require server confirmation.
-- Foreground activity data refreshes approximately every 10 seconds; profile/access/plan metadata refreshes every 30 seconds. Duplicate in-flight reads are shared and hidden detail screens stop polling. This is polling, not a push/WebSocket service.
+- Screen data loads when opened and when pulled to refresh. Admin screens and member details do not poll. Foreground presence and the notification badge sync every 45 seconds; simultaneous reads are shared. Successful saves update local state without reloading the full admin report.
 - Reminders and attention entries come from actual assigned schedules, not demo data.
+- Expired verification codes and push-delivery records are removed after a seven-day diagnostic window. Member history and notification inbox records are preserved.
 - Meal-photo journal retention is 21 days. Retention removes old posts/photos; consumed meal records remain for adherence reporting. Profile photos do not expire.
 
 ## Optional integrations
 
-Meal-image analysis uses a self-hosted Ollama service with the downloaded `qwen3-vl:2b-instruct` model, without an AI provider API key. Configure `FOOD_ANALYSIS_URL` for the backend to reach it; unavailable recognition retains manual nutrition entry. See [local setup and Oracle deployment guidance](docs/indian-food-recognition.md).
+Meal capture uses manual nutrition entry for every meal and product. It prepares the photo and opens editable serving values without an AI request. The existing optional model integration is retained for future work and is not used by the app.
 
 Google sign-in needs backend `GOOGLE_CLIENT_IDS` plus the matching client settings `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Gmail password recovery needs `SMTP_USERNAME`, `SMTP_APP_PASSWORD`, `SMTP_FROM`, and `SMTP_ENABLED=true`. Follow [the authentication setup guide](docs/authentication-setup.md) for credential placement and the end-to-end checklist.
 

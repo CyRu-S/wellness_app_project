@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
+import PageRefresh from '../../components/common/PageRefresh';
 import usePageRefresh from '../../hooks/usePageRefresh';
-import useFocusedPolling from '../../hooks/useFocusedPolling';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
 import { clearSharedMemberToday, loadSharedMemberToday } from '../../store/slices/memberAccessSlice';
 import { colors, fonts, radius, type } from '../../theme';
@@ -61,7 +61,6 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
     return undefined;
   }, [dispatch, memberId]);
 
-  useFocusedPolling(load);
   useEffect(() => () => { dispatch(clearSharedMemberToday()); }, [dispatch]);
 
   const openPhoto = useCallback((post) => {
@@ -86,14 +85,16 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <PageRefresh {...pageRefresh}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} />}
+        refreshControl={Platform.OS !== 'web' ? <RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} /> : undefined}
       >
         <BackHeader navigation={navigation} />
         <MemberTodaySnapshot snapshot={today} token={token} onOpenPhoto={openPhoto} showAccessNote />
       </ScrollView>
+      </PageRefresh>
     </SafeAreaView>
   );
 }

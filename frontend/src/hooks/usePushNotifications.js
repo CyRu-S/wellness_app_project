@@ -3,8 +3,6 @@ import { AppState } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { beginPushSession, endPushSession, isOwnNotification, notificationModule, syncPushRegistration } from '../services/notifications/pushNotifications';
 import { loadNotifications, loadNotificationPreferences, setPushState } from '../store/slices/notificationSlice';
-import { loadAdminMembers } from '../store/slices/adminSlice';
-import { refreshDashboard } from '../store/slices/dashboardSlice';
 import { invalidateCachedResponses } from '../services/api/client';
 
 export default function usePushNotifications(navigationRef) {
@@ -49,7 +47,6 @@ export default function usePushNotifications(navigationRef) {
         invalidateCachedResponses().then(() => {
           if (stopped) return;
           dispatch(loadNotifications());
-          dispatch(role === 'ADMIN' ? loadAdminMembers() : refreshDashboard());
         });
       };
       const tap = (response) => {

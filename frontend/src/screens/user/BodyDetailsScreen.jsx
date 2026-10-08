@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import SyncFeedback from '../../components/common/SyncFeedback';
 import Screen from '../../components/common/Screen';
-import { BODY_UPDATE_INTERVAL_MS, loadProfile, saveBodyMetrics } from '../../store/slices/profileSlice';
+import { BODY_UPDATE_INTERVAL_MS, saveBodyMetrics } from '../../store/slices/profileSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
 function MetricField({ label, unit, value, onChangeText, editable }) {
@@ -34,7 +35,6 @@ export default function BodyDetailsScreen({ navigation }) {
   const loading = profile.status === 'loading';
   const saving = profile.status === 'saving';
 
-  useEffect(() => { dispatch(loadProfile(token)); }, [dispatch, token]);
   useEffect(() => {
     if (dirty) return;
     // Refresh the editable draft when server-confirmed measurements change.

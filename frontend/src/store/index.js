@@ -5,7 +5,7 @@ import plan from './slices/planSlice';
 import meals from './slices/mealSlice';
 import activity from './slices/activitySlice';
 import notifications from './slices/notificationSlice';
-import admin, { loadAdminMembers } from './slices/adminSlice';
+import admin from './slices/adminSlice';
 import profile from './slices/profileSlice';
 import memberAccess from './slices/memberAccessSlice';
 import adminMemberJournal from './slices/adminMemberJournalSlice';
@@ -40,11 +40,6 @@ const sessionGuard = (store) => {
     return next(action);
   };
 };
-const refreshAfterSave = createListenerMiddleware();
-refreshAfterSave.startListening({
-  matcher: (action) => ['admin/approve/fulfilled', 'admin/decline/fulfilled', 'admin/nudge/fulfilled', 'admin/resolve/fulfilled', 'admin/savePlan/fulfilled'].includes(action.type),
-  effect: (_, { dispatch }) => { dispatch(loadAdminMembers()); },
-});
 const completionToasts = createListenerMiddleware();
 const persistAccountDetails = createListenerMiddleware();
 persistAccountDetails.startListening({
@@ -71,5 +66,5 @@ completionToasts.startListening({
     api.dispatch(showToast({ kind: 'meal', title: 'Congratulations! Meal check-in complete', message: `${action.payload.mealName || action.meta.arg.mealName} is now part of today’s progress. Well done!` }));
   },
 });
-export const store = configureStore({ reducer, middleware: (getDefault) => getDefault().concat(sessionGuard, refreshAfterSave.middleware, completionToasts.middleware, persistAccountDetails.middleware) });
+export const store = configureStore({ reducer, middleware: (getDefault) => getDefault().concat(sessionGuard, completionToasts.middleware, persistAccountDetails.middleware) });
 store.subscribe(() => schedulePersistedState(store.getState()));

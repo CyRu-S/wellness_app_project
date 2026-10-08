@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile, readdir, access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validatePwaApi } from './pwa-config.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'dist');
-const api = process.env.EXPO_PUBLIC_WEB_API_URL || process.env.EXPO_PUBLIC_API_URL;
-if (api && !api.startsWith('https://')) throw new Error('Production PWA builds require an HTTPS EXPO_PUBLIC_WEB_API_URL.');
+validatePwaApi(process.env);
 let html = await readFile(path.join(output, 'index.html'), 'utf8');
 const tags = `<link rel="manifest" href="/manifest.webmanifest" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -14,7 +14,7 @@ const tags = `<link rel="manifest" href="/manifest.webmanifest" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Mr_Care" />
-<style>html,body,#root{height:100%;min-height:100dvh}body{overscroll-behavior-y:none}input,textarea{font-size:max(16px,1em)}</style>`;
+<style>html,body,#root{height:100%;min-height:100dvh}body{overscroll-behavior-y:none}input,textarea{font-size:max(16px,1em)!important}</style>`;
 html = html.replace('</head>', `${tags}
 </head>`);
 html = html.replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />');
@@ -31,7 +31,7 @@ async function walk(directory) {
   }
 }
 await walk(output);
-for (const required of ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png']) await access(path.join(output, required));
+for (const required of ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png']) await access(path.join(output, required));
 const digest = createHash('sha256');
 for (const file of files.sort()) { digest.update(file); digest.update(await readFile(path.join(output, file))); }
 const version = digest.digest('hex').slice(0, 16);

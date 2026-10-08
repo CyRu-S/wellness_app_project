@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
@@ -67,6 +68,7 @@ function RequestCard({ request, expanded, onToggle, onApprove, onDecline }) {
 export default function AdminApprovalsScreen({ navigation }) {
   const dispatch = useDispatch();
   const requests = useSelector(selectAdminApprovals);
+  const approvalsError = useSelector((state) => state.admin.approvalsError);
   const lastDecision = useSelector((state) => state.admin.lastApprovalDecision);
   const [expandedId, setExpandedId] = useState(requests[0]?.id ?? null);
   const oldestRequest = requests[requests.length - 1]?.requestedAt || 'None waiting';
@@ -90,6 +92,7 @@ export default function AdminApprovalsScreen({ navigation }) {
   return (
     <AdminScreen>
       <AdminHeader title="Approvals" back onBackPress={() => navigation.navigate('AdminDashboard')} />
+      {approvalsError ? <Text accessibilityRole="alert" style={{ color: adminColors.coral, marginTop: 12 }}>{approvalsError}</Text> : null}
 
       <View style={styles.heading}>
         <Text style={styles.eyebrow}>MEMBERSHIP DESK</Text>

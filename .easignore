@@ -24,6 +24,10 @@ frontend/google-services.json
 # No backend, Git history, local environment secrets or signing keys in the APK build archive.
 /backend/
 .git/
+/.codex-work/
+/docs/
+/scripts/
+/frontend/tests/
 **/.env.*
 **/*firebase-adminsdk*.json
 **/*.pem

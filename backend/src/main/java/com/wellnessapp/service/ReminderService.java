@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
 import java.util.*;
 
+@lombok.extern.slf4j.Slf4j
 @Service @RequiredArgsConstructor
 public class ReminderService {
     private final UserRepository users;
@@ -24,10 +25,24 @@ public class ReminderService {
     private String hydrationDeadline;
     private final Clock clock;
     private final ZoneId applicationZoneId;
+    private final org.springframework.transaction.PlatformTransactionManager transactions;
 
-    @Transactional public void refresh() {
+    public void refresh() {
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactions);
         for (var user : users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE).stream().sorted(Comparator.comparing(User::getId)).toList()) {
-            users.lockById(user.getId()).orElseThrow();
+            try {
+                // Release this member's lock before processing the next member.
+                transaction.executeWithoutResult(status -> refreshMember(user.getId()));
+            } catch (RuntimeException error) {
+                log.warn("Reminder refresh failed for member {}: {}", user.getId(), error.getClass().getSimpleName());
+            }
+        }
+        transaction.executeWithoutResult(status -> resolveCompletedMeals());
+    }
+
+    private void refreshMember(Long memberId) {
+            var user = users.lockById(memberId).orElseThrow();
+            if (user.getStatus() != User.Status.ACTIVE) return;
             plans.ensureDailyMeals(user.getId());
             var today = LocalDate.now(clock.withZone(applicationZoneId));
             var dueMeals = new ArrayList<Meal>();
@@ -83,7 +98,9 @@ public class ReminderService {
                             "Your hydration goal needs a check-in", "You logged " + logged + " of " + goal + " ml for " + day + ".");
                 }
             }
-        }
+    }
+
+    private void resolveCompletedMeals() {
         for (var event : missed.findByResolvedFalseOrderByMissedAtDesc()) {
             if (event.getSourceKey() != null && event.getSourceKey().startsWith("meal-") &&
                     meals.findById(Long.parseLong(event.getSourceKey().substring(5))).map(Meal::isConsumed).orElse(true)) {
@@ -93,13 +110,16 @@ public class ReminderService {
     }
 
     @Transactional(readOnly = true) public List<Map<String, Object>> attention() {
-        return missed.findByResolvedFalseOrderByMissedAtDesc().stream().filter(e -> e.getUser().getStatus() == User.Status.ACTIVE).map(e -> {
+        var events = missed.findByResolvedFalseOrderByMissedAtDesc();
+        var nudgeKeys = events.stream().map(e -> "nudge-" + e.getId()).toList();
+        var nudged = nudgeKeys.isEmpty() ? Set.<String>of() : new HashSet<>(notifications.existingSourceKeys(nudgeKeys));
+        return events.stream().filter(e -> e.getUser().getStatus() == User.Status.ACTIVE).map(e -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", e.getId()); row.put("memberId", e.getUser().getId()); row.put("memberName", e.getUser().getFullName());
             row.put("initials", AdminWorkspaceService.initials(e.getUser().getFullName())); row.put("category", e.getItemType()); row.put("title", e.getItemTitle());
             row.put("missedAt", e.getMissedAt().atZone(applicationZoneId).format(java.time.format.DateTimeFormatter.ofPattern("d MMM, h:mm a")));
             row.put("severity", e.getMissedAt().isBefore(clock.instant().minusSeconds(10800)) ? "HIGH" : "MEDIUM");
-            row.put("status", notifications.existsBySourceKey("nudge-" + e.getId()) ? "NUDGED" : "OPEN"); return row;
+            row.put("status", nudged.contains("nudge-" + e.getId()) ? "NUDGED" : "OPEN"); return row;
         }).toList();
     }
     @Transactional public void resolve(Long id) {

@@ -13,5 +13,10 @@ public interface NotificationRepository extends JpaRepository<NotificationEvent,
     @Modifying(flushAutomatically = true, clearAutomatically = true) @Query("delete from NotificationEvent event where event.user.role = :role and event.scheduledAt < :cutoff")
     int deleteByUserRoleAndScheduledAtBefore(@Param("role") User.Role role, @Param("cutoff") Instant cutoff);
     boolean existsBySourceKey(String sourceKey);
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update NotificationEvent event set event.read = true where event.user.id = :userId and event.id in :ids")
+    int markReadByUserIdAndIdIn(@Param("userId") Long userId, @Param("ids") java.util.Collection<Long> ids);
+    @Query("select event.sourceKey from NotificationEvent event where event.sourceKey in :keys")
+    List<String> existingSourceKeys(@Param("keys") java.util.Collection<String> keys);
 }
 

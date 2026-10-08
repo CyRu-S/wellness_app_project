@@ -29,6 +29,7 @@ function snapshotData(state) {
       pushAvailable: notifications.pushAvailable, signupAlerts: notifications.signupAlerts, deadlineAlerts: notifications.deadlineAlerts,
       dailyDigest: notifications.dailyDigest, memberUpdates: notifications.memberUpdates, accountUpdates: notifications.accountUpdates },
     admin: { summary: admin.summary, members: admin.members, approvals: admin.approvals, attention: admin.attention,
+      products: admin.products,
       memberMealPlans: admin.memberMealPlans, memberMealPostHistory: admin.memberMealPostHistory, mealInsights: admin.mealInsights,
       preferences: admin.preferences, membersStatus: admin.members.length ? 'succeeded' : 'idle' },
     profile: { name: profile.name, email: profile.email, goal: profile.goal, dietaryPreferences: profile.dietaryPreferences,

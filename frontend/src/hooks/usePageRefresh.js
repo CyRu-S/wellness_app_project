@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from 'react';
-import { Alert, AppState } from 'react-native';
+import { AppState } from 'react-native';
+import Alert from '../utils/appAlert';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { refreshPageResponses } from '../services/api/client';
-import { loadAdminMembers, loadAdminAttention, loadAdminDirectory, loadAdminApprovals, loadAdminMemberPlan } from '../store/slices/adminSlice';
+import { loadAdminMembers, loadAdminAttention, loadAdminDirectory, loadAdminApprovals, loadAdminMemberPlan, loadAdminProducts } from '../store/slices/adminSlice';
 import { refreshDashboard } from '../store/slices/dashboardSlice';
 import { loadMeals } from '../store/slices/mealSlice';
 import { loadPlan } from '../store/slices/planSlice';
@@ -22,13 +23,14 @@ export default function usePageRefresh() {
   const name = route.name;
   const memberId = route.params?.memberId ?? route.params?.id;
   const config = useCallback((force = false) => {
-    if (['AdminDashboard', 'Reports', 'DietPlans', 'Products'].includes(name))
+    if (['AdminDashboard', 'Reports', 'DietPlans'].includes(name))
       return { paths: ['/admin/workspace', '/admin/members', '/admin/approvals'], actions: [loadAdminMembers({ force })] };
+    if (name === 'Products') return { paths: ['/admin/products'], actions: [loadAdminProducts()] };
     if (name === 'Alerts') return { paths: ['/admin/attention'], actions: [loadAdminAttention()] };
     if (name === 'UserList') return { paths: ['/admin/members'], actions: [loadAdminDirectory()] };
     if (name === 'UserRequests') return { paths: ['/admin/approvals'], actions: [loadAdminApprovals()] };
     if (name === 'Dashboard') return { paths: ['/dashboard', '/meals/today', '/plans/today', '/meal-posts'], actions: [refreshDashboard(), loadMeals()] };
-    if (['TodayTimeline', 'MealDetails', 'MealCapture'].includes(name)) return { paths: ['/meals/today', '/plans/today', '/meal-posts'], actions: [loadMeals()] };
+    if (['TodayTimeline', 'MealDetails'].includes(name)) return { paths: ['/meals/today', '/plans/today', '/meal-posts'], actions: [loadMeals()] };
     if (name === 'ActivityTimer' || name === 'Move') return { paths: ['/activities'], actions: [loadActivities()] };
     if (name === 'DailyPlan') return { paths: ['/plans/today'], actions: [loadPlan()] };
     if (['Notifications', 'AdminNotifications'].includes(name)) return { paths: ['/notifications'], actions: [loadNotifications()] };
@@ -45,7 +47,9 @@ export default function usePageRefresh() {
     const page = config(force);
     if (!page) return;
     busy.current = true;
-    if (force) { setRefreshing(true); refreshPageResponses(page.paths); }
+    // Opening a page and pulling to refresh both read current server data.
+    refreshPageResponses(page.paths);
+    if (force) setRefreshing(true);
     try {
       const results = await Promise.all(page.actions.map(async (action) => {
         let result = await dispatch(action);
@@ -67,9 +71,6 @@ export default function usePageRefresh() {
   }, [token, config, dispatch]);
   useFocusEffect(useCallback(() => {
     load();
-    const timer = ['AdminDashboard', 'Alerts', 'UserList'].includes(name) ? setInterval(() => load(), 60000) : null;
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') load(); });
-    return () => { if (timer) clearInterval(timer); subscription.remove(); };
-  }, [load, name]));
+  }, [load]));
   return { refreshing, onRefresh: useCallback(() => load(true), [load]), enabled: !!token && !!config() };
 }

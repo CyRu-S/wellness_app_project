@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
@@ -21,6 +22,11 @@ const categoryIcons = {
   Hydration: 'water-outline',
   Activity: 'walk-outline',
   Supplements: 'medical-outline',
+};
+
+const saveAttention = async (dispatch, action) => {
+  try { await dispatch(action).unwrap(); }
+  catch (error) { Alert.alert('Could not update attention', error.message || 'Check your connection and try again.'); }
 };
 
 function AttentionCard({ item, token, onMember, onNudge, onResolve }) {
@@ -111,8 +117,8 @@ function Group({ eyebrow, title, description, items, token, navigation, dispatch
             item={item}
             token={token}
             onMember={() => navigation.navigate('UserDetails', { id: item.memberId })}
-            onNudge={() => dispatch(nudgeAttention(item.id))}
-            onResolve={() => dispatch(resolveAttention(item.id))}
+            onNudge={() => saveAttention(dispatch, nudgeAttention(item.id))}
+            onResolve={() => saveAttention(dispatch, resolveAttention(item.id))}
           />
         ))}
       </View>
@@ -173,7 +179,7 @@ export default function AdminAttentionScreen({ navigation }) {
               accessibilityRole="button"
               accessibilityLabel={`Nudge ${priorityOpen} priority members`}
               disabled={!priorityOpen}
-              onPress={() => dispatch(nudgePriorityAttention())}
+              onPress={() => saveAttention(dispatch, nudgePriorityAttention())}
               style={({ pressed }) => [styles.bulkButton, !priorityOpen && styles.disabled, pressed && styles.pressed]}
             >
               <Text style={styles.bulkText}>{priorityOpen ? 'Nudge priority' : 'Priority clear'}</Text>
