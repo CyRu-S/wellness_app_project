@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Animated, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -143,7 +144,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   if (!targetMeal) return <SafeAreaView style={styles.permission}><Text style={styles.permissionTitle}>No meal assigned</Text><Text style={styles.permissionCopy}>Your admin must assign a diet plan before you can post a meal.</Text><Pressable onPress={() => navigation.goBack()}><Text style={styles.libraryLink}>Go back</Text></Pressable></SafeAreaView>;
   if (!permission && !photo) return <View style={styles.loading} />;
   if (!permission?.granted && !photo) {
-    return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Use the camera to log meals and estimate their nutritional values.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
+    return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Take a meal photo and enter the nutrition for your serving.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
   }
 
   return (
@@ -158,7 +159,7 @@ export default function MealCaptureScreen({ navigation, route }) {
           <Pressable accessibilityLabel="Toggle camera" onPress={() => setFacing((value) => value === 'back' ? 'front' : 'back')} style={styles.roundButton}><Ionicons name="camera-reverse-outline" size={20} color={colors.white} /></Pressable>
         </View>
 
-        <View style={styles.instruction}><Text style={styles.instructionTitle}>{analyzing ? 'Analysing your photo' : analysis ? 'Review the estimate' : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Review the food and nutrition before saving.' : manualProduct ? 'You will enter product nutrition manually.' : 'Keep the complete meal inside the guides and hold steady.'}</Text></View>
+        <View style={styles.instruction}><Text style={styles.instructionTitle}>{analyzing ? 'Preparing your photo' : analysis ? 'Enter nutrition' : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Review the food and nutrition before saving.' : manualProduct ? 'You will enter product nutrition manually.' : 'Keep the complete meal inside the guides and hold steady.'}</Text></View>
 
         {!analysis ? <View pointerEvents="none" style={styles.frame}><View style={[styles.corner, styles.tl]} /><View style={[styles.corner, styles.tr]} /><View style={[styles.corner, styles.bl]} /><View style={[styles.corner, styles.br]} />{analyzing ? <Animated.View style={[styles.scan, { transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [0, 220] }) }] }]} /> : <View style={styles.centerTarget}><Ionicons name="scan-outline" size={27} color="rgba(255,255,255,0.75)" /></View>}</View> : null}
 
@@ -168,7 +169,7 @@ export default function MealCaptureScreen({ navigation, route }) {
       {analysis ? <Animated.View style={[styles.result, { maxHeight: height * 0.6, flexShrink: 1 }, { opacity: sheet, transform: [{ translateY: sheet.interpolate({ inputRange: [0, 1], outputRange: [70, 0] }) }] }]}>
         <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.resultHandle} />
-        <View style={styles.resultTop}><View><Text style={styles.resultLabel}>{analysis.source === 'live' ? 'ESTIMATED FOOD NUTRITION' : manualProduct ? 'MANUAL PRODUCT ENTRY' : 'ENTER MEAL DETAILS'}</Text><Text style={styles.resultTitle}>{analysis.name}</Text></View></View>
+        <View style={styles.resultTop}><View><Text style={styles.resultLabel}>{analysis.source === 'live' ? 'MANUAL NUTRITION ENTRY' : manualProduct ? 'MANUAL PRODUCT ENTRY' : 'ENTER MEAL DETAILS'}</Text><Text style={styles.resultTitle}>{analysis.name}</Text></View></View>
         {analysis.items?.length ? <View style={styles.foodItems}>
           <Text style={styles.servingTitle}>Detected foods & portion weights</Text>
           <Text style={styles.demoText}>Nutrition is shown per 100 g. Enter how many grams you ate of each food. Remove any incorrectly detected food.</Text>

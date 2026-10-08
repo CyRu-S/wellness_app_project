@@ -13,7 +13,8 @@ function harness(request) {
   let now = 0;
   const module = loadModule('../src/hooks/usePageRefresh.js', {
     react: { useCallback: (callback) => callback, useRef: (current) => ({ current }), useState: (value) => [value, () => {}] },
-    'react-native': { Alert: { alert: (...args) => alerts.push(args) }, AppState: { currentState: 'active' } },
+    '../utils/appAlert': { __esModule: true, default: { alert: (...args) => alerts.push(args) } },
+    'react-native': { AppState: { currentState: 'active' } },
     '@react-navigation/native': { useRoute: () => ({ name: 'AdminDashboard' }), useFocusEffect: () => {} },
     'react-redux': { useDispatch: () => store.dispatch, useSelector: (selector) => selector(store.getState()) },
     '../services/api/client': { refreshPageResponses: (paths) => invalidated.push(paths) },
@@ -57,4 +58,41 @@ test('admin refresh keeps the save guard and explains a busy sync without intern
   assert.doesNotMatch(app.alerts[0][1], /condition callback/i);
   assert.match(app.alerts[0][1], /sync/i);
   saving.resolve({ items: [] }); await write;
+});
+
+test('opening admin home reads once without starting a timer or foreground refresh', async () => {
+  let focus, requests = 0;
+  const invalidated = [];
+  const admin = loadModule('../src/store/slices/adminSlice.js', {
+    '@reduxjs/toolkit': toolkit, '../../services/api/client': { request: async () => { requests++; return {}; } },
+    './mealSlice': { normalizeMeal: (meal) => meal },
+  });
+  const store = toolkit.configureStore({ reducer: { auth: () => ({ token: 'jwt' }), admin: admin.default } });
+  const module = loadModule('../src/hooks/usePageRefresh.js', {
+    react: { useCallback: (callback) => callback, useRef: (current) => ({ current }), useState: (value) => [value, () => {}] },
+    '../utils/appAlert': { __esModule: true, default: {} },
+    'react-native': { AppState: { currentState: 'active', addEventListener: () => { throw new Error('Page data must not refresh on foreground'); } } },
+    '@react-navigation/native': { useRoute: () => ({ name: 'AdminDashboard' }), useFocusEffect: (callback) => { focus = callback; } },
+    'react-redux': { useDispatch: () => store.dispatch, useSelector: (selector) => selector(store.getState()) },
+    '../services/api/client': { refreshPageResponses: (paths) => invalidated.push(paths) },
+    '../store/slices/adminSlice': admin,
+    '../store/slices/dashboardSlice': {}, '../store/slices/mealSlice': {}, '../store/slices/planSlice': {},
+    '../store/slices/activitySlice': {}, '../store/slices/profileSlice': {}, '../store/slices/notificationSlice': {},
+    '../store/slices/memberAccessSlice': {}, '../store/slices/adminMemberJournalSlice': {},
+  }, { setInterval: () => { throw new Error('Page data must not poll'); } });
+  module.default(); focus();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(requests, 1); assert.equal(invalidated.length, 1);
+});
+
+test('approving a member updates local home and member totals without a second GET', async () => {
+  const calls = [];
+  const app = harness(async (path) => { calls.push(path); return path === '/admin/approvals'
+    ? [{ id: 7, name: 'New member', status: 'PENDING' }] : null; });
+  await app.store.dispatch(app.admin.loadAdminApprovals()).unwrap();
+  await app.store.dispatch(app.admin.approveRequest(7)).unwrap();
+  assert.deepEqual(calls, ['/admin/approvals', '/admin/users/7/approval']);
+  assert.equal(app.store.getState().admin.summary.totalMembers, 1);
+  assert.equal(app.store.getState().admin.members[0].status, 'ACTIVE');
+  assert.equal(app.store.getState().admin.summary.pendingApprovals, 0);
 });

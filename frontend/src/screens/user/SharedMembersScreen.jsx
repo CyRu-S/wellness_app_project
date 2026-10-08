@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -14,6 +15,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
 import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBackground';
 import UserHeader from '../../components/user/UserHeader';
+import PageRefresh from '../../components/common/PageRefresh';
 import usePageRefresh from '../../hooks/usePageRefresh';
 import { loadSharedMembers } from '../../store/slices/memberAccessSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
@@ -173,6 +175,7 @@ export default function SharedMembersScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <PageRefresh {...pageRefresh}>
       <FlatList
         data={members}
         keyExtractor={(item, index) => String(memberId(item) ?? index)}
@@ -182,8 +185,9 @@ export default function SharedMembersScreen({ navigation }) {
         ListFooterComponent={members.length ? <View style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={16} color={colors.tealDark} /><Text style={styles.privacyText}>You can only view today’s wellness activity. Access is managed by your club admin.</Text></View> : null}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} />}
+        refreshControl={Platform.OS !== 'web' ? <RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} /> : undefined}
       />
+      </PageRefresh>
     </SafeAreaView>
   );
 }

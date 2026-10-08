@@ -4,9 +4,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDate;
 import java.util.List;
 public interface MealRepository extends JpaRepository<Meal, Long> {
+    @org.springframework.data.jpa.repository.Query("select distinct m.user.id, m.mealDate from Meal m where m.consumed = true")
+    List<Object[]> allConsumedDates();
     @org.springframework.data.jpa.repository.Query("select distinct m.mealDate from Meal m where m.user.id = :userId and m.consumed = true order by m.mealDate desc")
     List<LocalDate> consumedDates(Long userId);
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user", "planItem", "planItem.plan", "planItem.plan.user"})
     List<Meal> findByMealDateOrderByMealTime(LocalDate mealDate);
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user", "planItem", "planItem.plan", "planItem.plan.user"})
     List<Meal> findByMealDateBetween(LocalDate start, LocalDate end);
     List<Meal> findByUserIdAndMealDateOrderByMealTime(Long userId, LocalDate mealDate);
     java.util.Optional<Meal> findByIdAndUserId(Long id, Long userId);

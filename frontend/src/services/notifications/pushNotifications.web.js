@@ -49,7 +49,8 @@ export function syncPushRegistration(s) {
     let subscription = await registration.pushManager.getSubscription();
     const key = applicationServerKey(config.publicKey);
     const existingKey = subscription?.options?.applicationServerKey;
-    if (subscription && existingKey && !Array.from(new Uint8Array(existingKey)).every((value, index) => value === key[index])) {
+    if (subscription && existingKey && (existingKey.byteLength !== key.byteLength
+        || !Array.from(new Uint8Array(existingKey)).every((value, index) => value === key[index]))) {
       s.subscription = subscription; await unregister(s); await subscription.unsubscribe(); subscription = null;
     }
     if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });

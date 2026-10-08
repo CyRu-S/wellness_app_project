@@ -1,7 +1,7 @@
 import { cacheVersion, invalidateCachedResponses, readCachedResponse, saveCachedResponse } from './responseCache';
 
 // Web-only URL resolution. Android continues to use client.js and its Expo/LAN configuration.
-export const API_URL = process.env.EXPO_PUBLIC_WEB_API_URL || process.env.EXPO_PUBLIC_API_URL || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api');
+export const API_URL = (process.env.EXPO_PUBLIC_WEB_API_URL || process.env.EXPO_PUBLIC_API_URL || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api')).replace(/\/+$/, '');
 const configuredTimeout = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS);
 const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 20000;
 
@@ -66,8 +66,9 @@ async function performRequest(path, options = {}) {
   for (let attempt = 0; attempt < (method === 'GET' ? 2 : 1); attempt += 1) {
     try { return await performOnce(path, options); }
     catch (error) {
-      const retryable = error.message?.startsWith('Request timed out') || error.name === 'TypeError'
-        || [429, 502, 503, 504].includes(error.status);
+      // A request that already spent its timeout must not repeat the same expensive read.
+      const retryable = !error.message?.startsWith('Request timed out') && (error.name === 'TypeError'
+        || [429, 502, 503, 504].includes(error.status));
       if (attempt > 0 || method !== 'GET' || !retryable || options.signal?.aborted) throw error;
       await new Promise((resolve) => setTimeout(resolve, 400));
     }

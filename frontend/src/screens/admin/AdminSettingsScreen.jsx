@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';

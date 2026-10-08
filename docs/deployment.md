@@ -26,7 +26,7 @@ Required Railway variables:
 
 The first startup of an empty database also needs `ADMIN_EMAIL` and `ADMIN_INITIAL_PASSWORD`; remove the initial password variable once the admin is created. `GOOGLE_CLIENT_IDS` and Google OAuth credentials are no longer needed. Keep all secret values out of Git, Expo environment variables, screenshots, and chat.
 
-The previously documented Railway service is `mr-care-api-production.up.railway.app`; the mobile API URL must be `https://mr-care-api-production.up.railway.app/api`. Verify the current service domain in Railway; the documented domain returned Railway HTTP 404 during the October 7, 2026 check. Confirm `/api/health` returns HTTP 200 and the service is healthy and Flyway migrations have completed before building the app.
+The previously documented Railway service is `mr-care-api-production.up.railway.app`; the mobile API URL must be `https://mr-care-api-production.up.railway.app/api`. The EAS preview environment points to this address, and `/api/health` returned HTTP 200 on October 8, 2026. Confirm `/api/health` returns HTTP 200 and the service is healthy and Flyway migrations have completed before building the app.
 
 ## Android APK: EAS preview
 
@@ -50,8 +50,13 @@ Railway's displayed trial credit is not a promise of perpetual free hosting. Che
 
 ## Page refresh and presence
 
-Tabs load their data when opened and use the existing encrypted, account-scoped local cache. Pull down on a data screen to fetch that page again; a failed explicit refresh shows an error and retains the displayed data. Attention, Members, and Approvals have separate reads. Members are online while an authenticated foreground heartbeat has arrived within two minutes; heartbeat and inbox sync run every 45 seconds and stop in the background.
+Tabs request current data when opened. The encrypted, account-scoped local cache preserves previous data during temporary outages. Admin pages do not poll or reload the workspace after each save. Pull down on a data screen to fetch that page again; a failed explicit refresh shows an error and retains the displayed data. Attention, Members, and Approvals have separate reads. Members are online while an authenticated foreground heartbeat has arrived within two minutes; heartbeat and inbox sync run every 45 seconds and stop in the background.
 
-Meal Attention items begin after the assigned meal time (without the former one-hour delay). Hydration is evaluated against the member's daily water goal after `HYDRATION_DEADLINE`, with a 2000 ml fallback for missing goals. The scheduler evaluates today's and yesterday's local dates, resolves completed items, and deduplicates deadline notifications. Enable the scheduler and configure Expo/FCM plus deadline-alert preferences for device push delivery.
+The reminder scheduler records Meal Attention items after the assigned meal time, on its next minute tick. Opening Attention reads the recorded queue without generating reminders or locking members. Hydration is evaluated against the member's daily water goal after `HYDRATION_DEADLINE`, with a 2000 ml fallback for missing goals. The scheduler evaluates today's and yesterday's local dates, resolves completed items, and deduplicates deadline notifications. Enable the scheduler and configure Expo/FCM plus deadline-alert preferences for device push delivery.
 
 The admin workspace and member directory use writable transactions because they materialize daily meal rows. Marking the workspace read-only can fail on PostgreSQL even when H2 tests pass. Railway health checks use the public `/api/health` route, which is available only after application startup and database migration completion.
+
+
+## Verification before the next preview APK
+
+Run the checks documented in [the October 8 workflow report](verification-2026-10-08.md). Deploy the backend changes before building the APK: the timeout fixes are primarily server changes, and rebuilding against the old backend will retain its expensive read path. `SCHEDULERS_ENABLED=true` is required to generate attention and reminders now that GET requests are read-only. EAS validates a public HTTPS API URL ending in `/api` and a matching Firebase Android client configuration before a preview worker can build.

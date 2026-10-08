@@ -1,6 +1,6 @@
 let registration;
 export function isInstalled() {
-  return typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true);
+  return typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)')?.matches === true || navigator.standalone === true);
 }
 export function isIOS() {
   return typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));

@@ -8,9 +8,10 @@ import java.util.Map;
 public class AdminWorkspaceController {
     private final AdminWorkspaceService workspace;
     private final ReminderService reminders;
-    @GetMapping("/workspace") Map<String, Object> get() { reminders.refresh(); return workspace.workspace(); }
-    @GetMapping("/attention") java.util.List<Map<String, Object>> attention() { reminders.refresh(); return reminders.attention(); }
-    @GetMapping("/members") java.util.List<Map<String, Object>> members() { reminders.refresh(); return workspace.members(); }
+    // Reminder generation belongs to the scheduler; GETs must not lock every member.
+    @GetMapping("/workspace") Map<String, Object> get() { return workspace.workspace(); }
+    @GetMapping("/attention") java.util.List<Map<String, Object>> attention() { return reminders.attention(); }
+    @GetMapping("/members") java.util.List<Map<String, Object>> members() { return workspace.members(); }
     @GetMapping("/approvals") java.util.List<Map<String, Object>> approvals() { return workspace.pendingApprovals(); }
     public record Decision(@jakarta.validation.constraints.NotBlank String decision) {}
     @PatchMapping("/users/{id}/approval") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)

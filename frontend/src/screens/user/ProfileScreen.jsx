@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Image from '../../components/common/ProtectedImage';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,6 @@ import UserHeader from '../../components/user/UserHeader';
 import { signOutSafely } from '../../store/slices/authSlice';
 import NotificationSettings from '../../components/user/NotificationSettings';
 import SyncFeedback from '../../components/common/SyncFeedback';
-import { loadProfile } from '../../store/slices/profileSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import { profileImageSource } from '../../utils/profilePhoto';
 
@@ -23,7 +22,6 @@ export default function ProfileScreen({ navigation }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState(null);
 
-  useEffect(() => { dispatch(loadProfile(token)); }, [dispatch, token]);
   const logout = async () => {
     if (loggingOut) return;
     setLoggingOut(true); setLogoutError(null);

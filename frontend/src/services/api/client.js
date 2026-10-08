@@ -17,6 +17,8 @@ const getNativeApiUrl = () => {
   // An explicit value is still useful for production builds. During local Expo
   // development, the Metro host follows the computer's current LAN address.
   if (process.env.EXPO_PUBLIC_MOBILE_API_URL) return process.env.EXPO_PUBLIC_MOBILE_API_URL;
+  const configured = Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL;
+  if (configured?.startsWith('https://')) return configured;
 
   const expoHost = getExpoHost();
   if (expoHost) {
@@ -24,12 +26,12 @@ const getNativeApiUrl = () => {
     return `http://${expoHost}:${port}/api`;
   }
 
-  return process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8080/api';
+  return configured || 'http://10.0.2.2:8080/api';
 };
 
-export const API_URL = Platform.OS === 'web'
+export const API_URL = (Platform.OS === 'web'
   ? process.env.EXPO_PUBLIC_WEB_API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api'
-  : getNativeApiUrl();
+  : getNativeApiUrl()).replace(/\/+$/, '');
 const configuredTimeout = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS);
 const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 20000;
 
@@ -94,8 +96,9 @@ async function performRequest(path, options = {}) {
   for (let attempt = 0; attempt < (method === 'GET' ? 2 : 1); attempt += 1) {
     try { return await performOnce(path, options); }
     catch (error) {
-      const retryable = error.message?.startsWith('Request timed out') || error.name === 'TypeError'
-        || [429, 502, 503, 504].includes(error.status);
+      // A request that already spent its timeout must not repeat the same expensive read.
+      const retryable = !error.message?.startsWith('Request timed out') && (error.name === 'TypeError'
+        || [429, 502, 503, 504].includes(error.status));
       if (attempt > 0 || method !== 'GET' || !retryable || options.signal?.aborted) throw error;
       await new Promise((resolve) => setTimeout(resolve, 400));
     }

@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import SyncFeedback from '../../components/common/SyncFeedback';
@@ -16,9 +17,16 @@ export default function HealthPreferencesScreen({ navigation }) {
   const profile = useSelector((state) => state.profile);
   const initial = useMemo(() => (profile.dietaryPreferences || '').split(',').map((item) => item.trim()).filter(Boolean), [profile.dietaryPreferences]);
   const [selected, setSelected] = useState(initial.length ? initial : ['No preference']);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    // Server data can arrive after the form first mounts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!dirty) setSelected(initial.length ? initial : ['No preference']);
+  }, [initial, dirty]);
   const saving = profile.status === 'saving';
 
   const toggle = (option) => {
+    setDirty(true);
     if (option === 'No preference') { setSelected(['No preference']); return; }
     setSelected((current) => {
       const withoutDefault = current.filter((item) => item !== 'No preference');

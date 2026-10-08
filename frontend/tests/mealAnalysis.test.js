@@ -25,19 +25,17 @@ test('direct product analysis calls also bypass image upload and the backend', a
   assert.equal((await api.analyzeMealPhoto({ uri: 'file:///product.jpg', category: 'product' })).source, 'manual');
   assert.equal(requests, 0);
 });
-test('regular meals show per-100-g nutrition and require manually entered portion weights', async () => {
-  const analyze = captured(async ({ token }) => { assert.equal(token, 'jwt'); return { source: 'live', name: 'Roti, Dal', items: [
-    { name: 'Roti', standardPortion: '1 medium', portionGrams: 30, calories: 100, protein: 3, carbs: 20, fat: 1 },
-    { name: 'Dal', standardPortion: '1 katori', portionGrams: 150, calories: 160, protein: 9, carbs: 20, fat: 5 },
-  ] }; });
-  for (const type of ['Breakfast', 'Lunch', 'Dinner', 'Snacks']) {
-    const result = await analyze({ uri: 'photo', meal: { type }, token: 'jwt' });
-    assert.equal(result.source, 'live'); assert.equal(result.items.length, 2);
-    assert.equal(result.items[1].consumedGrams, ''); assert.equal(result.items[1].portionGrams, 100);
-    assert.equal(result.items[0].calories, 100 * 100 / 30);
-    assert.equal(result.calories, null); assert.equal(helpers.hasValidFoodPortions(result), false);
+test('all meal categories open manual nutrition immediately without any AI request', async () => {
+  let requests = 0;
+  const analyze = captured(async () => { requests++; throw new Error('AI must remain unused'); });
+  for (const type of ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Herbalife product']) {
+    const result = await analyze({ uri: 'photo', meal: { type, name: 'Planned serving', calories: 250, protein: 12 }, token: 'jwt' });
+    assert.equal(result.source, 'manual'); assert.equal(result.name, 'Planned serving');
+    assert.equal(result.items.length, 0); assert.equal(result.calories, 250);
   }
+  assert.equal(requests, 0);
 });
+
 test('manually entered gram weights scale per-100-g nutrients and excluded foods do not count', () => {
   let result = helpers.withPortionInputs({ items: [
     { name: 'Roti', calories: 100, protein: 3, carbs: 20, fat: 1 },
@@ -67,11 +65,11 @@ test('invalid, missing and zero portion weights cannot be saved as valid meals',
   assert.equal(helpers.hasValidFoodPortions(helpers.changeFoodPortion(initial, 0, '2000')), true);
   assert.equal(helpers.hasValidFoodPortions(helpers.toggleFoodExcluded(initial, 0)), false);
 });
-test('recognition failures preserve manual entry with the actual reason, never pretend to detect food', async () => {
+test('manual entry works while recognition is unavailable', async () => {
   const analyze = captured(async () => { throw new Error('No food could be identified.'); });
   const result = await analyze({ meal: { type: 'Lunch', name: 'Planned meal', calories: 300 } });
   assert.equal(result.source, 'manual'); assert.equal(result.name, 'Planned meal'); assert.equal(result.items.length, 0);
-  assert.match(result.warning, /No food/);
+  assert.match(result.warning, /Enter the nutrition/);
 });
 
 test('laddu reference remains visible before weight entry and scales to the eaten portion', () => {
@@ -93,8 +91,7 @@ test('zero or missing model nutrition keeps the detected name and requires a man
     { calories: null, protein: null, carbs: null, fat: null, nutritionAvailable: false },
     { calories: 50, protein: 1, carbs: 10, fat: 0, nutritionAvailable: false },
   ]) {
-    const analyze = captured(async () => ({ source: 'live', items: [{ name: 'Laddu', ...nutrition }] }));
-    let result = await analyze({ meal: { type: 'Snacks', name: 'Planned snack', calories: 300 } });
+    let result = helpers.withPortionInputs({ source: 'manual', items: [{ name: 'Laddu', ...nutrition }] });
     assert.equal(result.name, 'Laddu'); assert.equal(result.items[0].calories, null);
     assert.equal(helpers.hasFoodNutrition(result.items[0]), false);
     assert.equal(result.items[0].referenceInputs.calories, '');

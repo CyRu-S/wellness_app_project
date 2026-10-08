@@ -16,6 +16,14 @@ export const notificationPreferences = (n) => ({ mealReminders: n.timelineRemind
 export const markNotificationRead = createAsyncThunk('notifications/read', async (id, { getState }) => {
   await request(`/notifications/${id}/read`, { method: 'PATCH', headers: authorization(getState) }); return id;
 });
+// Acknowledge the loaded inbox snapshot in one request, leaving newer/unloaded messages unread.
+export const markInboxNotificationsRead = createAsyncThunk('notifications/readInbox', async (ids, { getState }) => {
+  const requested = new Set(ids.map(String));
+  const unread = getState().notifications.items.filter((item) => !item.read && requested.has(String(item.id))).map((item) => item.id).slice(0, 30);
+  if (unread.length) await request('/notifications/read', { method: 'PATCH', headers: authorization(getState), body: JSON.stringify({ ids: unread }) });
+  return unread;
+}, { condition: (ids, { getState }) => !!getState().auth.token && !getState().notifications.readInboxId
+  && getState().notifications.items.some((item) => !item.read && ids.some((id) => String(id) === String(item.id))) });
 export const loadNotificationPreferences = createAsyncThunk('notifications/preferences', async (_, { getState }) =>
   request('/notifications/preferences', { headers: authorization(getState) }), {
   condition: (_, { getState }) => !getState().notifications.savingPreferences && !getState().notifications.preferencesReadId,
@@ -40,15 +48,31 @@ const notificationSlice = createSlice({
   name: 'notifications',
   initialState: { items: [], timelineRemindersEnabled: true, coachNudgesEnabled: true, preferencesLoaded: false, ...extraPreferenceDefaults,
     pushAvailable: false, preferencesReadId: null, savingPreferences: false, preferencesError: null, failedPreferences: null,
-    previousPreferences: null, push: { status: 'idle', message: '' }, pushRetry: 0, testing: false, testMessage: null },
+    previousPreferences: null, push: { status: 'idle', message: '' }, pushRetry: 0, testing: false, testMessage: null,
+    readInboxId: null, readInboxError: null },
   reducers: {
     setTimelineRemindersEnabled: (state, action) => { state.timelineRemindersEnabled = action.payload; },
     setPushState: (state, action) => { state.push = action.payload; },
     retryPushRegistration: (state) => { state.pushRetry += 1; },
   },
   extraReducers: (builder) => builder
-    .addCase(loadNotifications.fulfilled, (state, action) => { state.items = action.payload; })
+    .addCase(loadNotifications.fulfilled, (state, action) => {
+      // Read status is monotonic: a GET started before an acknowledgement must not restore the badge.
+      const readIds = new Set(state.items.filter((item) => item.read).map((item) => String(item.id)));
+      state.items = action.payload.map((item) => readIds.has(String(item.id)) ? { ...item, read: true } : item);
+    })
     .addCase(markNotificationRead.fulfilled, (state, action) => { const item = state.items.find(n => String(n.id) === String(action.payload)); if (item) item.read = true; })
+    .addCase(markInboxNotificationsRead.pending, (state, action) => { state.readInboxId = action.meta.requestId; state.readInboxError = null; })
+    .addCase(markInboxNotificationsRead.fulfilled, (state, action) => {
+      if (state.readInboxId !== action.meta.requestId) return;
+      state.readInboxId = null;
+      const ids = new Set(action.payload.map(String));
+      state.items = state.items.map((item) => ids.has(String(item.id)) ? { ...item, read: true } : item);
+    })
+    .addCase(markInboxNotificationsRead.rejected, (state, action) => {
+      if (state.readInboxId !== action.meta.requestId) return;
+      state.readInboxId = null; state.readInboxError = action.error.message;
+    })
     .addCase(loadNotificationPreferences.pending, (state, action) => { state.preferencesReadId = action.meta.requestId; })
     .addCase(loadNotificationPreferences.fulfilled, (state, action) => {
       if (state.preferencesReadId !== action.meta.requestId) return;
@@ -95,4 +119,5 @@ export const selectTimelineNotifications = createSelector(
 );
 
 export const { setTimelineRemindersEnabled, setPushState, retryPushRegistration } = notificationSlice.actions;
+export const selectUnreadNotificationCount = createSelector([(state) => state.notifications.items], (items) => items.filter((item) => !item.read).length);
 export default notificationSlice.reducer;

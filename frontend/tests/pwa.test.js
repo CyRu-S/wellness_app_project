@@ -24,10 +24,10 @@ test('web sessions and page data persist as ciphertext and are cleared on logout
   assert.equal(await make().readEncryptedJson('mr-care.session.v1'), null);
 });
 
-function pushHarness({ permission = 'default', installed = true, ios = true, registerGate } = {}) {
+function pushHarness({ permission = 'default', installed = true, ios = true, registerGate, existingKey } = {}) {
   const calls = [], bindings = []; let prompts = 0;
   const started = deferred();
-  const subscription = { endpoint: 'https://web.push.apple.com/test', options: {},
+  const subscription = { endpoint: 'https://web.push.apple.com/test', options: { applicationServerKey: existingKey },
     toJSON: () => ({ endpoint: 'https://web.push.apple.com/test', keys: { p256dh: 'public-key', auth: 'auth-key' } }), unsubscribe: async () => { calls.push('unsubscribe'); } };
   const Notification = { permission, requestPermission: () => { prompts += 1; Notification.permission = 'granted'; return Promise.resolve('granted'); } };
   const push = loadModule('../src/services/notifications/pushNotifications.web.js', {
@@ -37,7 +37,8 @@ function pushHarness({ permission = 'default', installed = true, ios = true, reg
       if (path.endsWith('/subscriptions')) { started.resolve(); if (registerGate) await registerGate.promise; }
     } },
     '../pwa/registration': { isInstalled: () => installed, isIOS: () => ios,
-      registerPwa: async () => ({ pushManager: { getSubscription: async () => subscription } }),
+      registerPwa: async () => ({ pushManager: { getSubscription: async () => subscription,
+        subscribe: async (options) => { calls.push({ subscribed: options }); return subscription; } } }),
       pendingPushTap: async () => ({ data: null }), clearPushTap: async () => {},
       bindPushAccount: async (context) => { bindings.push(context); return { cleared: true }; } },
     '../storage/encryptedStorage': { readEncryptedJson: async () => null, writeEncryptedJson: async () => {}, removeEncryptedPrefix: async () => {} },
@@ -79,6 +80,13 @@ test('a logout waits for a pending web registration before revoking it', async (
   await Promise.all([registering, logout]);
   assert.equal(session.stopped, true);
   assert.ok(calls.some((call) => call.path?.endsWith('/unregister')));
+});
+
+test('changed VAPID keys replace the browser subscription even when the old key is a matching prefix', async () => {
+  const { push, calls } = pushHarness({ permission: 'granted', existingKey: new Uint8Array([4, 1]).buffer });
+  assert.equal((await push.syncPushRegistration(push.beginPushSession('jwt', 7))).status, 'enabled');
+  assert.ok(calls.includes('unsubscribe'));
+  assert.deepEqual(Array.from(calls.find((call) => call.subscribed)?.subscribed.applicationServerKey), [4, 1, 2]);
 });
 
 function workerHarness() {

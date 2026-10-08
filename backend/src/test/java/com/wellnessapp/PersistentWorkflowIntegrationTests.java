@@ -92,6 +92,9 @@ class PersistentWorkflowIntegrationTests {
 
         assertThat(notificationService.list(admin.getEmail())).extracting(NotificationEvent::getId)
                 .containsExactly(today.getId());
+        // Cleanup runs on the scheduler; opening the inbox is read-only.
+        assertThat(notifications.findById(yesterday.getId())).isPresent();
+        notificationService.removeExpiredAdminNotifications();
         assertThat(notifications.findById(yesterday.getId())).isEmpty();
     }
 
@@ -271,6 +274,7 @@ class PersistentWorkflowIntegrationTests {
         var meal = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
         meal.setConsumed(true); meals.saveAndFlush(meal);
         setTime("2026-09-06T04:30:00Z");
+        reminders.refresh();
         mvc.perform(get("/api/admin/workspace").header("Authorization", admin())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.members[0].adherenceSeries.length()").value(7))
                 .andExpect(jsonPath("$.members[0].adherenceSeries[5].value").value(100))
@@ -288,11 +292,12 @@ class PersistentWorkflowIntegrationTests {
         var meal = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
         meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); assertThat(reminders.attention()).isEmpty();
     }
-    @Test void mealDeadlineAppearsImmediatelyAndNotifiesAdminOnlyOnce() throws Exception {
+    @Test void scheduledMealDeadlineNotifiesAdminOnlyOnce() throws Exception {
         var user = approve("deadline@example.com"); plan(user);
         setTime("2026-09-05T02:30:00Z");
         reminders.refresh(); assertThat(reminders.attention()).isEmpty();
         setTime("2026-09-05T02:30:01Z");
+        reminders.refresh();
         mvc.perform(get("/api/admin/attention").header("Authorization", admin()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].memberId").value(user.getId()))
                 .andExpect(jsonPath("$[0].category").value("Meals"));

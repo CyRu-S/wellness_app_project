@@ -4,6 +4,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 module.exports = ({ config }) => {
+  const apiUrl = process.env.EXPO_PUBLIC_MOBILE_API_URL || process.env.EXPO_PUBLIC_API_URL;
+  if (process.env.EAS_BUILD_PLATFORM === 'android' && process.env.ALLOW_LOCAL_HTTP !== 'true') {
+    let url;
+    try { url = new URL(apiUrl); } catch { /* Report configuration below. */ }
+    if (!url || url.protocol !== 'https:' || url.username || url.password || url.search || url.hash
+      || !/^\/api\/?$/.test(url.pathname)
+      || /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$)/i.test(url.hostname)) {
+      throw new Error('Preview/production APK requires EXPO_PUBLIC_MOBILE_API_URL (or EXPO_PUBLIC_API_URL) set to your reachable public HTTPS backend URL ending in /api in the selected EAS environment. Local .env.local is excluded from cloud builds.');
+    }
+  }
   const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || config.extra?.eas?.projectId;
   const localFirebaseFile = './google-services.json';
   const googleServicesFile = process.env.GOOGLE_SERVICES_JSON || config.android?.googleServicesFile
@@ -26,7 +36,7 @@ module.exports = ({ config }) => {
     ...config,
     plugins: [...(config.plugins || []), ['expo-build-properties', { android: { usesCleartextTraffic: process.env.ALLOW_LOCAL_HTTP === 'true' } }]],
     ...(process.env.EXPO_OWNER ? { owner: process.env.EXPO_OWNER } : {}),
-    extra: { ...config.extra, ...(projectId ? { eas: { ...config.extra?.eas, projectId } } : {}) },
+    extra: { ...config.extra, ...(apiUrl ? { apiUrl: apiUrl.replace(/\/+$/, '') } : {}), ...(projectId ? { eas: { ...config.extra?.eas, projectId } } : {}) },
     android: { ...config.android, ...(googleServicesFile ? { googleServicesFile } : {}) },
   };
 };

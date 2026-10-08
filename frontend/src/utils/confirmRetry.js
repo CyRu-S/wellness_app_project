@@ -1,4 +1,5 @@
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import Alert from './appAlert';
 
 // These endpoints do not accept an idempotency key. A lost response does not
 // prove that the write failed, so never silently replay a water/activity POST.

@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Image from '../../components/common/ProtectedImage';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
@@ -22,7 +22,6 @@ import AdminScreen from '../../components/admin/AdminScreen';
 import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl';
 import MealTimePicker from '../../components/admin/MealTimePicker';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
-import useFocusedPolling from '../../hooks/useFocusedPolling';
 import { formatNutrition } from '../../utils/formatNutrition';
 import {
   selectAdminMemberMealPlans,
@@ -495,12 +494,6 @@ export default function UserDetailsScreen({ route, navigation }) {
   const memberAvatarSource = avatarFailed ? null : profileImageSource(profileMember.profileImageUrl, token);
   const plan = memberPlans[member?.id] || { planName: '', items: [] };
   const todaySnapshot = journal?.today || null;
-  const memberId = member?.id ?? route.params?.id;
-  const memberEmail = member?.email;
-  useFocusedPolling(React.useCallback(() => {
-    if (memberId) return dispatch(loadAdminMemberJournal({ memberId, email: memberEmail }));
-    return undefined;
-  }, [dispatch, memberId, memberEmail]));
 
   // Retry image rendering when the server provides a new profile-photo version.
   // eslint-disable-next-line react-hooks/set-state-in-effect

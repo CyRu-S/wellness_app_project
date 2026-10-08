@@ -48,6 +48,35 @@ public class PlanService {
                         "calories", item.getCalories(), "protein", item.getProteinGrams(), "ingredients", split(item.getIngredients()))).toList());
     }
 
+    @Transactional(readOnly = true)
+    public Map<Long, Map<String, Object>> memberPlans(Collection<Long> memberIds) {
+        Map<Long, Map<String, Object>> result = new LinkedHashMap<>();
+        if (memberIds.isEmpty()) return result;
+        var currentPlans = new LinkedHashMap<Long, Plan>();
+        for (var plan : plans.findByUserIdInAndActiveTrueOrderByStartDateDescIdDesc(memberIds)) {
+            if (!today().isBefore(plan.getStartDate()) && !today().isAfter(plan.getEndDate()))
+                currentPlans.putIfAbsent(plan.getUser().getId(), plan);
+        }
+        var groupedItems = currentPlans.isEmpty() ? Map.<Long, List<PlanItem>>of()
+                : items.findByPlanIdInOrderBySortOrder(currentPlans.values().stream().map(Plan::getId).toList())
+                .stream().collect(java.util.stream.Collectors.groupingBy(item -> item.getPlan().getId()));
+        var coach = coachName();
+        for (var memberId : memberIds) {
+            var plan = currentPlans.get(memberId);
+            if (plan == null) {
+                result.put(memberId, Map.of("memberId", memberId, "planName", "", "items", List.of()));
+                continue;
+            }
+            result.put(memberId, Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", coach,
+                    "updatedAt", plan.getStartDate(), "items", groupedItems.getOrDefault(plan.getId(), List.of()).stream()
+                    .filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null)
+                    .map(item -> Map.of("id", item.getId(), "type", item.getMealType(), "name", item.getTitle(),
+                            "time", item.getScheduledTime(), "calories", item.getCalories(), "protein", item.getProteinGrams(),
+                            "ingredients", split(item.getIngredients()))).toList()));
+        }
+        return result;
+    }
+
     @Transactional
     public Map<String, Object> save(Long memberId, SaveMealPlanRequest request) {
         User user = users.lockById(memberId).filter(u -> u.getRole() == User.Role.USER && u.getStatus() == User.Status.ACTIVE)
@@ -122,15 +151,22 @@ public class PlanService {
                     });
         }
         ensureDailyMeals(memberId);
-        notices.notify(user, PushDelivery.Kind.PLAN, "plan-" + plan.getId(), "Your meal plan was updated", "Your coach has assigned an updated meal plan. Open your daily plan to review it.");
+        notices.notify(user, PushDelivery.Kind.PLAN, "plan-" + plan.getId() + "-" + UUID.randomUUID(), "Your meal plan was updated", "Your coach has assigned an updated meal plan. Open your daily plan to review it.");
         return memberPlan(memberId);
     }
 
     @Transactional
     public void ensureDailyMeals(Long memberId) {
+        Plan plan = current(memberId);
+        if (plan == null) return;
+        var initialMeals = meals.findByUserIdAndMealDateOrderByMealTime(memberId, today());
+        var scheduled = items.findByPlanIdOrderBySortOrder(plan.getId());
+        if (scheduled.stream().filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null)
+                .allMatch(item -> initialMeals.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId())))) return;
+        // Most reads already have a complete schedule and need no write lock.
         User user = users.lockById(memberId).orElseThrow(() -> new NotFoundException("Member not found"));
         if (user.getStatus() != User.Status.ACTIVE) return;
-        Plan plan = current(memberId);
+        plan = current(memberId);
         if (plan == null) return;
         var existing = meals.findByUserIdAndMealDateOrderByMealTime(memberId, today());
         for (PlanItem item : items.findByPlanIdOrderBySortOrder(plan.getId())) {

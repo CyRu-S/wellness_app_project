@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSelector } from 'react-redux';
+import { selectUnreadNotificationCount } from '../../store/slices/notificationSlice';
 import AppLogo from '../common/AppLogo';
 import { colors, fonts, shadows } from '../../theme';
 
@@ -11,6 +13,7 @@ const getDateLabel = () => new Intl.DateTimeFormat('en-IN', {
 }).format(new Date());
 
 export default function UserHeader({ navigation, title = 'Today', showNotifications = true, home = title === 'Today' }) {
+  const unreadCount = useSelector(selectUnreadNotificationCount);
   const openNotifications = () => {
     const routeNames = navigation?.getState?.().routeNames || [];
     if (routeNames.includes('Notifications')) navigation.navigate('Notifications');
@@ -57,7 +60,7 @@ export default function UserHeader({ navigation, title = 'Today', showNotificati
         {showNotifications ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Open notifications" onPress={openNotifications} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
             <Ionicons name="notifications-outline" size={20} color={colors.ink} />
-            <View style={styles.dot} />
+            {unreadCount > 0 ? <View style={styles.dot} accessibilityLabel="Unread notifications" /> : null}
           </Pressable>
         ) : <View style={styles.actionPlaceholder} />}
       </View>
