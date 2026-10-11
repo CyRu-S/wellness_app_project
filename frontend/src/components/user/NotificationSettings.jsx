@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { loadNotificationPreferences, notificationPreferences, retryPushRegistration, saveNotificationPreferences, sendTestNotification } from '../../store/slices/notificationSlice';
+import { loadNotificationPreferences, notificationPreferences, retryPushRegistration, saveNotificationPreferences } from '../../store/slices/notificationSlice';
 import SyncFeedback from '../common/SyncFeedback';
 import { colors, fonts, radius } from '../../theme';
 
@@ -30,9 +30,6 @@ export default function NotificationSettings() {
       onPress={() => n.push.status === 'denied' ? Linking.openSettings().catch(() => dispatch(retryPushRegistration())) : dispatch(retryPushRegistration())}>
       <Text style={styles.buttonText}>{n.push.status === 'denied' ? 'Open Android settings' : 'Enable phone notifications'}</Text></Pressable> : null}
     {n.push.status === 'registering' ? <ActivityIndicator accessibilityLabel="Connecting phone notifications" color={colors.tealMid} /> : null}
-    {n.push.status === 'enabled' && n.pushAvailable ? <Pressable style={styles.button} accessibilityRole="button" disabled={n.testing} onPress={() => dispatch(sendTestNotification())}>
-      <Text style={styles.buttonText}>{n.testing ? 'Queuing test…' : 'Send a test notification'}</Text></Pressable> : null}
-    {n.testMessage ? <Text accessibilityLiveRegion="polite" style={styles.note}>{n.testMessage}</Text> : null}
   </View>;
 }
 const styles = StyleSheet.create({
