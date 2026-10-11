@@ -19,6 +19,7 @@ public class PlanService {
     private final MealRepository meals;
     private final MealItemRepository ingredients;
     private final MealPostRepository posts;
+    private final MissedEventRepository missed;
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final WorkflowNotificationService notices;
@@ -32,10 +33,16 @@ public class PlanService {
         Plan plan = current(user.getId());
         if (plan == null) return null;
         var todayMeals = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), today());
+        var dailyItems = new ArrayList<>(items.findByPlanIdOrderBySortOrder(plan.getId()).stream().map(item -> new PlanResponse.Item(
+                item.getId(), item.getType().name(), item.getTitle(), item.getDetail(), item.getScheduledTime(),
+                todayMeals.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId()) && meal.isConsumed()), item.getSortOrder())).toList());
+        // Removed templates do not recur, but a completed daily entry remains visible until midnight.
+        for (Meal meal : todayMeals) {
+            if (meal.getPlanItem() == null && meal.isConsumed()) dailyItems.add(new PlanResponse.Item(
+                    -meal.getId(), "MEAL", meal.getName(), meal.getType(), meal.getMealTime(), true, dailyItems.size()));
+        }
         return new PlanResponse(plan.getId(), plan.getTitle(), plan.getGoal(), plan.getStartDate(), plan.getEndDate(),
-                items.findByPlanIdOrderBySortOrder(plan.getId()).stream().map(item -> new PlanResponse.Item(
-                        item.getId(), item.getType().name(), item.getTitle(), item.getDetail(), item.getScheduledTime(),
-                        todayMeals.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId()) && meal.isConsumed()), item.getSortOrder())).toList(), coachName());
+                dailyItems, coachName());
     }
 
     @Transactional(readOnly = true)
@@ -103,14 +110,18 @@ public class PlanService {
             plans.save(plan);
         }
 
-        // Removing a slot removes it from today's schedule too. Any associated
-        // MealPost is retained with a null planned-meal reference for history.
+        // Keep posted daily entries and their evidence; remove only unposted slots immediately.
         Set<Long> retainedIds = request.items().stream().map(SaveMealPlanRequest.Item::id)
                 .filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
         for (PlanItem item : previousItems) {
             if (retainedIds.contains(item.getId())) continue;
             todayMeals.stream().filter(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId()))
-                    .forEach(this::removeTodayMeal);
+                    .forEach(meal -> {
+                        if (meal.isConsumed() || posts.findByPlannedMealId(meal.getId()).isPresent()) {
+                            meal.setPlanItem(null);
+                            meals.save(meal);
+                        } else removeTodayMeal(meal);
+                    });
         }
         meals.flush();
         for (PlanItem item : previousItems) if (!retainedIds.contains(item.getId())) items.delete(item);
@@ -184,6 +195,10 @@ public class PlanService {
     }
     private LocalDate today() { return LocalDate.now(clock.withZone(applicationZoneId)); }
     private void removeTodayMeal(Meal meal) {
+        missed.findBySourceKey("meal-" + meal.getId()).ifPresent(event -> {
+            event.setResolved(true);
+            missed.save(event);
+        });
         // Keep the uploaded evidence, but detach it before deleting its schedule
         // entry so the persistence context and the database agree on the history link.
         posts.findByPlannedMealId(meal.getId()).ifPresent(post -> {

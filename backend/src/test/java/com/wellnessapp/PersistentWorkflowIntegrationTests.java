@@ -35,6 +35,7 @@ class PersistentWorkflowIntegrationTests {
     @Autowired UserProfileRepository profiles;
     @Autowired MealRepository meals;
     @Autowired MealPostRepository posts;
+    @Autowired MissedEventRepository missed;
     @Autowired NotificationRepository notifications;
     @Autowired WaterLogRepository water;
     @Autowired jakarta.persistence.EntityManager entityManager;
@@ -195,7 +196,7 @@ class PersistentWorkflowIntegrationTests {
         assertThat(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 6))).hasSize(2);
     }
 
-    @Test void editingPlanReservesTimeSlotsAndRemovesDeletedMealsWithoutRemovingPostedHistory() throws Exception {
+    @Test void deletingPostedMealKeepsTodaysEntryAndRemovesItFromTomorrow() throws Exception {
         var user = approve("plan-remove@example.com");
         plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of(
                 new SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 400, 20, List.of(), null),
@@ -212,8 +213,12 @@ class PersistentWorkflowIntegrationTests {
                 new SaveMealPlanRequest.Item("Dinner", "Rice", LocalTime.of(20, 0), 440, 15, List.of(), dinner.getPlanItem().getId()))));
 
         mvc.perform(get("/api/meals/today").header("Authorization", token(user)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].name").value("Rice"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].name").value("Oats"))
+                .andExpect(jsonPath("$[0].consumed").value(true));
+        assertThat(posts.findByPlannedMealId(breakfast.getId())).isPresent();
+        assertThat(plans.today(user.getEmail()).items()).hasSize(2).anyMatch(item -> item.title().equals("Oats") && item.completed());
+        assertThat((List<?>) plans.memberPlan(user.getId()).get("items")).hasSize(1);
         mvc.perform(get("/api/meal-posts").header("Authorization", token(user)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].mealName").value("Oats"));
@@ -221,6 +226,23 @@ class PersistentWorkflowIntegrationTests {
                 new SaveMealPlanRequest.Item("Breakfast", "Eggs", LocalTime.of(8, 0), 300, 20, List.of(), null),
                 new SaveMealPlanRequest.Item("Snack", "Fruit", LocalTime.of(8, 0), 120, 2, List.of(), null)))))
                 .isInstanceOf(BadRequestException.class).hasMessage("Only one meal can be scheduled at the same time");
+        // Removing the final unposted item is allowed and takes effect immediately.
+        setTime("2026-09-05T15:00:00Z");
+        reminders.refresh();
+        assertThat(missed.findBySourceKey("meal-" + dinner.getId())).isPresent().get().extracting(MissedEvent::isResolved).isEqualTo(false);
+        mvc.perform(put("/api/admin/plans/members/" + user.getId()).header("Authorization", admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"planName\":\"Daily\",\"items\":[]}"))
+                .andExpect(status().isOk());
+        entityManager.flush(); entityManager.clear();
+        assertThat(missed.findBySourceKey("meal-" + dinner.getId())).isPresent().get().extracting(MissedEvent::isResolved).isEqualTo(true);
+        mvc.perform(get("/api/meals/today").header("Authorization", token(user)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("Oats"));
+        setTime("2026-09-05T18:30:00Z"); // Midnight in the application timezone.
+        mvc.perform(get("/api/meals/today").header("Authorization", token(user)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        assertThat(plans.today(user.getEmail()).items()).isEmpty();
+        assertThat(posts.findByPlannedMealId(breakfast.getId())).isPresent();
     }
 
     @Test void adminProfileDetailsAreSavedAndMemberCannotChangeClubDetails() throws Exception {
