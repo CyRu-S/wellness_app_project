@@ -155,11 +155,12 @@ test('web pull to refresh only fires for a vertical pull from the top of a page'
   const react = {
     __esModule: true, default: { createElement: (type, props) => ({ type, props }) },
     useRef: (initial) => ({ current: initial === null ? element : initial }),
-    useState: (initial) => [initial, () => {}], useEffect: (effect) => effect(),
+    useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}], useEffect: (effect) => effect(),
   };
   // The two refs hold different kinds of values; the gesture is reset before each touch.
   const { default: Refresh } = loadModule('../src/components/common/WebPageRefresh.jsx', {
-    react, 'react-native': { ActivityIndicator: 'ActivityIndicator', Pressable: 'Pressable', Text: 'Text', View: 'View', StyleSheet: { create: (value) => value } },
+    react, 'react-native': { ActivityIndicator: 'ActivityIndicator', Text: 'Text', View: 'View', StyleSheet: { create: (value) => value },
+      Animated: { View: 'AnimatedView', Value: class { setValue() {} interpolate() { return 0; } }, timing: () => ({ start() {}, stop() {} }) } },
     '../../theme': { colors: {} },
   });
   Refresh({ enabled: true, refreshing: false, onRefresh: () => { refreshed += 1; } });
@@ -170,6 +171,13 @@ test('web pull to refresh only fires for a vertical pull from the top of a page'
   target.scrollTop = 0;
   handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(150, 20)); handlers.touchend();
   assert.equal(refreshed, 0, 'horizontal gestures must not refresh');
+  handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(0, 80)); handlers.touchend();
+  assert.equal(refreshed, 0, 'a short pull must settle without fetching');
+  handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(0, 150)); handlers.touchcancel(); handlers.touchend();
+  assert.equal(refreshed, 0, 'cancelled gestures must not refresh');
+  handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(0, 150));
+  handlers.touchmove({ ...touch(0, 150), touches: [{ clientX: 0, clientY: 150 }, { clientX: 10, clientY: 150 }] }); handlers.touchend();
+  assert.equal(refreshed, 0, 'adding a second finger must cancel the pull');
   handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(0, 150)); handlers.touchend();
   assert.equal(refreshed, 1);
 });
