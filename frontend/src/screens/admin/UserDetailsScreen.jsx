@@ -357,13 +357,12 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
   };
 
   const removeItem = (index) => {
-    if (items.length === 1) return;
     setItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const save = async () => {
     if (saving) return;
-    if (!items.length || !planName.trim() || items.some((item) => !item.name.trim() || !TIME_PATTERN.test(item.time.trim()))) {
+    if (!planName.trim() || items.some((item) => !item.name.trim() || !TIME_PATTERN.test(item.time.trim()))) {
       Alert.alert('Check the daily plan', 'Add a plan name, meal name, and time such as 8:00 AM for every meal.');
       return;
     }
@@ -404,7 +403,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                 <View style={styles.editorMealTop}>
                   <View style={styles.editorMealNumber}><Text style={styles.editorMealNumberText}>{String(index + 1).padStart(2, '0')}</Text></View>
                   <Text style={styles.editorMealType}>{meal.type}</Text>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${meal.type}`} disabled={items.length === 1} onPress={() => removeItem(index)} style={[styles.removeMeal, items.length === 1 && styles.removeMealDisabled]}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${meal.type}`} onPress={() => removeItem(index)} style={styles.removeMeal}>
                     <Ionicons name="trash-outline" size={17} color={adminColors.coral} />
                   </Pressable>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Choose ${meal.type} time, currently ${meal.time}`}
@@ -745,7 +744,6 @@ const styles = StyleSheet.create({
   editorMealNumberText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 11 },
   editorMealType: { flex: 1, color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 14 },
   removeMeal: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: adminColors.coralSoft },
-  removeMealDisabled: { opacity: 0.35 },
   timeInput: { minWidth: 100, minHeight: 42, paddingHorizontal: 9, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: adminColors.aqua },
   timeInputText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 12 },
   typeOptions: { gap: 7, paddingTop: 11, paddingBottom: 1 },
