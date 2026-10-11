@@ -20,6 +20,8 @@ public class SecurityConfig {
     private final JwtFilter jwtFilter;
     @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:http://localhost:*,http://127.0.0.1:*}")
     private String allowedOrigins;
+    @org.springframework.beans.factory.annotation.Value("${app.cors.pwa-origins:}")
+    private String pwaOrigins;
     @Bean SecurityFilterChain security(HttpSecurity http) throws Exception {
         return http.csrf(csrf -> csrf.disable()).cors(cors -> cors.configurationSource(corsSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -36,7 +38,13 @@ public class SecurityConfig {
     @Bean AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception { return configuration.getAuthenticationManager(); }
     @Bean CorsConfigurationSource corsSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(java.util.Arrays.stream(allowedOrigins.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList()); config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")); config.setAllowedHeaders(List.of("*"));
+        // Keep the deployed app allowlist independent of existing Railway/local CORS overrides.
+        config.setAllowedOriginPatterns(java.util.stream.Stream.concat(
+                java.util.Arrays.stream(allowedOrigins.split(",")),
+                java.util.Arrays.stream(pwaOrigins.split(",")))
+                .map(String::trim).filter(s -> !s.isEmpty()).distinct().toList());
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**", config); return source;
     }
 }
