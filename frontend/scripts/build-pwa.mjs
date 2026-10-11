@@ -14,7 +14,7 @@ const tags = `<link rel="manifest" href="/manifest.webmanifest" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Mr_Care" />
-<style>html,body,#root{height:100%;min-height:100dvh}body{overscroll-behavior-y:none}input,textarea{font-size:max(16px,1em)!important}</style>`;
+<style>html,body,#root{height:100%;min-height:100dvh}body{overscroll-behavior-y:none}input,textarea{font-size:max(16px,1em)!important}input:focus,textarea:focus,[contenteditable="true"]:focus{outline:none!important;box-shadow:none!important}</style>`;
 html = html.replace('</head>', `${tags}
 </head>`);
 html = html.replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />');
