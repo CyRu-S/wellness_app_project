@@ -87,6 +87,40 @@ class ApiEndToEndTests {
         return result.path("id").asLong();
     }
 
+    @Test void vercelPwaCanPreflightAndLoginWhileUnrelatedOriginsAreRejected() throws Exception {
+        for (String origin : List.of("https://wellnessappproject-frontend.vercel.app",
+                "https://wellnessappproject-frontend-762qxku76-cyru-s-projects.vercel.app")) {
+            var preflight = client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/auth/login"))
+                    .header("Origin", origin).header("Access-Control-Request-Method", "POST")
+                    .header("Access-Control-Request-Headers", "content-type")
+                    .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(preflight.statusCode()).isEqualTo(200);
+            assertThat(preflight.headers().firstValue("Access-Control-Allow-Origin")).contains(origin);
+            var login = client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/auth/login"))
+                    .header("Origin", origin).header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of(
+                            "email", "admin@mr-care.app", "password", "test-admin-password"))))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(login.statusCode()).isEqualTo(200);
+            assertThat(login.headers().firstValue("Access-Control-Allow-Origin")).contains(origin);
+            assertThat(json.readTree(login.body()).path("token").asText()).isNotBlank();
+            var authenticated = client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/profile"))
+                    .header("Origin", origin).header("Access-Control-Request-Method", "PATCH")
+                    .header("Access-Control-Request-Headers", "authorization,content-type")
+                    .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(authenticated.statusCode()).isEqualTo(200);
+            assertThat(authenticated.headers().firstValue("Access-Control-Allow-Headers").orElseThrow())
+                    .containsIgnoringCase("authorization");
+        }
+        for (String origin : List.of("https://unrelated.vercel.app", "https://wellnessappproject-frontend.vercel.app.attacker.example")) {
+            var blocked = client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/auth/login"))
+                    .header("Origin", origin).header("Access-Control-Request-Method", "POST")
+                    .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(blocked.statusCode()).isEqualTo(403);
+            assertThat(blocked.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
+        }
+    }
+
     @Test void adminThenMemberWorkflowAcrossRealHttpTransactions() throws Exception {
         when(clock.withZone(any())).thenReturn(clock);
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Kolkata"));
