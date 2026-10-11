@@ -49,6 +49,7 @@ export default function WebPageRefresh({ children, enabled, refreshing, onRefres
     };
     const finish = () => {
       const current = gesture.current;
+      if (!current) return;
       gesture.current = null; setDistance(0);
       const released = current?.distance >= 60 && !refreshing;
       Animated.timing(progress, { toValue: released ? 64 : 0, duration: 180, useNativeDriver: false }).start();
@@ -65,6 +66,7 @@ export default function WebPageRefresh({ children, enabled, refreshing, onRefres
       }
     };
     const cancel = () => {
+      if (!gesture.current) return;
       gesture.current = null; setDistance(0);
       Animated.timing(progress, { toValue: 0, duration: 180, useNativeDriver: false }).start();
     };
