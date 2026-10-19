@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +15,7 @@ import {
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 
 function RequestCard({ request, expanded, onToggle, onApprove, onDecline }) {
+  const [followUpDays, setFollowUpDays] = useState('7');
   return (
     <View style={styles.requestShell}>
       <LinearGradient colors={['#FFFFFF', '#EFF8F5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.requestCard}>
@@ -49,8 +50,14 @@ function RequestCard({ request, expanded, onToggle, onApprove, onDecline }) {
               <Text style={styles.detailLabel}>MEMBER GOAL</Text>
               <Text style={styles.goalText}>{request.goal}</Text>
             </View>
+            <View style={styles.followUpRow}>
+              <View style={styles.followUpCopy}><Text style={styles.detailLabel}>FOLLOW-UP REMINDER</Text><Text style={styles.followUpHint}>Notify admins after approval</Text></View>
+              <TextInput accessibilityLabel="Follow-up days" value={followUpDays} onChangeText={(value) => setFollowUpDays(value.replace(/\D/g, '').slice(0, 3))}
+                keyboardType="number-pad" inputMode="numeric" style={styles.followUpInput} />
+              <Text style={styles.followUpUnit}>days</Text>
+            </View>
             <View style={styles.actions}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Approve ${request.name}`} onPress={onApprove} style={({ pressed }) => [styles.approve, pressed && styles.pressed]}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Approve ${request.name}`} onPress={() => onApprove(Math.max(1, Math.min(365, Number(followUpDays) || 7)))} style={({ pressed }) => [styles.approve, pressed && styles.pressed]}>
                 <Ionicons name="checkmark" size={19} color={adminColors.white} />
                 <Text style={styles.approveText}>Approve member</Text>
               </Pressable>
@@ -73,8 +80,8 @@ export default function AdminApprovalsScreen({ navigation }) {
   const [expandedId, setExpandedId] = useState(requests[0]?.id ?? null);
   const oldestRequest = requests[requests.length - 1]?.requestedAt || 'None waiting';
 
-  const approve = async (request) => {
-    try { await dispatch(approveRequest(request.id)).unwrap(); setExpandedId(null); }
+  const approve = async (request, followUpDays) => {
+    try { await dispatch(approveRequest({ id: request.id, followUpDays })).unwrap(); setExpandedId(null); }
     catch (error) { Alert.alert('Approval failed', error.message); }
   };
 
@@ -148,7 +155,7 @@ export default function AdminApprovalsScreen({ navigation }) {
             request={request}
             expanded={expandedId === request.id}
             onToggle={() => setExpandedId((current) => current === request.id ? null : request.id)}
-            onApprove={() => approve(request)}
+            onApprove={(followUpDays) => approve(request, followUpDays)}
             onDecline={() => decline(request)}
           />
         ))}
@@ -169,6 +176,11 @@ const styles = StyleSheet.create({
   eyebrow: { color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 17, letterSpacing: 1.35 },
   title: { maxWidth: 330, color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 31, lineHeight: 37, letterSpacing: -1.15, marginTop: 7 },
   subtitle: { maxWidth: 340, color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 15, lineHeight: 22, marginTop: 7 },
+  followUpRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: adminColors.line },
+  followUpCopy: { flex: 1 },
+  followUpHint: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, marginTop: 3 },
+  followUpInput: { width: 58, minHeight: 42, textAlign: 'center', borderRadius: 13, borderWidth: 1, borderColor: adminColors.line, color: adminColors.ink, backgroundColor: adminColors.surface, fontFamily: adminFonts.semibold, fontSize: 15 },
+  followUpUnit: { color: adminColors.muted, fontFamily: adminFonts.medium, fontSize: 12 },
   heroShell: { marginTop: 21, borderRadius: 28, backgroundColor: adminColors.deepTeal, ...adminShadow },
   hero: { minHeight: 269, overflow: 'hidden', borderRadius: 28, padding: 19 },
   heroOrb: { position: 'absolute', width: 220, height: 220, right: -78, top: -105, borderRadius: 110, backgroundColor: 'rgba(180,255,242,0.1)' },

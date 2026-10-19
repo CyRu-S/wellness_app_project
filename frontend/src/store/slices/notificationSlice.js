@@ -111,7 +111,7 @@ export const selectTimelineNotifications = createSelector(
     const todaysNotifications = notifications.filter((item) => isToday(item.scheduledAt));
     return [...todaysNotifications.filter((item) => (nudgesEnabled && (item.kind === 'NUDGE' || item.title === 'A reminder from your coach')) || (remindersEnabled && item.kind === 'DEADLINE')).map((item) => ({ ...item, id: `event-${item.id}`, unread: !item.read, time: new Date(item.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) })), ...meals.filter((meal) => remindersEnabled && !meal.consumed).map((meal) => {
       const minutesUntil = Math.round((meal.hour - currentHour) * 60);
-      if (minutesUntil > 30) return { id: `meal-${meal.id}`, title: `${meal.name} at ${meal.time}`, body: 'Your reminder is set automatically from today’s timeline.', unread: false, time: meal.time };
+      if (minutesUntil > 5) return { id: `meal-${meal.id}`, title: `${meal.name} at ${meal.time}`, body: 'A reminder will arrive five minutes before this check-in.', unread: false, time: meal.time };
       if (minutesUntil >= 0) return { id: `meal-${meal.id}`, title: `${meal.name} in ${Math.max(1, minutesUntil)} minutes`, body: 'Your scheduled check-in is coming up.', unread: true, time: 'SOON' };
       return { id: `meal-${meal.id}`, title: `${meal.name} check-in due`, body: `This timeline item was scheduled for ${meal.time}.`, unread: true, time: 'DUE' };
     })];

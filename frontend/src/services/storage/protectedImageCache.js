@@ -2,7 +2,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
 import { Platform } from 'react-native';
 
-const folder = () => new Directory(Paths.document, 'protected-images-v1');
+const folder = () => new Directory(Paths.document, 'protected-images-v2');
 const pending = new Map();
 let generation = 0;
 let downloadId = 0;
@@ -11,7 +11,9 @@ async function destination(uri, authorization) {
   const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${authorization}\n${uri}`);
   const directory = folder();
   directory.create({ idempotent: true });
-  return new File(directory, `${hash}.img`);
+  // All client uploads are normalized to JPEG. A real image extension avoids
+  // black/blank renders in iOS image decoders when loading from app storage.
+  return new File(directory, `${hash}.jpg`);
 }
 
 // A private, URL-versioned copy survives screen changes and app restarts.

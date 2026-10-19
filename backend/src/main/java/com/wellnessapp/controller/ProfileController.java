@@ -14,6 +14,9 @@ import java.nio.charset.StandardCharsets;
 @RestController @RequestMapping("/api/profile") @RequiredArgsConstructor public class ProfileController {
     private final ProfileService profiles;
     @GetMapping ProfileResponse get(Authentication authentication) { return profiles.get(authentication.getName()); }
+    @GetMapping("/history") java.util.List<java.util.Map<String, Object>> history(Authentication authentication) {
+        return profiles.history(authentication.getName());
+    }
     @PatchMapping ProfileResponse update(
             Authentication authentication,
             @Valid @RequestBody UpdateProfileRequest request) {
@@ -34,6 +37,8 @@ import java.nio.charset.StandardCharsets;
     ResponseEntity<org.springframework.core.io.Resource> photo(Authentication authentication) {
         return photoResponse(profiles.ownPhoto(authentication.getName()));
     }
+    @DeleteMapping("/account") @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteAccount(Authentication authentication) { profiles.deleteOwnAccount(authentication.getName()); }
 
     private ResponseEntity<org.springframework.core.io.Resource> photoResponse(ProfileService.MediaDownload download) {
         ContentDisposition disposition = ContentDisposition.inline()

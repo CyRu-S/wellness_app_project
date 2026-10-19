@@ -6,7 +6,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AppLogo from '../../components/common/AppLogo';
-import { signOutSafely } from '../../store/slices/authSlice';
+import { deleteCurrentAccount, signOutSafely } from '../../store/slices/authSlice';
 import NotificationSettings from '../../components/user/NotificationSettings';
 import SyncFeedback from '../../components/common/SyncFeedback';
 import { adminColors, adminFonts } from '../../theme/admin';
@@ -48,6 +48,7 @@ export default function AdminSettingsScreen({ navigation }) {
   const admin = useSelector((state) => state.auth.user);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const logout = async () => {
     if (loggingOut) return;
     setLoggingOut(true); setLogoutError(null);
@@ -70,6 +71,10 @@ export default function AdminSettingsScreen({ navigation }) {
       ],
     );
   };
+  const confirmDelete = () => Alert.alert('Delete admin account?', 'This action is permanent. Another active admin must remain.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete account', style: 'destructive', onPress: async () => { setDeleting(true); try { await dispatch(deleteCurrentAccount()).unwrap(); } catch (error) { setDeleting(false); Alert.alert('Account not deleted', error.message || 'Please try again.'); } } },
+  ]);
 
   return (
     <AdminScreen contentStyle={styles.screenContent}>
@@ -123,6 +128,7 @@ export default function AdminSettingsScreen({ navigation }) {
         <Ionicons name="arrow-forward" size={18} color={adminColors.coral} />
       </Pressable>
       <SyncFeedback error={logoutError} label="Sign out" onRetry={logout} />
+      <Pressable accessibilityRole="button" disabled={deleting} onPress={confirmDelete} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Ionicons name="trash-outline" size={20} color={adminColors.coral} /><Text style={styles.logoutText}>{deleting ? 'Deleting account…' : 'Delete admin account'}</Text></Pressable>
     </AdminScreen>
   );
 }

@@ -16,12 +16,15 @@ import {
 } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 
-const filters = ['All', 'Meals', 'Hydration', 'Activity', 'Supplements'];
+const defaultFilters = ['Meals', 'Hydration', 'Activity', 'Supplements', 'Mindfulness', 'Sleep', 'Follow-up'];
 const categoryIcons = {
   Meals: 'restaurant-outline',
   Hydration: 'water-outline',
   Activity: 'walk-outline',
   Supplements: 'medical-outline',
+  Mindfulness: 'leaf-outline',
+  Sleep: 'moon-outline',
+  'Follow-up': 'calendar-outline',
 };
 
 const saveAttention = async (dispatch, action) => {
@@ -66,7 +69,7 @@ function AttentionCard({ item, token, onMember, onNudge, onResolve }) {
           <Text style={styles.itemTitle}>{item.title}</Text>
           <View style={styles.itemMetaRow}>
             <View style={[styles.categoryPill, high && styles.categoryPillHigh]}>
-              <Ionicons name={categoryIcons[item.category]} size={14} color={high ? adminColors.coral : adminColors.deepTeal} />
+              <Ionicons name={categoryIcons[item.category] || 'ellipse-outline'} size={14} color={high ? adminColors.coral : adminColors.deepTeal} />
               <Text style={[styles.categoryText, high && styles.categoryTextHigh]}>{item.category}</Text>
             </View>
             <Text style={styles.itemTime}>{item.missedAt}</Text>
@@ -77,12 +80,11 @@ function AttentionCard({ item, token, onMember, onNudge, onResolve }) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Nudge ${item.memberName}`}
-            disabled={nudged}
             onPress={onNudge}
             style={({ pressed }) => [styles.nudge, nudged && styles.nudged, pressed && styles.pressed]}
           >
-            <Ionicons name={nudged ? 'checkmark' : 'notifications-outline'} size={17} color={nudged ? adminColors.deepTeal : adminColors.white} />
-            <Text style={[styles.nudgeText, nudged && styles.nudgedText]}>{nudged ? 'Nudge sent' : 'Send nudge'}</Text>
+            <Ionicons name="notifications-outline" size={17} color={nudged ? adminColors.deepTeal : adminColors.white} />
+            <Text style={[styles.nudgeText, nudged && styles.nudgedText]}>{nudged ? 'Send again' : 'Send nudge'}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -144,6 +146,8 @@ export default function AdminAttentionScreen({ navigation }) {
   const watch = openItems.filter((item) => item.severity !== 'HIGH');
   const priorityOpen = attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN').length;
   const nudgedCount = allOpenItems.filter((item) => item.status === 'NUDGED').length;
+  const filters = useMemo(() => ['All', ...defaultFilters.filter((category) => allOpenItems.some((item) => item.category === category)),
+    ...allOpenItems.map((item) => item.category).filter((category, index, values) => category && !defaultFilters.includes(category) && values.indexOf(category) === index)], [allOpenItems]);
 
   return (
     <AdminScreen>

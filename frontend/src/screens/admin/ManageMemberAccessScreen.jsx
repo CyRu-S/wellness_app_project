@@ -27,6 +27,7 @@ import {
   adminRadius,
   adminShadow,
 } from '../../theme/admin';
+import { matchesSearch } from '../../utils/search';
 
 const initialsFor = (name = '') => name
   .split(/\s+/)
@@ -46,7 +47,7 @@ function CandidateRow({ member, selected, onToggle }) {
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${selected ? 'Remove' : 'Give'} access to ${member.name}`}
+      accessibilityLabel={`${selected ? 'Remove' : 'Assign'} member ${member.name}`}
       onPress={onToggle}
       style={({ pressed }) => [styles.candidateRow, selected && styles.candidateRowSelected, pressed && styles.pressed]}
     >
@@ -55,7 +56,7 @@ function CandidateRow({ member, selected, onToggle }) {
       </View>
       <View style={styles.candidateCopy}>
         <Text numberOfLines={1} style={styles.candidateName}>{member.name}</Text>
-        <Text style={styles.candidateMeta}>{selected ? 'Daily activity is visible' : 'No access'}</Text>
+        <Text style={styles.candidateMeta}>{selected ? 'Assigned to this coach' : 'Not assigned'}</Text>
       </View>
       <View style={[styles.check, selected && styles.checkSelected]}>
         {selected ? <Ionicons name="checkmark" size={18} color={adminColors.white} /> : null}
@@ -94,9 +95,8 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
   }, [initializedViewerId, viewer]);
 
   const candidates = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
     return overview.viewers.filter((member) => (
-      member.id !== viewerId && (!normalized || member.name.toLowerCase().includes(normalized))
+      member.id !== viewerId && matchesSearch(query, member.name, member.email)
     ));
   }, [overview.viewers, query, viewerId]);
 
@@ -172,14 +172,14 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
         <>
           <View style={styles.heading}>
             <Text style={styles.eyebrow}>PERMISSION EDITOR</Text>
-            <Text style={styles.title}>Shape {viewer.name.split(' ')[0]}’s shared view.</Text>
-            <Text style={styles.subtitle}>Select any number of members. Only today’s meals, hydration, and activity will be visible.</Text>
+            <Text style={styles.title}>Assign members to {viewer.name.split(' ')[0]}.</Text>
+            <Text style={styles.subtitle}>{viewer.name.split(' ')[0]} is the coach. The people selected below are members they can view for today.</Text>
           </View>
 
           <View style={styles.viewerPanel}>
             <View style={styles.viewerAvatar}><Text style={styles.viewerAvatarText}>{initialsFor(viewer.name)}</Text></View>
             <View style={styles.viewerCopy}>
-              <Text style={styles.viewerLabel}>VIEWER</Text>
+              <Text style={styles.viewerLabel}>COACH</Text>
               <Text numberOfLines={1} style={styles.viewerName}>{viewer.name}</Text>
             </View>
             <View style={styles.selectionCount}>
@@ -209,7 +209,7 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
           <View style={styles.directoryHeading}>
             <View>
               <Text style={styles.directoryEyebrow}>MEMBER DIRECTORY</Text>
-              <Text style={styles.directoryTitle}>Choose visibility</Text>
+              <Text style={styles.directoryTitle}>Choose members</Text>
             </View>
             <Text style={styles.directoryCount}>{selectedIds.length} chosen</Text>
           </View>
@@ -219,6 +219,8 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
             <TextInput
               accessibilityLabel="Search members to assign"
               autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="search"
               placeholder="Search members"
               placeholderTextColor={adminColors.muted}
               value={query}
@@ -251,7 +253,7 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
 
           <View style={styles.savePanel}>
             <View style={styles.saveSummary}>
-              <Text style={styles.saveSummaryLabel}>SHARED WITH {viewer.name.split(' ')[0].toUpperCase()}</Text>
+              <Text style={styles.saveSummaryLabel}>MEMBERS ASSIGNED TO COACH {viewer.name.split(' ')[0].toUpperCase()}</Text>
               <Text numberOfLines={2} style={styles.saveSummaryValue}>
                 {selectedNames.length ? selectedNames.join(', ') : 'No members selected'}
               </Text>

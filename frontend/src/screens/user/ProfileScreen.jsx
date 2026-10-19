@@ -32,6 +32,8 @@ export default function ProfileScreen({ navigation }) {
   const rows = [
     { icon: 'body-outline', label: 'Health profile', meta: 'Body measurements and weekly check-in', route: 'BodyDetails' },
     { icon: 'heart-outline', label: 'Health preferences', meta: 'Dietary needs shared with your coach', route: 'HealthPreferences' },
+    { icon: 'document-text-outline', label: 'Health reports', meta: 'Saved profile updates over time', route: 'HealthReports' },
+    { icon: 'shield-checkmark-outline', label: 'Privacy & account', meta: 'Shared access and account deletion', route: 'PrivacyData' },
   ];
   const displayName = user?.name || profile.name || 'Member';
   const goal = profile.goal || 'No goal added yet';

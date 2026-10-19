@@ -7,7 +7,7 @@ import java.time.LocalTime;
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 @Entity @Table(name = "plan_items")
 public class PlanItem {
-    public enum Type { MEAL, ACTIVITY, HYDRATION, MINDFULNESS }
+    public enum Type { MEAL, ACTIVITY, HYDRATION, MINDFULNESS, HEALTHY_HABIT }
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @ManyToOne(optional = false) @JoinColumn(name = "plan_id") private Plan plan;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 30) private Type type;

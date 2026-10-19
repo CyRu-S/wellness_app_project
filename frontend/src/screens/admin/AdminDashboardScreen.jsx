@@ -16,6 +16,7 @@ import {
   selectAdminSummary,
 } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
+import { selectUnreadNotificationCount } from '../../store/slices/notificationSlice';
 
 const heroArtwork = require('../../../assets/shake.png');
 
@@ -196,6 +197,7 @@ export default function AdminDashboardScreen({ navigation }) {
     Haptics.selectionAsync().catch(() => {});
     navigation.navigate(route, params);
   };
+  const unreadCount = useSelector(selectUnreadNotificationCount);
 
   return (
     <AdminScreen contentStyle={styles.screenContent}>
@@ -217,6 +219,7 @@ export default function AdminDashboardScreen({ navigation }) {
               <Text style={styles.deskLabel}>Mr_Care ADMIN DESK</Text>
             </View>
           </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open notifications" onPress={() => openRoute('AdminNotifications')} style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}><Ionicons name="notifications-outline" size={20} color={adminColors.ink} />{unreadCount > 0 ? <View style={styles.notificationDot} /> : null}</Pressable>
         </View>
 
         <View style={styles.heading}>
@@ -453,6 +456,8 @@ const styles = StyleSheet.create({
   screenContent: { paddingBottom: 34 },
   utilityHeader: { minHeight: 54, flexDirection: 'row', alignItems: 'center' },
   brandCluster: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  notificationButton: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
+  notificationDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: adminColors.coral, borderWidth: 1.5, borderColor: adminColors.surface },
   brandButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   brandLogo: { borderWidth: 1, borderColor: adminColors.line, ...adminShadow },
   brandStatus: { position: 'absolute', right: 0, bottom: 1, width: 13, height: 13, borderRadius: 7, backgroundColor: adminColors.teal, borderWidth: 2, borderColor: adminColors.canvas },

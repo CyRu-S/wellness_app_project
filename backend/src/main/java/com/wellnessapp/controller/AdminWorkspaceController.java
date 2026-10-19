@@ -13,9 +13,10 @@ public class AdminWorkspaceController {
     @GetMapping("/attention") java.util.List<Map<String, Object>> attention() { return reminders.attention(); }
     @GetMapping("/members") java.util.List<Map<String, Object>> members() { return workspace.members(); }
     @GetMapping("/approvals") java.util.List<Map<String, Object>> approvals() { return workspace.pendingApprovals(); }
-    public record Decision(@jakarta.validation.constraints.NotBlank String decision) {}
+    public record Decision(@jakarta.validation.constraints.NotBlank String decision,
+            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(365) Integer followUpDays) {}
     @PatchMapping("/users/{id}/approval") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    void decide(@PathVariable Long id, @jakarta.validation.Valid @RequestBody Decision request) { workspace.decide(id, request.decision()); }
+    void decide(@PathVariable Long id, @jakarta.validation.Valid @RequestBody Decision request) { workspace.decide(id, request.decision(), request.followUpDays()); }
     @PatchMapping("/attention/{id}/resolve") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     void resolve(@PathVariable Long id) { reminders.resolve(id); }
     @PostMapping("/attention/{id}/nudge") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)

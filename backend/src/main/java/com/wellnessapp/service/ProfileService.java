@@ -21,6 +21,8 @@ import java.time.Instant;
     private final UserProfileRepository profiles;
     private final MediaStorageService mediaStorage;
     private final MemberAccessService memberAccess;
+    private final HealthProfileHistoryRepository history;
+    private final MealPostRepository mealPosts;
     private final Clock clock;
 
     public ProfileResponse get(String email) {
@@ -44,7 +46,9 @@ import java.time.Instant;
                 ? null
                 : request.dietaryPreferences().trim());
         users.save(user);
-        return response(user, profiles.save(profile));
+        profile = profiles.save(profile);
+        recordHistory(user, profile);
+        return response(user, profile);
     }
 
     @Transactional
@@ -108,7 +112,46 @@ import java.time.Instant;
         profile.setAge(request.age());
         profile.setBodyFatPercent(request.bodyFatPercent());
         profile.setLastBodyMetricsUpdatedAt(now);
-        return response(user, profiles.save(profile));
+        profile = profiles.save(profile);
+        recordHistory(user, profile);
+        return response(user, profile);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<java.util.Map<String, Object>> history(String email) {
+        User user = user(email);
+        return history.findTop52ByUserIdOrderByRecordedAtDesc(user.getId()).stream().map(entry -> {
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("id", entry.getId()); row.put("recordedAt", entry.getRecordedAt());
+            row.put("heightCm", entry.getHeightCm()); row.put("weightKg", entry.getWeightKg());
+            row.put("age", entry.getAge()); row.put("bodyFatPercent", entry.getBodyFatPercent());
+            row.put("dietaryPreferences", entry.getDietaryPreferences());
+            return row;
+        }).toList();
+    }
+
+    @Transactional
+    public void deleteOwnAccount(String email) { deleteUser(user(email), true); }
+
+    @Transactional
+    public void deleteMember(Long memberId) {
+        User member = users.findById(memberId).filter(value -> value.getRole() == User.Role.USER)
+                .orElseThrow(() -> new NotFoundException("Member not found"));
+        deleteUser(member, false);
+    }
+
+    private void deleteUser(User user, boolean allowAdmin) {
+        if (user.getRole() == User.Role.ADMIN && (!allowAdmin || users.countByRoleAndStatus(User.Role.ADMIN, User.Status.ACTIVE) <= 1))
+            throw new ConflictException("Add another active administrator before deleting this admin account");
+        profiles.findByUserId(user.getId()).map(UserProfile::getPhotoMediaKey).ifPresent(mediaStorage::deleteQuietly);
+        mealPosts.findByUserId(user.getId()).stream().map(MealPost::getMediaKey).forEach(mediaStorage::deleteQuietly);
+        users.delete(user);
+    }
+
+    private void recordHistory(User user, UserProfile profile) {
+        history.save(HealthProfileHistory.builder().user(user).heightCm(profile.getHeightCm()).weightKg(profile.getWeightKg())
+                .age(profile.getAge()).bodyFatPercent(profile.getBodyFatPercent())
+                .dietaryPreferences(profile.getDietaryPreferences()).recordedAt(clock.instant()).build());
     }
 
     private User user(String email) {

@@ -141,7 +141,7 @@ class PushNotificationIntegrationTests {
         accounts.register(member.getEmail(), pushToken, registration);
         var missedEvent = missed.save(MissedEvent.builder().user(member).itemType("Meals").itemTitle("Meal overdue").missedAt(now).build());
         reminders.nudge(missedEvent.getId()); reminders.nudge(missedEvent.getId());
-        assertThat(deliveries.count()).isEqualTo(1);
+        assertThat(deliveries.count()).isEqualTo(2);
         accounts.savePreferences(member.getEmail(), true, false);
         worker.sendPending(); assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED); verifyNoInteractions(expo);
     }
@@ -149,6 +149,7 @@ class PushNotificationIntegrationTests {
         accounts.register(member.getEmail(), pushToken, registration);
         var meal = new Meal(); meal.setUser(member); meal.setType("Breakfast"); meal.setName("Oats");
         meal.setMealDate(LocalDate.of(2026, 9, 7)); meal.setMealTime(LocalTime.of(8, 0)); meals.saveAndFlush(meal);
+        advance(1500);
         reminders.refresh(); reminders.refresh(); assertThat(deliveries.count()).isEqualTo(1);
         meal.setConsumed(true); meals.saveAndFlush(meal); worker.sendPending();
         assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED); verifyNoInteractions(expo);
@@ -157,6 +158,7 @@ class PushNotificationIntegrationTests {
         accounts.register(member.getEmail(), pushToken, registration);
         var meal = new Meal(); meal.setUser(member); meal.setType("Breakfast"); meal.setName("Oats");
         meal.setMealDate(LocalDate.of(2026, 9, 7)); meal.setMealTime(LocalTime.of(8, 0)); meals.saveAndFlush(meal);
+        advance(1500);
         reminders.refresh(); meal.setMealTime(LocalTime.of(9, 0)); meals.saveAndFlush(meal); worker.sendPending();
         assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
         advance(3600); reminders.refresh(); assertThat(deliveries.count()).isEqualTo(2);
@@ -218,7 +220,7 @@ class PushNotificationIntegrationTests {
         reminders.refresh();
         var attention = missed.findByResolvedFalseOrderByMissedAtDesc().getFirst();
         reminders.nudge(attention.getId()); reminders.nudge(attention.getId());
-        assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(2);
         assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()))
                 .extracting(NotificationEvent::getKind).contains(PushDelivery.Kind.DEADLINE, PushDelivery.Kind.NUDGE);
     }

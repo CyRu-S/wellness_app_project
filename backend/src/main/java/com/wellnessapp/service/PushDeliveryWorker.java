@@ -15,6 +15,7 @@ public class PushDeliveryWorker {
     private final PushDeliveryRepository deliveries;
     private final MealRepository meals;
     private final MissedEventRepository missed;
+    private final PlanItemCompletionRepository completions;
     private final UserRepository users;
     private final PushQueueService queue;
     private final ExpoPushClient expo;
@@ -32,10 +33,17 @@ public class PushDeliveryWorker {
             if (d.getKind() == PushDelivery.Kind.MEAL) {
                 return key != null && key.startsWith("meal-") && meals.findById(Long.parseLong(key.split("-")[1]))
                         .map(m -> !m.isConsumed() && event.getScheduledAt().equals(m.getMealDate().atTime(m.getMealTime())
-                                .atZone(applicationZoneId).toInstant().minusSeconds(1800))).orElse(false);
+                                .atZone(applicationZoneId).toInstant().minusSeconds(300))).orElse(false);
+            }
+            if (d.getKind() == PushDelivery.Kind.HABIT) {
+                if (key == null || !key.startsWith("habit-reminder-")) return false;
+                String[] parts = key.substring("habit-reminder-".length()).split("-");
+                Long itemId = Long.parseLong(parts[0]);
+                LocalDate date = LocalDate.parse(String.join("-", Arrays.copyOfRange(parts, 1, 4)));
+                return !completions.existsByPlanItemIdAndUserIdAndCompletedDate(itemId, event.getUser().getId(), date);
             }
             if (d.getKind() == PushDelivery.Kind.NUDGE) {
-                return key != null && key.startsWith("nudge-") && missed.findById(Long.parseLong(key.substring(6)))
+                return key != null && key.startsWith("nudge-") && missed.findById(Long.parseLong(key.substring(6).split("-")[0]))
                         .map(m -> !m.isResolved()).orElse(false);
             }
             if (d.getKind() == PushDelivery.Kind.SIGNUP) {
@@ -57,6 +65,7 @@ public class PushDeliveryWorker {
         return Map.of("to", d.getDevice().getExpoToken(), "title", "Mr_Care",
                 "body", switch (d.getKind()) {
                     case MEAL -> "Your meal check-in is coming up. Open your timeline for details.";
+                    case HABIT -> "A healthy habit is coming up. Open your daily plan for details.";
                     case NUDGE -> "You have a reminder from your coach. Open Mr_Care to view it.";
                     case TEST -> "Phone notifications are connected.";
                     case SIGNUP -> "A new membership request is ready to review.";
@@ -66,7 +75,7 @@ public class PushDeliveryWorker {
                     case DIGEST -> "Your morning club summary is ready.";
                     case MEAL_POST, ACTIVITY -> "A member has a new check-in. Open your admin inbox.";
                     case PLAN, ACCESS, APPROVAL -> "Your account has an update from your coach. Open Mr_Care to review.";
-                }, "sound", "default", "channelId", d.getKind() == PushDelivery.Kind.MEAL ? "meal-reminders" : "coach-nudges",
+                }, "sound", "default", "channelId", Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind()) ? "meal-reminders" : "coach-nudges",
                 "ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()),
                 "data", Map.of("notificationId", d.getNotification().getId().toString(), "userId", d.getNotification().getUser().getId().toString(),
                         "kind", d.getKind().name()));

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSelector } from 'react-redux';
+import { selectUnreadNotificationCount } from '../../store/slices/notificationSlice';
 import AppLogo from '../common/AppLogo';
 import { adminColors, adminFonts, adminShadow } from '../../theme/admin';
 
@@ -14,6 +16,8 @@ export default function AdminHeader({
   showAdminBadge = !back,
   rightImage = false,
 }) {
+  const unreadCount = useSelector(selectUnreadNotificationCount);
+  const showBadge = badge || (rightIcon?.startsWith('notifications') && unreadCount > 0);
   return (
     <View style={styles.header}>
       {back ? (
@@ -35,7 +39,7 @@ export default function AdminHeader({
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}
         >
           {rightImage ? <AppLogo size={40} /> : <Ionicons name={rightIcon} size={20} color={adminColors.ink} />}
-          {badge && <View style={styles.dot} />}
+          {showBadge && <View style={styles.dot} accessibilityLabel="Unread notifications" />}
         </Pressable>
       ) : <View style={styles.actionPlaceholder} />}
     </View>

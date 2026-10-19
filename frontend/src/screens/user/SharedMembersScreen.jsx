@@ -138,7 +138,7 @@ export default function SharedMembersScreen({ navigation }) {
       <StaggeredView delay={35} style={styles.intro}>
         <Text style={styles.eyebrow}>SHARED WITH YOU</Text>
         <Text style={styles.title}>Your circle</Text>
-        <Text style={styles.introCopy}>A private, today-only view of the members your club admin has entrusted to you.</Text>
+        <Text style={styles.introCopy}>You are the coach for the members shown here. Their today-only activity is read-only.</Text>
       </StaggeredView>
 
       <StaggeredView delay={95} style={styles.hero}>

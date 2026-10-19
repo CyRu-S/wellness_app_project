@@ -27,6 +27,7 @@ import {
   selectAdminMemberMealPlans,
   selectAdminMembers,
   updateMemberMealPlan,
+  deleteMemberAccount,
 } from '../../store/slices/adminSlice';
 import {
   loadAdminMemberJournal,
@@ -41,6 +42,7 @@ import { profileImageSource } from '../../utils/profilePhoto';
 
 const TIME_PATTERN = /^(0?[1-9]|1[0-2]):[0-5]\d\s?(AM|PM)$/i;
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Snack', 'Dinner', 'Herbalife product'];
+const HABIT_CATEGORIES = ['Activity', 'Hydration', 'Mindfulness', 'Supplements', 'Sleep'];
 
 function timeToHour(value, fallback) {
   const match = value.trim().match(TIME_PATTERN);
@@ -327,7 +329,8 @@ function WaterGoalEditor({ visible, member, currentGoal, saving, onClose, onSave
 
 function PlanEditor({ visible, member, plan, onClose, onSave }) {
   const [planName, setPlanName] = useState(plan.planName);
-  const [items, setItems] = useState(plan.items.map((item) => ({ ...item })));
+  const [items, setItems] = useState([...(plan.items || []), ...(plan.habits || [])]
+    .map((item) => ({ kind: item.kind || 'MEAL', ...item })));
   const [saving, setSaving] = useState(false);
   const [timePickerIndex, setTimePickerIndex] = useState(null);
 
@@ -335,13 +338,15 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item));
   };
 
-  const addItem = () => {
+  const addItem = (kind = 'MEAL') => {
     const index = items.length;
     setItems((current) => [
       ...current,
       {
         id: `${member?.id}-new-${Date.now()}`,
-        type: 'Snack',
+        kind,
+        type: kind === 'HEALTHY_HABIT' ? 'Healthy habit' : 'Snack',
+        category: kind === 'HEALTHY_HABIT' ? 'Activity' : null,
         name: '',
         time: '4:00 PM',
         hour: 16,
@@ -363,12 +368,12 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
   const save = async () => {
     if (saving) return;
     if (!planName.trim() || items.some((item) => !item.name.trim() || !TIME_PATTERN.test(item.time.trim()))) {
-      Alert.alert('Check the daily plan', 'Add a plan name, meal name, and time such as 8:00 AM for every meal.');
+      Alert.alert('Check the daily plan', 'Add a plan name, item description, and time such as 8:00 AM for every item.');
       return;
     }
     const timeSlots = items.map((item) => item.time.trim().toUpperCase().replace(/\s+/g, ''));
     if (new Set(timeSlots).size !== timeSlots.length) {
-      Alert.alert('Time already in use', 'Only one meal can be scheduled at a time. Choose another time before saving.');
+      Alert.alert('Time already in use', 'Only one reminder can be scheduled at a time. Choose another time before saving.');
       return;
     }
     setSaving(true);
@@ -393,16 +398,17 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
             <View style={styles.editorHeaderCopy}><Text style={styles.editorEyebrow}>RECURRING DAILY PLAN</Text><Text style={styles.editorTitle}>Plan {member.name}’s day</Text></View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close plan editor" onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={21} color={adminColors.ink} /></Pressable>
           </View>
-          <Text style={styles.editorIntro}>Save this schedule once. It will remain the member’s daily meal plan until you change it again.</Text>
+          <Text style={styles.editorIntro}>Meals and healthy habits repeat daily until you change them.</Text>
+          <View style={styles.preferenceBanner}><Ionicons name="nutrition-outline" size={18} color={adminColors.deepTeal} /><View style={styles.preferenceCopy}><Text style={styles.inputLabel}>MEMBER HEALTH PREFERENCES</Text><Text style={styles.preferenceText}>{member.dietaryPreferences || 'No preferences provided'}</Text></View></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.editorScroll}>
             <Text style={styles.inputLabel}>PLAN NAME</Text>
             <TextInput accessibilityLabel="Plan name" value={planName} onChangeText={setPlanName} placeholder="Daily meal plan" placeholderTextColor={adminColors.muted} style={styles.planInput} />
-            <Text style={styles.mealsLabel}>MEALS & TIMES</Text>
+            <Text style={styles.mealsLabel}>PLAN ITEMS & TIMES</Text>
             {items.map((meal, index) => (
               <View key={meal.id || `${meal.type}-${index}`} style={styles.editorMeal}>
                 <View style={styles.editorMealTop}>
                   <View style={styles.editorMealNumber}><Text style={styles.editorMealNumberText}>{String(index + 1).padStart(2, '0')}</Text></View>
-                  <Text style={styles.editorMealType}>{meal.type}</Text>
+                  <Text style={styles.editorMealType}>{meal.kind === 'HEALTHY_HABIT' ? meal.category : meal.type}</Text>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${meal.type}`} onPress={() => removeItem(index)} style={styles.removeMeal}>
                     <Ionicons name="trash-outline" size={17} color={adminColors.coral} />
                   </Pressable>
@@ -412,11 +418,15 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                     <Ionicons name="time-outline" size={15} color={adminColors.deepTeal} />
                   </Pressable>
                 </View>
+                <View style={styles.kindOptions}>
+                  {[['MEAL', 'Meal'], ['HEALTHY_HABIT', 'Healthy habit']].map(([kind, label]) => <Pressable key={kind} onPress={() => changeItem(index, 'kind', kind)} style={[styles.typeOption, meal.kind === kind && styles.typeOptionSelected]}><Text style={[styles.typeOptionText, meal.kind === kind && styles.typeOptionTextSelected]}>{label}</Text></Pressable>)}
+                </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeOptions}>
-                  {MEAL_TYPES.map((type) => {
-                    const selected = meal.type === type;
+                  {(meal.kind === 'HEALTHY_HABIT' ? HABIT_CATEGORIES : MEAL_TYPES).map((type) => {
+                    const field = meal.kind === 'HEALTHY_HABIT' ? 'category' : 'type';
+                    const selected = meal[field] === type;
                     return (
-                      <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => changeItem(index, 'type', type)} style={[styles.typeOption, selected && styles.typeOptionSelected]}>
+                      <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => changeItem(index, field, type)} style={[styles.typeOption, selected && styles.typeOptionSelected]}>
                         <Text style={[styles.typeOptionText, selected && styles.typeOptionTextSelected]}>{type}</Text>
                       </Pressable>
                     );
@@ -426,16 +436,20 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                   accessibilityLabel={`${meal.type} description`}
                   value={meal.name}
                   onChangeText={(value) => changeItem(index, 'name', value)}
-                  placeholder={`${meal.type} description`}
+                  placeholder={meal.kind === 'HEALTHY_HABIT' ? 'Habit, for example 20-minute walk' : `${meal.type} description`}
                   placeholderTextColor={adminColors.muted}
                   multiline
                   style={styles.mealInput}
                 />
               </View>
             ))}
-            <Pressable accessibilityRole="button" onPress={addItem} style={({ pressed }) => [styles.addMealButton, pressed && styles.pressed]}>
+            <Pressable accessibilityRole="button" onPress={() => addItem('MEAL')} style={({ pressed }) => [styles.addMealButton, pressed && styles.pressed]}>
               <View style={styles.addMealIcon}><Ionicons name="add" size={20} color={adminColors.deepTeal} /></View>
               <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add another meal</Text><Text style={styles.addMealDetail}>Create as many daily meal or product slots as needed.</Text></View>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => addItem('HEALTHY_HABIT')} style={({ pressed }) => [styles.addMealButton, pressed && styles.pressed]}>
+              <View style={styles.addMealIcon}><Ionicons name="leaf-outline" size={20} color={adminColors.deepTeal} /></View>
+              <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add healthy habit</Text><Text style={styles.addMealDetail}>Choose a category so alerts can be filtered.</Text></View>
             </Pressable>
           </ScrollView>
           {timePickerIndex != null && items[timePickerIndex] ? <MealTimePicker key={`${timePickerIndex}-${items[timePickerIndex].id}`}
@@ -491,7 +505,7 @@ export default function UserDetailsScreen({ route, navigation }) {
   const waterGoalRequest = useSelector((state) => selectAdminMemberWaterGoalRequest(state, member?.id));
   const profileMember = { ...member, ...(journal?.member || {}), id: member?.id, initials: member?.initials };
   const memberAvatarSource = avatarFailed ? null : profileImageSource(profileMember.profileImageUrl, token);
-  const plan = memberPlans[member?.id] || { planName: '', items: [] };
+  const plan = memberPlans[member?.id] || { planName: '', items: [], habits: [] };
   const todaySnapshot = journal?.today || null;
 
   // Retry image rendering when the server provides a new profile-photo version.
@@ -520,6 +534,10 @@ export default function UserDetailsScreen({ route, navigation }) {
       Alert.alert('Could not update water goal', error?.message || 'Please try again.');
     }
   };
+  const confirmDeleteMember = () => Alert.alert(`Delete ${profileMember.name}’s account?`, 'This permanently removes their profile, plans, reports, check-ins, photos, and shared access.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete account', style: 'destructive', onPress: async () => { try { await dispatch(deleteMemberAccount(member.id)).unwrap(); navigation.navigate('AdminTabs', { screen: 'UserList' }); } catch (error) { Alert.alert('Account not deleted', error.message || 'Please try again.'); } } },
+  ]);
 
   if (!member) return <AdminScreen><AdminHeader title="Member" back onBackPress={() => navigation.goBack()} /><Text>{journalRequest.status === 'failed' ? 'Member could not be loaded. Pull down to retry.' : 'Loading member...'}</Text></AdminScreen>;
   return (
@@ -583,6 +601,7 @@ export default function UserDetailsScreen({ route, navigation }) {
         <Pressable onPress={() => navigation.navigate('ManageMemberAccess', { viewerId: member.id })} style={styles.retryButton}><Text style={styles.retryText}>Manage access</Text></Pressable>
       </View>}
       {segment === 'History' && (journal ? <History days={journal.history || []} token={token} retentionDays={journal.retentionDays || 21} onOpenPhoto={setSelectedPhoto} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
+      <Pressable accessibilityRole="button" onPress={confirmDeleteMember} style={styles.deleteMember}><Ionicons name="trash-outline" size={18} color={adminColors.coral} /><Text style={styles.deleteMemberText}>Delete member account</Text></Pressable>
 
       {editingPlan ? <PlanEditor visible member={member} plan={plan} onClose={() => setEditingPlan(false)} onSave={savePlan} /> : null}
       {editingWaterGoal ? <WaterGoalEditor visible member={profileMember} currentGoal={profileMember.waterGoalMl || 2000} saving={waterGoalRequest.status === 'saving'} onClose={() => setEditingWaterGoal(false)} onSave={saveWaterGoal} /> : null}
@@ -734,6 +753,9 @@ const styles = StyleSheet.create({
   editorTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 24, lineHeight: 30, letterSpacing: -0.6, marginTop: 3 },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
   editorIntro: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, marginTop: 9 },
+  preferenceBanner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 12, borderRadius: 15, backgroundColor: adminColors.aqua, marginTop: 12 },
+  preferenceCopy: { flex: 1 },
+  preferenceText: { color: adminColors.ink, fontFamily: adminFonts.medium, fontSize: 13, lineHeight: 18, marginTop: 3 },
   editorScroll: { paddingTop: 18, paddingBottom: 12 },
   inputLabel: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.9, marginBottom: 7 },
   planInput: { minHeight: 52, paddingHorizontal: 14, borderRadius: 17, color: adminColors.ink, fontFamily: adminFonts.medium, fontSize: 15, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
@@ -747,6 +769,7 @@ const styles = StyleSheet.create({
   timeInput: { minWidth: 100, minHeight: 42, paddingHorizontal: 9, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: adminColors.aqua },
   timeInputText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 12 },
   typeOptions: { gap: 7, paddingTop: 11, paddingBottom: 1 },
+  kindOptions: { flexDirection: 'row', gap: 7, paddingTop: 11 },
   typeOption: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 13, backgroundColor: adminColors.surfaceMuted, borderWidth: 1, borderColor: adminColors.line },
   typeOptionSelected: { backgroundColor: adminColors.deepTeal, borderColor: adminColors.deepTeal },
   typeOptionText: { color: adminColors.muted, fontFamily: adminFonts.medium, fontSize: 12 },
@@ -770,4 +793,6 @@ const styles = StyleSheet.create({
   photoTitle: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 27, marginTop: 4 },
   photoMeta: { color: '#D5ECE8', fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 6 },
   pressed: { opacity: 0.68 },
+  deleteMember: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0CBC7' },
+  deleteMemberText: { color: adminColors.coral, fontFamily: adminFonts.semibold, fontSize: 14 },
 });

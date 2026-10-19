@@ -4,6 +4,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { beginPushSession, endPushSession, isOwnNotification, notificationModule, syncPushRegistration } from '../services/notifications/pushNotifications';
 import { loadNotifications, loadNotificationPreferences, setPushState } from '../store/slices/notificationSlice';
 import { invalidateCachedResponses } from '../services/api/client';
+import { loadMeals } from '../store/slices/mealSlice';
+import { loadPlan } from '../store/slices/planSlice';
+import { refreshDashboard } from '../store/slices/dashboardSlice';
+import { loadAdminAttention, loadAdminMembers } from '../store/slices/adminSlice';
 
 export default function usePushNotifications(navigationRef) {
   const dispatch = useDispatch();
@@ -46,6 +50,8 @@ export default function usePushNotifications(navigationRef) {
         invalidateCachedResponses().then(() => {
           if (stopped) return;
           dispatch(loadNotifications());
+          if (role === 'USER') { dispatch(loadMeals()); dispatch(loadPlan()); dispatch(refreshDashboard()); }
+          else { dispatch(loadAdminMembers({ force: true })); dispatch(loadAdminAttention()); }
         });
       };
       const tap = (response) => {
@@ -62,7 +68,14 @@ export default function usePushNotifications(navigationRef) {
       tap(Notifications.getLastNotificationResponse());
     }).catch((error) => { if (!stopped) dispatch(setPushState({ status: 'error', message: error.message })); });
     const foreground = AppState.addEventListener('change', (state) => {
-      if (state === 'active') { sync(); dispatch(loadNotificationPreferences()); }
+      if (state !== 'active') return;
+      sync();
+      invalidateCachedResponses().then(() => {
+        if (stopped) return;
+        dispatch(loadNotificationPreferences()); dispatch(loadNotifications());
+        if (role === 'USER') { dispatch(loadMeals()); dispatch(loadPlan()); dispatch(refreshDashboard()); }
+        else { dispatch(loadAdminMembers({ force: true })); dispatch(loadAdminAttention()); }
+      });
     });
     return () => {
       stopped = true; pendingTap.current = null; seenTap.current = null;

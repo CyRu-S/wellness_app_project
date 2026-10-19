@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { login, register as registerApi } from '../../services/api/authApi';
+import { deleteAccount as deleteAccountApi, login, register as registerApi } from '../../services/api/authApi';
 import { revokePushBeforeLogout } from '../../services/notifications/pushNotifications';
 import { getProfile } from '../../services/api/profileApi';
 import { clearSession, readSession, writeSession } from '../../services/storage/sessionStorage';
@@ -42,6 +42,11 @@ export const signOutSafely = createAsyncThunk('auth/signOutSafely', async (_, { 
   await clearSession();
   await clearCachedResponses();
   await clearProtectedImageCache();
+  dispatch(signOut());
+});
+export const deleteCurrentAccount = createAsyncThunk('auth/deleteAccount', async (_, { getState, dispatch }) => {
+  await deleteAccountApi(getState().auth.token);
+  await cancelPersistedState(); await clearSession(); await clearCachedResponses(); await clearProtectedImageCache();
   dispatch(signOut());
 });
 const slice = createSlice({

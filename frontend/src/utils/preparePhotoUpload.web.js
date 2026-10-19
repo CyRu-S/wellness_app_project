@@ -12,6 +12,10 @@ export async function preparePhotoUpload(photo, maxDimension = 1600) {
   canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Image preparation is unavailable in this browser.');
+  // JPEG has no alpha channel. Paint a light background first so transparent
+  // iPhone PNGs do not flatten to black in Safari/PWA uploads.
+  context.fillStyle = '#FFFFFF';
+  context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
   const uri = canvas.toDataURL('image/jpeg', 0.8);
   return { ...photo, uri, persistentUri: uri, width: canvas.width, height: canvas.height,

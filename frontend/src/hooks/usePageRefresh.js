@@ -29,7 +29,7 @@ export default function usePageRefresh() {
     if (name === 'Alerts') return { paths: ['/admin/attention'], actions: [loadAdminAttention()] };
     if (name === 'UserList') return { paths: ['/admin/members'], actions: [loadAdminDirectory()] };
     if (name === 'UserRequests') return { paths: ['/admin/approvals'], actions: [loadAdminApprovals()] };
-    if (name === 'Dashboard') return { paths: ['/dashboard', '/meals/today', '/plans/today', '/meal-posts'], actions: [refreshDashboard(), loadMeals()] };
+    if (name === 'Dashboard') return { paths: ['/dashboard', '/meals/today', '/plans/today', '/meal-posts'], actions: [refreshDashboard(), loadMeals(), loadPlan()] };
     if (['TodayTimeline', 'MealDetails'].includes(name)) return { paths: ['/meals/today', '/plans/today', '/meal-posts'], actions: [loadMeals()] };
     if (name === 'ActivityTimer' || name === 'Move') return { paths: ['/activities'], actions: [loadActivities()] };
     if (name === 'DailyPlan') return { paths: ['/plans/today'], actions: [loadPlan()] };

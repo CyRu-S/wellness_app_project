@@ -29,9 +29,11 @@ export const loadAdminProducts = createAsyncThunk('admin/loadProducts', async (_
   request('/admin/products', { headers: headers(getState) }), pageReadOptions);
 export const loadAdminMemberPlan = createAsyncThunk('admin/loadMemberPlan', async (memberId, { getState }) =>
   request(`/admin/plans/members/${memberId}`, { headers: headers(getState) }), pageReadOptions);
-const decision = (name, value) => createAsyncThunk(name, async (id, { getState }) => {
+const decision = (name, value) => createAsyncThunk(name, async (input, { getState }) => {
+  const id = typeof input === 'object' ? input.id : input;
   const member = getState().admin.approvals.find((r) => r.id === id);
-  await request(`/admin/users/${id}/approval`, { method: 'PATCH', headers: headers(getState), body: JSON.stringify({ decision: value }) });
+  await request(`/admin/users/${id}/approval`, { method: 'PATCH', headers: headers(getState),
+    body: JSON.stringify({ decision: value, followUpDays: value === 'APPROVE' ? Number(input?.followUpDays) || 7 : null }) });
   return { request: member, decision: value === 'APPROVE' ? 'approved' : 'declined' };
 });
 export const approveRequest = decision('admin/approve', 'APPROVE');
@@ -41,6 +43,10 @@ const attentionAction = (name, action, method) => createAsyncThunk(name, async (
 });
 export const nudgeAttention = attentionAction('admin/nudge', 'nudge', 'POST');
 export const resolveAttention = attentionAction('admin/resolve', 'resolve', 'PATCH');
+export const deleteMemberAccount = createAsyncThunk('admin/deleteMember', async (memberId, { getState }) => {
+  await request(`/admin/users/${memberId}`, { method: 'DELETE', headers: headers(getState) });
+  return memberId;
+});
 export const nudgePriorityAttention = createAsyncThunk('admin/nudgePriority', async (_, { getState, dispatch }) => {
   const ids = getState().admin.attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN').map((item) => item.id);
   await Promise.all(ids.map((id) => dispatch(nudgeAttention(id)).unwrap()));
@@ -50,12 +56,13 @@ export const updateMemberMealPlan = createAsyncThunk('admin/savePlan', async ({ 
     const minutes = Math.round(item.hour * 60);
     return { id: Number.isSafeInteger(Number(item.id)) ? Number(item.id) : null,
       type: item.type, name: item.name, time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}:00`,
-      calories: Number(item.calories) || 0, protein: Number(item.protein) || 0, ingredients: item.ingredients || [] };
+      calories: Number(item.calories) || 0, protein: Number(item.protein) || 0, ingredients: item.ingredients || [],
+      kind: item.kind || 'MEAL', category: item.category || null };
   }) };
   const result = await request(`/admin/plans/members/${memberId}`, { method: 'PUT', headers: headers(getState), body: JSON.stringify(body) });
   return result;
 });
-const writes = [approveRequest, declineRequest, nudgeAttention, resolveAttention, updateMemberMealPlan];
+const writes = [approveRequest, declineRequest, nudgeAttention, resolveAttention, updateMemberMealPlan, deleteMemberAccount];
 const emptyRange = { label: '', totalLogs: 0, completionRate: 0, comparison: 0, series: [] };
 const initialState = {
   summary: { pendingApprovals: 0, mealLogsToday: 0, mealComparison: 0, missedItems: 0, activeUsers: 0, totalMembers: 0, averageAdherence: 0, onTrackPercentage: 0, activePlans: 0, products: 0 },
@@ -115,7 +122,8 @@ const slice = createSlice({
     .addCase(loadAdminMemberPlan.pending, (state, action) => { state.pageReads['plan'] = action.meta.requestId; })
     .addCase(loadAdminMemberPlan.fulfilled, (state, action) => {
       if (state.pageReads['plan'] !== action.meta.requestId || Object.keys(state.writes).length) return;
-      delete state.pageReads['plan']; state.memberMealPlans[action.meta.arg] = { ...action.payload, items: action.payload.items.map(normalizeMeal) }; })
+      delete state.pageReads['plan']; state.memberMealPlans[action.meta.arg] = { ...action.payload, items: action.payload.items.map(normalizeMeal),
+        habits: (action.payload.habits || []).map(normalizeMeal) }; })
     .addCase(loadAdminMembers.pending, (state, action) => { state.membersStatus = 'loading'; state.readId = action.meta.requestId; })
     .addCase(loadAdminMembers.fulfilled, (state, action) => {
       if (state.readId !== action.meta.requestId) return;
@@ -132,14 +140,15 @@ const slice = createSlice({
       const selectedRange = state.mealInsights.selectedRange;
       Object.assign(state, action.payload, { membersStatus: 'succeeded', membersError: null });
       state.mealInsights.selectedRange = selectedRange;
-      Object.values(state.memberMealPlans).forEach((plan) => { plan.items = plan.items.map(normalizeMeal); });
+      Object.values(state.memberMealPlans).forEach((plan) => { plan.items = plan.items.map(normalizeMeal); plan.habits = (plan.habits || []).map(normalizeMeal); });
     })
     .addCase(loadAdminMembers.rejected, (state, action) => {
       if (state.readId !== action.meta.requestId) return;
       state.readId = null; state.membersStatus = 'failed'; state.membersError = action.error.message;
     })
     .addCase(updateMemberMealPlan.fulfilled, (state, action) => {
-      state.memberMealPlans[action.meta.arg.memberId] = { ...action.payload, items: action.payload.items.map(normalizeMeal) };
+      state.memberMealPlans[action.meta.arg.memberId] = { ...action.payload, items: action.payload.items.map(normalizeMeal),
+        habits: (action.payload.habits || []).map(normalizeMeal) };
       const member = state.members.find((row) => row.id === action.meta.arg.memberId);
       if (member) member.plan = action.payload.planName || 'No plan assigned';
     })
@@ -178,6 +187,11 @@ const slice = createSlice({
       if (rollback && !state.attention.some((row) => row.id === rollback.item.id)) state.attention.splice(rollback.index, 0, rollback.item);
       delete state.attentionRollbacks[action.meta.requestId];
     })
+    .addCase(deleteMemberAccount.fulfilled, (state, action) => {
+      state.members = state.members.filter((member) => member.id !== action.payload);
+      state.attention = state.attention.filter((item) => item.memberId !== action.payload);
+      delete state.memberMealPlans[action.payload]; state.summary.totalMembers = state.members.length;
+    })
     .addMatcher((action) => writes.some((write) => write.pending.match(action)), (state, action) => {
       state.writes[action.meta.requestId] = true; state.readId = null; state.pageReads = {};
     })
@@ -186,7 +200,8 @@ const slice = createSlice({
     })
     .addMatcher((a) => [approveRequest.fulfilled.type, declineRequest.fulfilled.type].includes(a.type), (state, action) => {
       state.lastApprovalDecision = action.payload;
-      state.approvals = state.approvals.filter((member) => member.id !== action.meta.arg);
+      const decisionId = typeof action.meta.arg === 'object' ? action.meta.arg.id : action.meta.arg;
+      state.approvals = state.approvals.filter((member) => member.id !== decisionId);
       state.summary.pendingApprovals = state.approvals.length;
       const approved = action.payload.request;
       if (action.payload.decision === 'approved' && approved && !state.members.some((row) => row.id === approved.id)) {

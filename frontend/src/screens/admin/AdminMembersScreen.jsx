@@ -11,6 +11,7 @@ import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl'
 import { selectAdminMembers, selectAdminSummary } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 import { profileImageSource } from '../../utils/profilePhoto';
+import { matchesSearch } from '../../utils/search';
 
 function PulseMetric({ value, label, last, stacked }) {
   return (
@@ -102,13 +103,12 @@ export default function AdminMembersScreen({ navigation }) {
 
 
   const visibleMembers = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
     return members.filter((member) => {
-      const matchesSearch = !normalized || `${member.name} ${member.plan}`.toLowerCase().includes(normalized);
+      const matchesQuery = matchesSearch(query, member.name, member.email, member.plan, member.goal, member.attentionReason);
       const matchesFilter = filter === 'All'
         || (filter === 'Active' && isOnline(member, now))
         || (filter === 'Needs attention' && member.attentionLevel === 'NEEDS_ATTENTION');
-      return matchesSearch && matchesFilter;
+      return matchesQuery && matchesFilter;
     });
   }, [filter, members, query, now]);
 
@@ -151,7 +151,9 @@ export default function AdminMembersScreen({ navigation }) {
           <TextInput
             accessibilityLabel="Search members"
             autoCapitalize="words"
-            placeholder="Search name or plan"
+            autoCorrect={false}
+            returnKeyType="search"
+            placeholder="Search name, email, plan or goal"
             placeholderTextColor={adminColors.muted}
             value={query}
             onChangeText={setQuery}

@@ -149,15 +149,18 @@ public class AdminWorkspaceService {
                 "mealInsights", Map.of("selectedRange", "TODAY", "ranges", ranges, "mealTypes", mealTypes, "missingMembers", missing));
     }
 
-    @Transactional public void decide(Long id, String decision) {
+    @Transactional public void decide(Long id, String decision, Integer followUpDays) {
         var user = users.lockById(id).filter(u -> u.getRole() == User.Role.USER).orElseThrow(() -> new NotFoundException("Member not found"));
         if (user.getStatus() != User.Status.PENDING) throw new ConflictException("This request has already been reviewed");
         if (user.getEmailVerifiedAt() == null) throw new ConflictException("The member must verify their email before approval");
         user.setStatus(switch (decision) { case "APPROVE" -> User.Status.ACTIVE; case "DECLINE" -> User.Status.SUSPENDED; default -> throw new BadRequestException("Invalid decision"); });
+        user.setFollowUpAt(user.getStatus() == User.Status.ACTIVE && followUpDays != null
+                ? clock.instant().plus(Duration.ofDays(followUpDays)) : null);
         users.save(user);
         if (user.getStatus() == User.Status.ACTIVE) notices.notify(user, PushDelivery.Kind.APPROVAL, "approval-" + user.getId(),
                 "Your membership is approved", "Your admin approved your registration. You can now use your member account.");
     }
+    public void decide(Long id, String decision) { decide(id, decision, null); }
     private void presence(Map<String, Object> row, User user) {
         boolean online = user.getLastSeenAt() != null && user.getLastSeenAt().isAfter(clock.instant().minusSeconds(120));
         row.put("online", online);

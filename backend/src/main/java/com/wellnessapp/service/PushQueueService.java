@@ -16,7 +16,7 @@ public class PushQueueService {
 
     public boolean allowed(Long userId, PushDelivery.Kind kind) {
         return preferences.findById(userId).map(p -> switch (kind) {
-            case MEAL -> p.isMealReminders(); case NUDGE -> p.isCoachNudges(); case TEST -> true;
+            case MEAL, HABIT -> p.isMealReminders(); case NUDGE -> p.isCoachNudges(); case TEST -> true;
             case SIGNUP -> p.isSignupAlerts(); case DEADLINE -> p.isDeadlineAlerts(); case DIGEST -> p.isDailyDigest();
             case MEAL_POST, ACTIVITY -> p.isMemberUpdates(); case PLAN, ACCESS, APPROVAL -> p.isAccountUpdates();
         }).orElse(kind != PushDelivery.Kind.DIGEST);
@@ -31,7 +31,8 @@ public class PushQueueService {
             var row = new PushDelivery();
             row.setNotification(event); row.setDevice(device); row.setRegistrationId(device.getRegistrationId());
             row.setKind(kind); row.setStatus(PushDelivery.Status.QUEUED);
-            row.setNextAttemptAt(clock.instant()); row.setExpiresAt(expiresAt);
+            row.setNextAttemptAt(event.getScheduledAt().isAfter(clock.instant()) ? event.getScheduledAt() : clock.instant());
+            row.setExpiresAt(expiresAt);
             deliveries.save(row);
         }
     }

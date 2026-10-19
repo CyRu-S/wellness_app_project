@@ -45,13 +45,15 @@ test('web meal photos are resized and encoded as JPEG before upload', async () =
     naturalWidth = 4032; naturalHeight = 3024;
     set src(uri) { assert.equal(uri, 'blob:iphone-photo'); this.onload(); }
   }
-  const canvas = { getContext: () => ({ drawImage: () => {} }), toDataURL: (mime, quality) => {
+  let backgroundFilled = false;
+  const canvas = { getContext: () => ({ drawImage: () => {}, fillRect: () => { backgroundFilled = true; } }), toDataURL: (mime, quality) => {
     encoded = { mime, quality }; return 'data:image/jpeg;base64,prepared';
   } };
   const { preparePhotoUpload } = loadModule('../src/utils/preparePhotoUpload.web.js', {}, { Image, document: { createElement: () => canvas } });
   const photo = await preparePhotoUpload({ uri: 'blob:iphone-photo' });
   assert.equal(photo.width, 1600); assert.equal(photo.height, 1200);
   assert.equal(photo.mimeType, 'image/jpeg'); assert.equal(encoded.quality, 0.8);
+  assert.equal(backgroundFilled, true);
   assert.equal(photo.uri, 'data:image/jpeg;base64,prepared');
 });
 

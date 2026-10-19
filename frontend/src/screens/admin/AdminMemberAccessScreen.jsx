@@ -25,6 +25,7 @@ import {
   adminRadius,
   adminShadow,
 } from '../../theme/admin';
+import { matchesSearch } from '../../utils/search';
 
 const initialsFor = (name = '') => name
   .split(/\s+/)
@@ -48,7 +49,7 @@ function ViewerCard({ viewer, token, onPress }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${viewer.name}. ${viewer.assignedCount} ${viewer.assignedCount === 1 ? 'member' : 'members'} assigned. Manage access.`}
+      accessibilityLabel={`${viewer.name}, coach. ${viewer.assignedCount} ${viewer.assignedCount === 1 ? 'member' : 'members'} assigned. Manage access.`}
       onPress={onPress}
       style={({ pressed }) => [styles.viewerShell, pressed && styles.pressed]}
     >
@@ -61,12 +62,12 @@ function ViewerCard({ viewer, token, onPress }) {
           </View>
           <View style={[styles.countPill, !hasAccess && styles.countPillEmpty]}>
             <Text style={[styles.countValue, !hasAccess && styles.countValueEmpty]}>{viewer.assignedCount}</Text>
-            <Text style={[styles.countLabel, !hasAccess && styles.countValueEmpty]}>ACCESS</Text>
+            <Text style={[styles.countLabel, !hasAccess && styles.countValueEmpty]}>MEMBERS</Text>
           </View>
         </View>
 
         <View style={styles.assignmentBlock}>
-          <Text style={styles.assignmentLabel}>{hasAccess ? 'CAN VIEW TODAY' : 'NO SHARED MEMBERS'}</Text>
+          <Text style={styles.assignmentLabel}>{hasAccess ? 'COACH CAN VIEW THESE MEMBERS' : 'NO MEMBERS ASSIGNED'}</Text>
           {hasAccess ? (
             <View style={styles.memberPreviewRow}>
               {preview.map((member) => (
@@ -78,7 +79,7 @@ function ViewerCard({ viewer, token, onPress }) {
               {remaining > 0 ? <Text style={styles.remainingText}>+{remaining} more</Text> : null}
             </View>
           ) : (
-            <Text style={styles.emptyAssignmentText}>Choose members whose daily activity this person can follow.</Text>
+            <Text style={styles.emptyAssignmentText}>Assign members whose daily activity this coach can view.</Text>
           )}
         </View>
 
@@ -126,16 +127,12 @@ export default function AdminMemberAccessScreen({ navigation }) {
   }, [dispatch, request.status]);
 
   const visibleViewers = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
     const viewers = overview.viewers.map((viewer) => ({
       ...viewer,
       profileImageUrl: members.find((member) => String(member.id) === String(viewer.id))?.profileImageUrl,
     }));
-    if (!normalized) return viewers;
-    return viewers.filter((viewer) => (
-      viewer.name.toLowerCase().includes(normalized)
-      || viewer.assignedMembers.some((member) => member.name.toLowerCase().includes(normalized))
-    ));
+    return viewers.filter((viewer) => matchesSearch(query, viewer.name, viewer.email,
+      viewer.assignedMembers?.map((member) => member.name)));
   }, [members, overview.viewers, query]);
 
   const ready = request.status === 'succeeded';
@@ -147,7 +144,7 @@ export default function AdminMemberAccessScreen({ navigation }) {
       <View style={styles.heading}>
         <Text style={styles.eyebrow}>TRUST & VISIBILITY</Text>
         <Text style={styles.title}>Support, shared with intention.</Text>
-        <Text style={styles.subtitle}>Choose exactly who each member can follow. Access is read-only and limited to today’s activity.</Text>
+        <Text style={styles.subtitle}>Choose each coach, then assign the members they can view. Access is read-only and limited to today.</Text>
       </View>
 
       <View style={styles.heroShell}>
@@ -161,7 +158,7 @@ export default function AdminMemberAccessScreen({ navigation }) {
             </View>
           </View>
           <Text style={styles.heroStatement}>A clear circle of care.</Text>
-          <Text style={styles.heroCopy}>Members only see the people you place in their shared space.</Text>
+          <Text style={styles.heroCopy}>Coaches only see the members assigned to them.</Text>
           <View style={styles.heroMetrics}>
             <View style={styles.heroMetric}>
               <Text style={styles.heroMetricValue}>{overview.totalGrants}</Text>
@@ -190,6 +187,8 @@ export default function AdminMemberAccessScreen({ navigation }) {
           <TextInput
             accessibilityLabel="Search access journal"
             autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="search"
             placeholder="Search member or assignment"
             placeholderTextColor={adminColors.muted}
             value={query}

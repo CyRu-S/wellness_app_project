@@ -5,6 +5,7 @@ export const requestPasswordReset = (email) => request('/auth/forgot-password', 
 export const resetPassword = (email, otp, newPassword) => request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, otp, newPassword }) });
 export const verifyEmail = (email, otp) => request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ email, otp }) });
 export const resendVerification = (email) => request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) });
+export const deleteAccount = (token) => request('/profile/account', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
 
 const registrationDetails = (profile, extra = {}) => {
   const number = (value) => value === '' || value == null ? null : Number(value);

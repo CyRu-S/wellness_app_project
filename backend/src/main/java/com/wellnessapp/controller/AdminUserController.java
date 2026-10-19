@@ -25,6 +25,8 @@ import java.util.List;
             @Valid @RequestBody UpdateMemberWaterGoalRequest request) {
         return journals.updateWaterGoal(memberId, request);
     }
+    @DeleteMapping("/{memberId}") @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteMember(@PathVariable Long memberId) { profiles.deleteMember(memberId); }
     @GetMapping("/{memberId}/profile-photo")
     ResponseEntity<org.springframework.core.io.Resource> profilePhoto(
             Authentication authentication,

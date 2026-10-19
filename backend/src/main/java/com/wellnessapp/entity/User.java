@@ -37,5 +37,6 @@ public class User {
     @Column(name = "email_verified_at") private Instant emailVerifiedAt;
     @Column(name = "phone_number", length = 30) private String phoneNumber;
     @Column(name = "club_name", length = 120) private String clubName;
+    @Column(name = "follow_up_at") private Instant followUpAt;
 }
 

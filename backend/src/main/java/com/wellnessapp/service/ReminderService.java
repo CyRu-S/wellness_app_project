@@ -56,9 +56,9 @@ public class ReminderService {
                     missed.findBySourceKey(key).ifPresent(event -> { event.setResolved(true); missed.save(event); });
                     continue;
                 }
-                if (!clock.instant().isBefore(due.minusSeconds(1800)) && !clock.instant().isAfter(due.plusSeconds(3600)) && !notifications.existsBySourceKey(notificationKey)) {
+                if (!clock.instant().isBefore(due.minusSeconds(300)) && !clock.instant().isAfter(due.plusSeconds(3600)) && !notifications.existsBySourceKey(notificationKey)) {
                     var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(notificationKey).title(meal.getType() + " check-in")
-                            .body(meal.getName() + " is scheduled for " + meal.getMealTime()).scheduledAt(due.minusSeconds(1800)).build());
+                            .body(meal.getName() + " is scheduled for " + meal.getMealTime()).scheduledAt(due.minusSeconds(300)).build());
                     push.enqueue(notification, PushDelivery.Kind.MEAL, due.plusSeconds(3600));
                 }
                 if (clock.instant().isAfter(due)) {
@@ -70,6 +70,40 @@ public class ReminderService {
                                 "Your meal check-in is overdue", "Open your timeline to review your missed meal check-in.");
                     }
                 }
+            }
+            for (var habit : plans.healthyHabits(user.getId())) {
+                var due = today.atTime(habit.getScheduledTime()).atZone(applicationZoneId).toInstant();
+                String dayKey = "habit-" + habit.getId() + "-" + today;
+                String reminderKey = "habit-reminder-" + habit.getId() + "-" + today;
+                if (plans.habitCompleted(user.getId(), habit.getId(), today)) {
+                    missed.findBySourceKey(dayKey).ifPresent(event -> { event.setResolved(true); missed.save(event); });
+                    continue;
+                }
+                if (!clock.instant().isBefore(due.minusSeconds(300)) && !clock.instant().isAfter(due.plusSeconds(3600))
+                        && !notifications.existsBySourceKey(reminderKey)) {
+                    var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(reminderKey)
+                            .title("Healthy habit reminder").body(habit.getTitle() + " is scheduled for " + habit.getScheduledTime())
+                            .scheduledAt(due.minusSeconds(300)).build());
+                    push.enqueue(notification, PushDelivery.Kind.HABIT, due.plusSeconds(3600));
+                }
+                if (clock.instant().isAfter(due)) {
+                    var attention = missed.findBySourceKey(dayKey).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
+                            .sourceKey(dayKey).itemType(habit.getDetail()).itemTitle(habit.getTitle() + " is overdue")
+                            .missedAt(due).build()));
+                    if (!attention.isResolved()) notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(),
+                            "A healthy habit needs attention", user.getFullName() + " missed " + habit.getTitle() + ". Open Attention to review it.");
+                }
+            }
+            if (user.getFollowUpAt() != null && !clock.instant().isBefore(user.getFollowUpAt())) {
+                Instant due = user.getFollowUpAt();
+                String key = "followup-" + user.getId() + "-" + due.getEpochSecond();
+                var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
+                        .sourceKey(key).itemType("Follow-up").itemTitle("Scheduled member follow-up")
+                        .missedAt(due).build()));
+                notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "Member follow-up is due",
+                        "Follow up with " + user.getFullName() + ". Open Attention to review their progress.");
+                user.setFollowUpAt(null);
+                users.save(user);
             }
             // A daily goal is assessed at the configured local deadline, never early in the day.
             for (var day : List.of(today.minusDays(1), today)) {
@@ -111,15 +145,17 @@ public class ReminderService {
 
     @Transactional(readOnly = true) public List<Map<String, Object>> attention() {
         var events = missed.findByResolvedFalseOrderByMissedAtDesc();
-        var nudgeKeys = events.stream().map(e -> "nudge-" + e.getId()).toList();
-        var nudged = nudgeKeys.isEmpty() ? Set.<String>of() : new HashSet<>(notifications.existingSourceKeys(nudgeKeys));
+        Set<Long> nudgedIds = notifications.sourceKeysStartingWith("nudge-").stream().map(key -> {
+            try { return Long.parseLong(key.substring(6).split("-")[0]); }
+            catch (RuntimeException ignored) { return null; }
+        }).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
         return events.stream().filter(e -> e.getUser().getStatus() == User.Status.ACTIVE).map(e -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", e.getId()); row.put("memberId", e.getUser().getId()); row.put("memberName", e.getUser().getFullName());
             row.put("initials", AdminWorkspaceService.initials(e.getUser().getFullName())); row.put("category", e.getItemType()); row.put("title", e.getItemTitle());
             row.put("missedAt", e.getMissedAt().atZone(applicationZoneId).format(java.time.format.DateTimeFormatter.ofPattern("d MMM, h:mm a")));
             row.put("severity", e.getMissedAt().isBefore(clock.instant().minusSeconds(10800)) ? "HIGH" : "MEDIUM");
-            row.put("status", nudged.contains("nudge-" + e.getId()) ? "NUDGED" : "OPEN"); return row;
+            row.put("status", nudgedIds.contains(e.getId()) ? "NUDGED" : "OPEN"); return row;
         }).toList();
     }
     @Transactional public void resolve(Long id) {
@@ -129,8 +165,8 @@ public class ReminderService {
     @Transactional public void nudge(Long id) {
         var event = missed.findById(id).orElseThrow(() -> new NotFoundException("Attention item not found"));
         users.lockById(event.getUser().getId()).orElseThrow();
-        if (event.isResolved() || notifications.existsBySourceKey("nudge-" + id)) return;
-        var notification = notifications.save(NotificationEvent.builder().user(event.getUser()).sourceKey("nudge-" + id).title("A reminder from your coach")
+        if (event.isResolved()) return;
+        var notification = notifications.save(NotificationEvent.builder().user(event.getUser()).sourceKey("nudge-" + id + "-" + UUID.randomUUID()).title("A reminder from your coach")
                 .body(event.getItemTitle()).scheduledAt(clock.instant()).build());
         push.enqueue(notification, PushDelivery.Kind.NUDGE, clock.instant().plusSeconds(14400));
     }

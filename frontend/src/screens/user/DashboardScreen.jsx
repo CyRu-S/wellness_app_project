@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
@@ -14,6 +14,7 @@ import ProgressRing from '../../components/dashboard/ProgressRing';
 import MealSchedule, { getMealStatus } from '../../components/meal/MealSchedule';
 import UserHeader from '../../components/user/UserHeader';
 import { drinkWater } from '../../store/slices/dashboardSlice';
+import { completeHealthyHabit } from '../../store/slices/planSlice';
 import { confirmRetry } from '../../utils/confirmRetry';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
@@ -27,12 +28,21 @@ export default function DashboardScreen({ navigation }) {
   const dashboard = useSelector((state) => state.dashboard);
   const activity = useSelector((state) => state.activity);
   const meals = useSelector((state) => state.meals);
+  const plan = useSelector((state) => state.plan);
   const dispatch = useDispatch();
+  const [waterComplete, setWaterComplete] = useState(false);
+  const previousWater = useRef(null);
   const firstName = user?.name?.split(' ')[0] || 'there';
   const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
   const nextMeal = meals.items.find((meal) => !meal.consumed);
   const loggedMeals = meals.items.filter((meal) => meal.consumed).length;
   const hydration = dashboard.waterTarget ? Math.min(100, Math.round((dashboard.waterGlasses / dashboard.waterTarget) * 100)) : 0;
+  const healthyHabits = plan.tasks.filter((task) => task.type === 'HEALTHY_HABIT');
+  useEffect(() => {
+    const previous = previousWater.current;
+    if (previous != null && previous < dashboard.waterTarget && dashboard.waterGlasses >= dashboard.waterTarget) setWaterComplete(true);
+    previousWater.current = dashboard.waterGlasses;
+  }, [dashboard.waterGlasses, dashboard.waterTarget]);
   const latestActivity = dashboard.lastActivity;
   const addWater = () => {
     const save = () => dispatch(drinkWater());
@@ -78,11 +88,18 @@ export default function DashboardScreen({ navigation }) {
         <MealSchedule items={meals.items} compact showPhotoAction={false} />
       </StaggeredView>
       <StaggeredView delay={310} style={styles.section}><HydrationMeter value={dashboard.waterGlasses} target={dashboard.waterTarget} pending={!!dashboard.optimistic.water} onAdd={addWater} /><SyncFeedback label="Water" pending={!!dashboard.optimistic.water} error={dashboard.waterError} onRetry={addWater} /></StaggeredView>
+      {healthyHabits.length ? <StaggeredView delay={340} style={styles.section}>
+        <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>HEALTHY HABITS</Text><Text style={styles.sectionTitle}>Today’s habits</Text></View></View>
+        <View style={styles.habitList}>{healthyHabits.map((habit) => <Pressable key={habit.id} disabled={habit.done || plan.completingId === habit.id} onPress={() => dispatch(completeHealthyHabit(habit.id))} style={({ pressed }) => [styles.habitRow, pressed && styles.pressed]}><View style={[styles.habitCheck, habit.done && styles.habitCheckDone]}>{habit.done ? <Ionicons name="checkmark" size={16} color={colors.white} /> : <Ionicons name="leaf-outline" size={16} color={colors.tealDark} />}</View><View style={styles.activityCopy}><Text style={[styles.activityName, habit.done && styles.habitDone]}>{habit.title}</Text><Text style={styles.activityMeta}>{habit.category || habit.detail} · {String(habit.scheduledTime || '').slice(0, 5)}</Text></View><Text style={styles.allLink}>{habit.done ? 'Done' : 'Complete'}</Text></Pressable>)}</View>
+      </StaggeredView> : null}
       <StaggeredView delay={370} style={styles.section}>
         <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>MOVEMENT</Text><Text style={styles.sectionTitle}>Today’s activity</Text></View><Pressable onPress={() => navigation.navigate('Move')}><Text style={styles.allLink}>Start timer</Text></Pressable></View>
         <SyncFeedback label="Activity" pending={!!activity.pendingSession} error={activity.error} onRetry={() => activity.failedSession ? confirmRetry('Activity', () => dispatch(completeActivity(activity.failedSession))) : dispatch(loadActivities())} />
         <View style={styles.activitySummary}><View style={styles.activityIcon}><Ionicons name="walk" size={24} color={colors.tealDark} /></View><View style={styles.activityCopy}><Text style={styles.activityName}>{latestActivity?.activity || 'No activity logged'}</Text><Text style={styles.activityMeta}>{latestActivity ? `${latestActivity.minutes} min · ${latestActivity.calories} kcal burned` : 'Start a guided activity to update this section'}</Text></View><View><AnimatedNumber value={dashboard.activeMinutes} style={styles.activityValue} suffix="m" /><Text style={styles.activityLabel}>TODAY</Text></View></View>
       </StaggeredView>
+      <Modal visible={waterComplete} transparent animationType="fade" onRequestClose={() => setWaterComplete(false)}>
+        <View style={styles.waterModalBackdrop}><View style={styles.waterModal}><View style={styles.waterDrop}><Ionicons name="water" size={36} color={colors.white} /></View><Text style={styles.waterModalTitle}>Hydration goal complete</Text><Text style={styles.waterModalText}>You reached today’s water target.</Text><Pressable accessibilityRole="button" onPress={() => setWaterComplete(false)} style={styles.waterModalButton}><Text style={styles.waterModalButtonText}>Done</Text></Pressable></View></View>
+      </Modal>
     </Screen>
   );
 }
@@ -100,4 +117,15 @@ const styles = StyleSheet.create({
   alert: { flexDirection: 'row', alignItems: 'center', gap: 10, borderLeftWidth: 3, borderLeftColor: colors.danger, backgroundColor: '#FFF4F2', borderRadius: radius.sm, padding: 13, marginTop: 14 }, alertCopy: { flex: 1 }, alertTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 13 }, alertMeta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 2 },
   section: { marginTop: 32 }, sectionHead: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }, sectionTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 21, marginTop: 5 }, sectionMeta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 4 }, allLink: { color: colors.tealMid, fontFamily: fonts.semibold, fontSize: 12 },
   activitySummary: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 15, paddingVertical: 18, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, activityIcon: { width: 50, height: 50, borderRadius: 17, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }, activityCopy: { flex: 1 }, activityName: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16 }, activityMeta: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, marginTop: 4 }, activityValue: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 22, textAlign: 'right' }, activityLabel: { ...type.label, color: colors.muted, fontSize: 10, textAlign: 'right' },
+  habitList: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  habitRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
+  habitCheck: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
+  habitCheckDone: { backgroundColor: colors.tealMid }, habitDone: { color: colors.muted, textDecorationLine: 'line-through' },
+  waterModalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,35,40,0.58)' },
+  waterModal: { width: '100%', maxWidth: 360, alignItems: 'center', padding: 26, borderRadius: radius.xl, backgroundColor: colors.surface },
+  waterDrop: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.tealMid },
+  waterModalTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 22, marginTop: 17 },
+  waterModalText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, marginTop: 6 },
+  waterModalButton: { minWidth: 130, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.tealMid, marginTop: 20 },
+  waterModalButtonText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 14 },
 });

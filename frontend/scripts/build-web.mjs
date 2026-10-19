@@ -9,7 +9,10 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 process.env.NODE_ENV = 'production';
 require('@expo/env').load(root, { silent: true });
 validatePwaApi(process.env);
-const result = spawnSync(process.execPath, [require.resolve('expo/bin/cli'), 'export', '--platform', 'web'],
+// Public Expo variables are compiled into the bundle. A cached Metro transform can
+// otherwise retain an API URL from an earlier build, so production exports must
+// start with a clean transform cache.
+const result = spawnSync(process.execPath, [require.resolve('expo/bin/cli'), 'export', '--platform', 'web', '--clear'],
   { cwd: root, env: process.env, stdio: 'inherit' });
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status || 1);
