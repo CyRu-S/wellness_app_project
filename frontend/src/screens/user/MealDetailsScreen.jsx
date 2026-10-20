@@ -1,7 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import Alert from '../../utils/appAlert';
+import { deleteMealPost } from '../../store/slices/mealSlice';
 import Image from '../../components/common/ProtectedImage';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import Screen from '../../components/common/Screen';
@@ -10,6 +12,7 @@ import { colors, fonts, radius, type } from '../../theme';
 import { protectedImageSource } from '../../utils/memberJournal';
 
 export default function MealDetailsScreen({ navigation, route }) {
+  const dispatch = useDispatch();
   const meals = useSelector((state) => state.meals);
   const token = useSelector((state) => state.auth.token);
   const plannedMeal = meals.items.find((item) => String(item.id) === String(route.params?.mealId));
@@ -35,6 +38,13 @@ export default function MealDetailsScreen({ navigation, route }) {
 
   if (!meal) return <Screen><UserHeader navigation={navigation} title="Meal details" /><Text>This meal is no longer available.</Text></Screen>;
   const imageSource = protectedImageSource(meal, token);
+  const confirmDelete = () => Alert.alert('Delete this post?', 'The photo and check-in will be permanently removed so you can upload the correct one.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete post', style: 'destructive', onPress: async () => {
+      try { await dispatch(deleteMealPost(post.id)).unwrap(); navigation.goBack(); }
+      catch (error) { Alert.alert('Post not deleted', error.message || 'Please try again.'); }
+    } },
+  ]);
 
   return (
     <Screen>
@@ -53,6 +63,7 @@ export default function MealDetailsScreen({ navigation, route }) {
       </View>
       {meal.ingredients.length ? <><Text style={styles.ingredients}>INGREDIENTS</Text>{meal.ingredients.map((item, index) => <View key={`${item}-${index}`} style={styles.ingredient}><Text style={styles.index}>{String(index + 1).padStart(2, '0')}</Text><Text style={styles.ingredientText}>{item}</Text></View>)}</> : null}
       <View style={styles.button}><PrimaryButton title={meal.consumed ? 'Meal logged' : 'Log meal photo'} disabled={meal.consumed} onPress={() => navigation.navigate('MealCapture', { targetMealId: meal.id, category: 'meal' })} /></View>
+      {post ? <Pressable accessibilityRole="button" disabled={String(meals.deletingPostId) === String(post.id)} onPress={confirmDelete} style={styles.deleteButton}><Ionicons name="trash-outline" size={18} color={colors.danger} /><Text style={styles.deleteText}>{String(meals.deletingPostId) === String(post.id) ? 'Deleting…' : 'Delete incorrect post'}</Text></Pressable> : null}
     </Screen>
   );
 }
@@ -74,4 +85,6 @@ const styles = StyleSheet.create({
   index: { color: colors.moss, width: 42, fontFamily: fonts.semibold },
   ingredientText: { color: colors.ink, fontFamily: fonts.medium, fontSize: 16 },
   button: { marginTop: 27 },
+  deleteButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12 },
+  deleteText: { color: colors.danger, fontFamily: fonts.semibold, fontSize: 14 },
 });

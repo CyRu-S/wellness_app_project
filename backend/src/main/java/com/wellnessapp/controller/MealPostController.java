@@ -49,6 +49,12 @@ public class MealPostController {
                 .body(download.resource());
     }
 
+    @DeleteMapping("/{postId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void delete(Authentication authentication, @PathVariable Long postId) {
+        mealPosts.delete(authentication.getName(), postId);
+    }
+
     private CreateMealPostRequest metadata(String value) {
         try {
             CreateMealPostRequest request = objectMapper.readValue(value, CreateMealPostRequest.class);

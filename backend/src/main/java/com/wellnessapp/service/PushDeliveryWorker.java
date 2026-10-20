@@ -76,7 +76,8 @@ public class PushDeliveryWorker {
             default -> "You have a reminder. Open Mr_Care to review it.";
         };
         return Map.of("to", d.getDevice().getExpoToken(), "title", title,
-                "body", body, "sound", "default", "channelId", Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind()) ? "meal-reminders" : "coach-nudges",
+                "body", body, "sound", "default", "priority", "high", "badge", 1,
+                "channelId", Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind()) ? "meal-reminders" : "coach-nudges",
                 "ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()),
                 "data", Map.of("notificationId", d.getNotification().getId().toString(), "userId", d.getNotification().getUser().getId().toString(),
                         "kind", d.getKind().name()));

@@ -20,6 +20,7 @@ public class WebPushAccountService {
     private final UserRepository users;
     private final PushDeviceRepository devices;
     private final WebPushClient web;
+    private final PushQueueService queue;
     private final Clock clock;
     @Value("${app.push.enabled:false}") private boolean pushEnabled;
     @Value("${app.schedulers.enabled:true}") private boolean schedulersEnabled;
@@ -56,7 +57,8 @@ public class WebPushAccountService {
         var row = devices.findByExpoToken(key).orElseGet(PushDevice::new);
         row.setProvider(PushDevice.Provider.WEB); row.setExpoToken(key); row.setWebEndpoint(endpoint);
         row.setWebP256dh(p256dh); row.setWebAuth(auth); row.setUser(user); row.setRegistrationId(registrationId);
-        row.setEnabled(true); row.setUpdatedAt(clock.instant()); devices.save(row);
+        row.setEnabled(true); row.setUpdatedAt(clock.instant()); row = devices.save(row);
+        queue.catchUp(row);
     }
     @Transactional public void unregister(String email, String endpoint, String registrationId) {
         var user = users.findByEmailIgnoreCase(email).orElseThrow();

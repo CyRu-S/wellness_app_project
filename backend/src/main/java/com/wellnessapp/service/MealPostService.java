@@ -102,6 +102,24 @@ public class MealPostService {
                 mediaStorage.load(post.getMediaKey()), post.getMediaContentType(), post.getMediaOriginalName(), post.getMediaSize());
     }
 
+    @Transactional
+    public void delete(String email, Long postId) {
+        User actor = users.findByEmailIgnoreCase(email).orElseThrow(() -> new NotFoundException("Meal post not found"));
+        MealPost post = posts.findById(postId).orElseThrow(() -> new NotFoundException("Meal post not found"));
+        if (actor.getRole() != User.Role.ADMIN && !actor.getId().equals(post.getUser().getId())) {
+            throw new NotFoundException("Meal post not found");
+        }
+        Meal plannedMeal = post.getPlannedMeal();
+        String mediaKey = post.getMediaKey();
+        posts.delete(post);
+        posts.flush();
+        if (plannedMeal != null) {
+            plannedMeal.setConsumed(false);
+            meals.saveAndFlush(plannedMeal);
+        }
+        mediaStorage.deleteQuietly(mediaKey);
+    }
+
     private MealPostResponse response(MealPost post) {
         return new MealPostResponse(
                 post.getId(), post.getPlannedMeal() == null ? null : post.getPlannedMeal().getId(), post.getMealType(),

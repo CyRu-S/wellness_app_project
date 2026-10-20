@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useDispatch, useSelector } from 'react-redux';
@@ -11,6 +11,7 @@ import { clearActivities, completeActivity, loadActivities } from '../../store/s
 import SyncFeedback from '../../components/common/SyncFeedback';
 import { confirmRetry } from '../../utils/confirmRetry';
 import { colors, fonts, radius, shadows, type } from '../../theme';
+import Alert from '../../utils/appAlert';
 
 const activities = [
   { key: 'walk', label: 'Walk', icon: 'walk-outline', rate: 4.5 },

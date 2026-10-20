@@ -52,7 +52,8 @@ public class PushAccountService {
         var user = user(email); users.lockById(user.getId()).orElseThrow();
         var row = devices.findByExpoToken(token).orElseGet(PushDevice::new);
         row.setUser(user); row.setExpoToken(token); row.setRegistrationId(registrationId);
-        row.setEnabled(true); row.setUpdatedAt(clock.instant()); devices.save(row);
+        row.setProvider(PushDevice.Provider.EXPO); row.setEnabled(true); row.setUpdatedAt(clock.instant()); row = devices.save(row);
+        queue.catchUp(row);
     }
     @Transactional public void unregister(String email, String token, String registrationId) {
         var user = user(email);
@@ -62,7 +63,7 @@ public class PushAccountService {
     @Transactional public void test(String email) {
         var user = user(email); users.lockById(user.getId()).orElseThrow();
         if (!enabled) throw new ResponseStatusException(HttpStatus.CONFLICT, "Push delivery is not configured on the backend yet");
-        if (devices.findByUserIdAndEnabledTrue(user.getId()).isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Enable notifications on your Android phone first");
+        if (devices.findByUserIdAndEnabledTrue(user.getId()).isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Enable notifications on this device first");
         String key = "push-test-" + user.getId() + "-" + clock.instant().getEpochSecond() / 60;
         if (events.existsBySourceKey(key)) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Please wait a minute before another test");
         var event = events.save(NotificationEvent.builder().user(user).title("Mr_Care notifications")

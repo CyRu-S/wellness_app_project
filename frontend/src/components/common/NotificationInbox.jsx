@@ -1,9 +1,10 @@
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearNotifications, markNotificationRead } from '../../store/slices/notificationSlice';
 import { notificationDestination } from '../../utils/notificationDestination';
 import { colors, fonts } from '../../theme';
+import Alert from '../../utils/appAlert';
 
 export default function NotificationInbox({ navigation, workflowsOnly = false }) {
   const dispatch = useDispatch();

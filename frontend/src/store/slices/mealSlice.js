@@ -29,11 +29,16 @@ export const postMeal = createAsyncThunk('meals/post', async ({ optimisticComple
   return createMealPost(getState().auth.token, post);
 }, { condition: (_, { getState }) => !getState().meals.pendingPost });
 
+export const deleteMealPost = createAsyncThunk('meals/deletePost', async (postId, { getState }) => {
+  await request(`/meal-posts/${postId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getState().auth.token}` } });
+  return postId;
+});
+
 const displayPost = (post) => ({ ...post, targetMealId: post.plannedMealId, type: post.mealType, name: post.mealName,
   imageUri: post.imageUrl || post.imageUri, loggedAt: formatJournalClock(post.postedAt), protein: post.proteinGrams });
 const slice = createSlice({
   name: 'meals',
-  initialState: { planName: '', consultant: '', items: [], uploads: [], postHistory: [], status: 'idle', error: null, readId: null, pendingPost: null, failedPost: null, postError: null },
+  initialState: { planName: '', consultant: '', items: [], uploads: [], postHistory: [], status: 'idle', error: null, readId: null, pendingPost: null, deletingPostId: null, failedPost: null, postError: null },
   reducers: { prunePostHistory: (state, action) => { state.postHistory = state.postHistory.filter((p) => new Date(p.postedAt) >= new Date(action.payload)); } },
   extraReducers: (builder) => builder
     .addCase(loadMeals.pending, (state, action) => { state.status = 'loading'; state.readId = action.meta.requestId; })
@@ -67,7 +72,19 @@ const slice = createSlice({
       if (previous) state.items = state.items.map((item) => item.id === previous.id ? previous : item);
       state.postHistory = state.postHistory.filter((item) => item.id !== action.meta.requestId);
       state.uploads = state.postHistory; state.pendingPost = null; state.failedPost = action.meta.arg; state.postError = action.error.message;
-    }),
+    })
+    .addCase(deleteMealPost.pending, (state, action) => { state.deletingPostId = action.meta.arg; state.postError = null; })
+    .addCase(deleteMealPost.fulfilled, (state, action) => {
+      const removed = state.postHistory.find((item) => String(item.id) === String(action.payload));
+      state.postHistory = state.postHistory.filter((item) => String(item.id) !== String(action.payload));
+      state.uploads = state.postHistory;
+      if (removed?.targetMealId != null) {
+        const meal = state.items.find((item) => String(item.id) === String(removed.targetMealId));
+        if (meal) Object.assign(meal, { consumed: false, uploadedAt: null, imageUri: null, detectedName: null, detectedCalories: null, detectedProtein: null });
+      }
+      state.deletingPostId = null;
+    })
+    .addCase(deleteMealPost.rejected, (state, action) => { state.deletingPostId = null; state.postError = action.error.message; }),
 });
 export const { prunePostHistory } = slice.actions;
 export default slice.reducer;

@@ -9,6 +9,9 @@ export const refreshDashboard = createAsyncThunk('dashboard/refresh', async (_, 
 export const drinkWater = createAsyncThunk('dashboard/drinkWater', async (_, { getState }) => {
   return request('/water', { method: 'POST', headers: { Authorization: `Bearer ${getState().auth.token}` }, body: JSON.stringify({ amountMl: 250 }) });
 }, { condition: (_, { getState }) => !getState().dashboard.optimistic.water });
+export const clearWater = createAsyncThunk('dashboard/clearWater', async (_, { getState }) => {
+  await request('/water', { method: 'DELETE', headers: { Authorization: `Bearer ${getState().auth.token}` } });
+}, { condition: (_, { getState }) => !getState().dashboard.optimistic.water });
 
 const initialState = { completion: 0, waterGlasses: 0, waterTarget: 8, waterGoalMl: 2000, streak: 0, calories: 0, protein: 0, activeMinutes: 0, activeCalories: 0, lastMeal: null, lastActivity: null, status: 'idle', error: null, waterError: null, optimistic: {}, refreshRequestId: null };
 
@@ -42,6 +45,9 @@ const slice = createSlice({
     })
     .addCase(drinkWater.fulfilled, (state, action) => { settle(state, action, 'water'); })
     .addCase(drinkWater.rejected, (state, action) => { settle(state, action, 'water', true); state.waterError = action.error.message; })
+    .addCase(clearWater.pending, (state, action) => { begin(state, action, 'water', { waterGlasses: 0 }); state.waterError = null; })
+    .addCase(clearWater.fulfilled, (state, action) => { settle(state, action, 'water'); })
+    .addCase(clearWater.rejected, (state, action) => { settle(state, action, 'water', true); state.waterError = action.error.message; })
     .addCase('activity/complete/pending', (state, action) => {
       const session = normalizeActivity(action.meta.arg);
       begin(state, action, 'activity', { activeMinutes: state.activeMinutes + session.minutes, activeCalories: state.activeCalories + session.calories, lastActivity: session });

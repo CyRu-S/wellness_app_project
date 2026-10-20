@@ -2,12 +2,13 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { beginPushSession, endPushSession, isOwnNotification, notificationModule, syncPushRegistration } from '../services/notifications/pushNotifications';
-import { loadNotifications, loadNotificationPreferences, setPushState } from '../store/slices/notificationSlice';
+import { loadNotifications, loadNotificationPreferences, selectUnreadNotificationCount, setPushState } from '../store/slices/notificationSlice';
 import { invalidateCachedResponses } from '../services/api/client';
 import { loadMeals } from '../store/slices/mealSlice';
 import { loadPlan } from '../store/slices/planSlice';
 import { refreshDashboard } from '../store/slices/dashboardSlice';
 import { loadAdminAttention, loadAdminMembers } from '../store/slices/adminSlice';
+import { isInstalled } from '../services/pwa/registration';
 
 export default function usePushNotifications(navigationRef) {
   const dispatch = useDispatch();
@@ -15,6 +16,7 @@ export default function usePushNotifications(navigationRef) {
   const userId = useSelector((state) => state.auth.user?.id);
   const role = useSelector((state) => state.auth.user?.role);
   const retry = useSelector((state) => state.notifications.pushRetry);
+  const unreadCount = useSelector(selectUnreadNotificationCount);
   const activeSession = useRef(null);
   const pendingTap = useRef(null);
   const seenTap = useRef(null);
@@ -94,5 +96,10 @@ export default function usePushNotifications(navigationRef) {
       .catch((error) => { if (!stopped) dispatch(setPushState({ status: 'error', message: error.message })); });
     return () => { stopped = true; };
   }, [retry, dispatch]);
+  useEffect(() => {
+    if (!isInstalled()) return;
+    const updateBadge = unreadCount ? navigator.setAppBadge?.(unreadCount) : navigator.clearAppBadge?.();
+    Promise.resolve(updateBadge).catch(() => {});
+  }, [unreadCount]);
   return flushTap;
 }

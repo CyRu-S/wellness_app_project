@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { beginPushSession, endPushSession, isOwnNotification, notificationModule, syncPushRegistration } from '../services/notifications/pushNotifications';
-import { loadNotifications, loadNotificationPreferences, setPushState } from '../store/slices/notificationSlice';
+import { loadNotifications, loadNotificationPreferences, selectUnreadNotificationCount, setPushState } from '../store/slices/notificationSlice';
 import { invalidateCachedResponses } from '../services/api/client';
 import { loadMeals } from '../store/slices/mealSlice';
 import { loadPlan } from '../store/slices/planSlice';
@@ -15,6 +15,7 @@ export default function usePushNotifications(navigationRef) {
   const userId = useSelector((state) => state.auth.user?.id);
   const role = useSelector((state) => state.auth.user?.role);
   const retry = useSelector((state) => state.notifications.pushRetry);
+  const unreadCount = useSelector(selectUnreadNotificationCount);
   const activeSession = useRef(null);
   const pendingTap = useRef(null);
   const seenTap = useRef(null);
@@ -44,7 +45,7 @@ export default function usePushNotifications(navigationRef) {
       if (!Notifications || stopped) return;
       Notifications.setNotificationHandler({ handleNotification: async (notification) => {
         const show = !stopped && isOwnNotification(notification, userId);
-        return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
+        return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: show };
       } });
       const receive = (notification) => {
         if (stopped || !isOwnNotification(notification, userId)) return;
@@ -95,5 +96,8 @@ export default function usePushNotifications(navigationRef) {
       .catch((error) => { if (!stopped) dispatch(setPushState({ status: 'error', message: error.message })); });
     return () => { stopped = true; };
   }, [retry, dispatch]);
+  useEffect(() => {
+    notificationModule().then((Notifications) => Notifications?.setBadgeCountAsync?.(unreadCount)).catch(() => {});
+  }, [unreadCount]);
   return flushTap;
 }

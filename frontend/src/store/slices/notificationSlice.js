@@ -103,7 +103,7 @@ const notificationSlice = createSlice({
       state.failedPreferences = action.meta.arg;
     })
     .addCase(sendTestNotification.pending, (state) => { state.testing = true; state.testMessage = null; })
-    .addCase(sendTestNotification.fulfilled, (state) => { state.testing = false; state.testMessage = 'Test queued. Check your phone; delivery may take a few seconds.'; })
+    .addCase(sendTestNotification.fulfilled, (state) => { state.testing = false; state.testMessage = 'Test queued. Check this device; delivery may take a few seconds.'; })
     .addCase(sendTestNotification.rejected, (state, action) => { state.testing = false; state.testMessage = action.error.message; }),
 });
 

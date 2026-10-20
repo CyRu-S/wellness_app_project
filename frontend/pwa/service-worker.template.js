@@ -106,6 +106,10 @@ self.addEventListener('push', (event) => {
       icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
       tag: `mr-care-${data.notificationId}`, data,
     });
+    if (self.registration.setAppBadge) {
+      const visible = await self.registration.getNotifications();
+      await self.registration.setAppBadge(Math.max(1, visible.length)).catch(() => {});
+    }
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     clients.forEach((client) => client.postMessage({ type: 'WEB_PUSH_RECEIVED', data, title, body: payload.body }));
   })());
@@ -115,6 +119,11 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil((async () => {
     const data = event.notification.data, account = await contextOperation(false);
     if (!account || String(data?.userId) !== account.userId || data?.registrationId !== account.registrationId) return;
+    if (self.registration.setAppBadge) {
+      const visible = await self.registration.getNotifications();
+      if (visible.length) await self.registration.setAppBadge(visible.length).catch(() => {});
+      else await self.registration.clearAppBadge?.().catch(() => {});
+    }
     await contextOperation(true, { data, tappedAt: Date.now() }, 'pendingTap');
     const url = new URL('/', self.location.origin);
     url.searchParams.set('webPush', '1');

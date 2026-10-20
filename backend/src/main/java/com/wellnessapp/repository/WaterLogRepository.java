@@ -8,5 +8,6 @@ public interface WaterLogRepository extends JpaRepository<WaterLog, Long> {
     List<Object[]> totalsBetween(Instant start, Instant end);
     List<WaterLog> findByUserIdAndLoggedAtAfter(Long userId, Instant after);
     List<WaterLog> findByUserIdAndLoggedAtGreaterThanEqualAndLoggedAtLessThanOrderByLoggedAt(Long userId, Instant start, Instant end);
+    long deleteByUserIdAndLoggedAtGreaterThanEqualAndLoggedAtLessThan(Long userId, Instant start, Instant end);
 }
 

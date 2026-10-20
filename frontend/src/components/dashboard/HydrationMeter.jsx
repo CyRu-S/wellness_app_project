@@ -12,7 +12,7 @@ function WaterSegment({ filled, index }) {
   return <View style={styles.segment}><Animated.View style={[styles.fill, { opacity: motion, transform: [{ scaleY: motion }] }]} /></View>;
 }
 
-export default function HydrationMeter({ value = 0, target = 8, onAdd, pending = false }) {
+export default function HydrationMeter({ value = 0, target = 8, onAdd, onClear, pending = false }) {
   const add = () => {
     Haptics.selectionAsync().catch(() => {});
     onAdd?.();
@@ -27,6 +27,7 @@ export default function HydrationMeter({ value = 0, target = 8, onAdd, pending =
       </View>
       <View style={styles.track}>{Array.from({ length: target }).map((_, index) => <WaterSegment key={index} index={index} filled={index < value} />)}</View>
       <View style={styles.caption}><Ionicons name="water-outline" size={14} color={colors.tealMid} /><Text style={styles.hint}>{value >= target ? 'Daily target complete' : `${(target - value) * 250} ml remaining today`}</Text></View>
+      {value > 0 ? <Pressable accessibilityRole="button" disabled={pending} onPress={onClear} style={styles.clear}><Text style={styles.clearText}>Clear today’s water</Text></Pressable> : null}
     </View>
   );
 }
@@ -36,4 +37,5 @@ const styles = StyleSheet.create({
   add: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, borderRadius: radius.pill, backgroundColor: colors.accentSoft, paddingHorizontal: 13 }, pressed: { opacity: 0.62, transform: [{ scale: 0.97 }] }, disabled: { opacity: 0.58 }, addText: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 11 },
   track: { flexDirection: 'row', gap: 6, marginTop: 17 }, segment: { flex: 1, height: 14, borderRadius: 7, backgroundColor: colors.line, overflow: 'hidden', justifyContent: 'flex-end' }, fill: { ...StyleSheet.absoluteFill, borderRadius: 7, backgroundColor: colors.accent },
   caption: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 9 }, hint: { color: colors.muted, fontFamily: fonts.regular, fontSize: 11 },
+  clear: { alignSelf: 'flex-end', minHeight: 38, justifyContent: 'center', marginTop: 4 }, clearText: { color: colors.danger, fontFamily: fonts.semibold, fontSize: 11 },
 });

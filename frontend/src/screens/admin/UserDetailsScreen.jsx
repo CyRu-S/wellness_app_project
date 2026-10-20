@@ -39,6 +39,7 @@ import {
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 import { formatJournalClock, formatJournalDate, mealImageUri, protectedImageSource } from '../../utils/memberJournal';
 import { profileImageSource } from '../../utils/profilePhoto';
+import { request } from '../../services/api/client';
 
 const TIME_PATTERN = /^(0?[1-9]|1[0-2]):[0-5]\d\s?(AM|PM)$/i;
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Snack', 'Dinner', 'Herbalife product'];
@@ -466,7 +467,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
   );
 }
 
-function PhotoViewer({ meal, token, memberName, onClose }) {
+function PhotoViewer({ meal, token, memberName, onClose, onDelete, deleting }) {
   const nutrition = meal?.nutrition || {};
   const source = meal ? protectedImageSource(meal, token) : null;
   return (
@@ -479,6 +480,7 @@ function PhotoViewer({ meal, token, memberName, onClose }) {
           <Text style={styles.photoTitle}>{meal?.detectedName || meal?.name}</Text>
           <Text style={styles.photoMeta}>Posted {formatJournalClock(meal?.postedAt || meal?.uploadedAt) || 'today'} · {formatNutrition(nutrition.calories ?? meal?.detectedCalories ?? meal?.calories)} kcal · {formatNutrition(nutrition.proteinGrams ?? meal?.detectedProtein ?? meal?.protein)}g protein</Text>
           <Text style={styles.photoMeta}>{formatNutrition(nutrition.carbsGrams ?? meal?.carbsGrams)}g carbs · {formatNutrition(nutrition.fatGrams ?? meal?.fatGrams)}g fat</Text>
+          <Pressable accessibilityRole="button" disabled={deleting} onPress={onDelete} style={styles.photoDelete}><Ionicons name="trash-outline" size={17} color={adminColors.coral} /><Text style={styles.photoDeleteText}>{deleting ? 'Deleting…' : 'Delete incorrect post'}</Text></Pressable>
         </View>
       </View>
     </Modal>
@@ -496,6 +498,7 @@ export default function UserDetailsScreen({ route, navigation }) {
   const [editingPlan, setEditingPlan] = useState(false);
   const [editingWaterGoal, setEditingWaterGoal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const member = useMemo(
     () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name) || directMember,
@@ -538,6 +541,19 @@ export default function UserDetailsScreen({ route, navigation }) {
   const confirmDeleteMember = () => Alert.alert(`Delete ${profileMember.name}’s account?`, 'This permanently removes their profile, plans, reports, check-ins, photos, and shared access.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Delete account', style: 'destructive', onPress: async () => { try { await dispatch(deleteMemberAccount(member.id)).unwrap(); navigation.navigate('AdminTabs', { screen: 'UserList' }); } catch (error) { Alert.alert('Account not deleted', error.message || 'Please try again.'); } } },
+  ]);
+  const confirmDeletePost = () => Alert.alert('Delete this member post?', 'The photo and check-in will be permanently removed. The member can then upload the correct post.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete post', style: 'destructive', onPress: async () => {
+      const postId = selectedPhoto?.postId ?? selectedPhoto?.id;
+      try {
+        setDeletingPhoto(true);
+        await request(`/meal-posts/${postId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+        setSelectedPhoto(null);
+        await dispatch(loadAdminMemberJournal({ memberId: member.id })).unwrap();
+      } catch (error) { Alert.alert('Post not deleted', error.message || 'Please try again.'); }
+      finally { setDeletingPhoto(false); }
+    } },
   ]);
 
   if (!member) return <AdminScreen><AdminHeader title="Member" back onBackPress={() => navigation.goBack()} /><Text>{journalRequest.status === 'failed' ? 'Member could not be loaded. Pull down to retry.' : 'Loading member...'}</Text></AdminScreen>;
@@ -606,7 +622,7 @@ export default function UserDetailsScreen({ route, navigation }) {
 
       {editingPlan ? <PlanEditor visible member={member} plan={plan} onClose={() => setEditingPlan(false)} onSave={savePlan} /> : null}
       {editingWaterGoal ? <WaterGoalEditor visible member={profileMember} currentGoal={profileMember.waterGoalMl || 2000} saving={waterGoalRequest.status === 'saving'} onClose={() => setEditingWaterGoal(false)} onSave={saveWaterGoal} /> : null}
-      <PhotoViewer meal={selectedPhoto} token={token} memberName={profileMember.name} onClose={() => setSelectedPhoto(null)} />
+      <PhotoViewer meal={selectedPhoto} token={token} memberName={profileMember.name} onClose={() => setSelectedPhoto(null)} onDelete={confirmDeletePost} deleting={deletingPhoto} />
     </AdminScreen>
   );
 }
@@ -793,6 +809,8 @@ const styles = StyleSheet.create({
   photoType: { color: '#A9DAD4', fontFamily: adminFonts.semibold, fontSize: 12, letterSpacing: 0.9 },
   photoTitle: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 27, marginTop: 4 },
   photoMeta: { color: '#D5ECE8', fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 18, marginTop: 6 },
+  photoDelete: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.1)' },
+  photoDeleteText: { color: '#FFD2CB', fontFamily: adminFonts.semibold, fontSize: 13 },
   pressed: { opacity: 0.68 },
   deleteMember: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0CBC7' },
   deleteMemberText: { color: adminColors.coral, fontFamily: adminFonts.semibold, fontSize: 14 },

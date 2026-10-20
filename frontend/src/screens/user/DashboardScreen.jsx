@@ -13,9 +13,10 @@ import HydrationMeter from '../../components/dashboard/HydrationMeter';
 import ProgressRing from '../../components/dashboard/ProgressRing';
 import MealSchedule, { getMealStatus } from '../../components/meal/MealSchedule';
 import UserHeader from '../../components/user/UserHeader';
-import { drinkWater } from '../../store/slices/dashboardSlice';
+import { clearWater, drinkWater } from '../../store/slices/dashboardSlice';
 import { completeHealthyHabit } from '../../store/slices/planSlice';
 import { confirmRetry } from '../../utils/confirmRetry';
+import Alert from '../../utils/appAlert';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
 const greeting = () => {
@@ -49,6 +50,9 @@ export default function DashboardScreen({ navigation }) {
     if (dashboard.waterError) confirmRetry('Water', save);
     else save();
   };
+  const resetWater = () => Alert.alert('Clear today’s water?', 'This removes all water logged today.', [
+    { text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => dispatch(clearWater()) },
+  ]);
   const openTimeline = () => navigation.getParent()?.navigate('Log', { screen: 'TodayTimeline' });
   return (
     <Screen contentStyle={styles.screen}>
@@ -87,7 +91,7 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>DAILY MEAL PLAN</Text><Text style={styles.sectionTitle}>{meals.planName || 'No plan assigned yet'}</Text><Text style={styles.sectionMeta}>{meals.consultant ? `Assigned by ${meals.consultant}` : 'Your admin will create your meal schedule.'}</Text></View></View>
         <MealSchedule items={meals.items} compact showPhotoAction={false} />
       </StaggeredView>
-      <StaggeredView delay={310} style={styles.section}><HydrationMeter value={dashboard.waterGlasses} target={dashboard.waterTarget} pending={!!dashboard.optimistic.water} onAdd={addWater} /><SyncFeedback label="Water" pending={!!dashboard.optimistic.water} error={dashboard.waterError} onRetry={addWater} /></StaggeredView>
+      <StaggeredView delay={310} style={styles.section}><HydrationMeter value={dashboard.waterGlasses} target={dashboard.waterTarget} pending={!!dashboard.optimistic.water} onAdd={addWater} onClear={resetWater} /><SyncFeedback label="Water" pending={!!dashboard.optimistic.water} error={dashboard.waterError} onRetry={addWater} /></StaggeredView>
       {healthyHabits.length ? <StaggeredView delay={340} style={styles.section}>
         <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>HEALTHY HABITS</Text><Text style={styles.sectionTitle}>Today’s habits</Text></View></View>
         <View style={styles.habitList}>{healthyHabits.map((habit) => <Pressable key={habit.id} disabled={habit.done || plan.completingId === habit.id} onPress={() => dispatch(completeHealthyHabit(habit.id))} style={({ pressed }) => [styles.habitRow, pressed && styles.pressed]}><View style={[styles.habitCheck, habit.done && styles.habitCheckDone]}>{habit.done ? <Ionicons name="checkmark" size={16} color={colors.white} /> : <Ionicons name="leaf-outline" size={16} color={colors.tealDark} />}</View><View style={styles.activityCopy}><Text style={[styles.activityName, habit.done && styles.habitDone]}>{habit.title}</Text><Text style={styles.activityMeta}>{habit.category || habit.detail} · {String(habit.scheduledTime || '').slice(0, 5)}</Text></View><Text style={styles.allLink}>{habit.done ? 'Done' : 'Complete'}</Text></Pressable>)}</View>
