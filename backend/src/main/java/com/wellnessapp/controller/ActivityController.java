@@ -35,4 +35,8 @@ public class ActivityController {
         ActivitySession saved = activities.create(authentication.getName(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(new ActivityResponse(saved.getId(), saved.getActivity(), saved.getDurationSeconds(), saved.getDistanceKm(), saved.getStartedAt()));
     }
+
+    @org.springframework.web.bind.annotation.DeleteMapping
+    @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.NO_CONTENT)
+    void clear(Authentication authentication) { activities.clear(authentication.getName()); }
 }

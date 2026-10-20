@@ -66,7 +66,9 @@ import java.time.Instant;
             profile.setPhotoOriginalName(stored.originalName());
             profile.setPhotoContentType(stored.contentType());
             profile.setPhotoSize(stored.size());
-            ProfileResponse response = response(user, profiles.saveAndFlush(profile));
+            profile = profiles.saveAndFlush(profile);
+            recordHistory(user, profile);
+            ProfileResponse response = response(user, profile);
             if (previousKey != null && !previousKey.equals(stored.key())) mediaStorage.deleteQuietly(previousKey);
             return response;
         } catch (RuntimeException exception) {

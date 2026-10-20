@@ -11,6 +11,9 @@ export const completeActivity = createAsyncThunk('activity/complete', async (ses
   const saved = await createActivity(getState().auth.token, { activity: session.activity, durationSeconds: session.durationSeconds, distanceKm: session.distanceKm ?? null });
   return normalizeActivity(saved);
 }, { condition: (_, { getState }) => !getState().activity.pendingSession });
+export const clearActivities = createAsyncThunk('activity/clear', async (_, { getState }) => {
+  await request('/activities', { method: 'DELETE', headers: { Authorization: `Bearer ${getState().auth.token}` } });
+});
 
 const slice = createSlice({
   name: 'activity', initialState: { weeklyMinutes: 0, sessions: 0, history: [], status: 'idle', error: null, pendingSession: null, failedSession: null, readId: null }, reducers: {},
@@ -23,6 +26,7 @@ const slice = createSlice({
       Object.assign(state, activityTotals(state.history));
     })
     .addCase(loadActivities.rejected, (state, action) => { if (state.readId === action.meta.requestId) { state.readId = null; state.error = action.error.message; } })
+    .addCase(clearActivities.fulfilled, (state) => { state.history = []; state.weeklyMinutes = 0; state.sessions = 0; })
     .addCase(completeActivity.pending, (state, action) => {
       state.readId = null; state.error = null; state.failedSession = null; state.status = 'saving';
       state.pendingSession = action.meta.requestId;

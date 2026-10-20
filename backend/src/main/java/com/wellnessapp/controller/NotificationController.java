@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.wellnessapp.service.NotificationService;
@@ -51,6 +52,12 @@ public class NotificationController {
     @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     void readInbox(Authentication authentication, @jakarta.validation.Valid @RequestBody ReadRequest request) {
         notifications.markRead(authentication.getName(), request.ids());
+    }
+
+    @DeleteMapping
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    void clear(Authentication authentication) {
+        notifications.clear(authentication.getName());
     }
 }
 

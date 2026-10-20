@@ -100,13 +100,14 @@ self.addEventListener('push', (event) => {
     const account = await contextOperation(false);
     if (!account || String(payload.data?.userId) !== account.userId || payload.data?.registrationId !== account.registrationId) return;
     const data = payload.data;
-    await self.registration.showNotification('Mr_Care', {
+    const title = payload.title || 'Mr_Care';
+    await self.registration.showNotification(title, {
       body: payload.body || 'You have an update. Open Mr_Care to review it.',
       icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
       tag: `mr-care-${data.notificationId}`, data,
     });
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    clients.forEach((client) => client.postMessage({ type: 'WEB_PUSH_RECEIVED', data, title: 'Mr_Care', body: payload.body }));
+    clients.forEach((client) => client.postMessage({ type: 'WEB_PUSH_RECEIVED', data, title, body: payload.body }));
   })());
 });
 self.addEventListener('notificationclick', (event) => {

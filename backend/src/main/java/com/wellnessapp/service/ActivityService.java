@@ -30,6 +30,10 @@ import java.time.Instant;
                 .stream().sorted(java.util.Comparator.comparing(ActivitySession::getStartedAt).reversed()).map(ActivityService::response).toList();
     }
     @org.springframework.transaction.annotation.Transactional
+    public long clear(String email) {
+        return activities.deleteByUserId(users.findByEmailIgnoreCase(email).orElseThrow().getId());
+    }
+    @org.springframework.transaction.annotation.Transactional
     public ActivitySession create(String email, ActivityRequest request) {
         User user = users.findByEmailIgnoreCase(email).orElseThrow();
         var activity = activities.save(ActivitySession.builder().user(user).activity(request.activity()).durationSeconds(request.durationSeconds()).distanceKm(request.distanceKm()).startedAt(clock.instant()).build());

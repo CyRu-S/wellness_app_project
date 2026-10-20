@@ -61,21 +61,22 @@ public class PushDeliveryWorker {
         return true;
     }
     private Map<String, Object> message(PushDelivery d) {
-        // Keep health information off the lock screen. Fetch details only after authenticated app open.
-        return Map.of("to", d.getDevice().getExpoToken(), "title", "Mr_Care",
-                "body", switch (d.getKind()) {
-                    case MEAL -> "Your meal check-in is coming up. Open your timeline for details.";
-                    case HABIT -> "A healthy habit is coming up. Open your daily plan for details.";
-                    case NUDGE -> "You have a reminder from your coach. Open Mr_Care to view it.";
-                    case TEST -> "Phone notifications are connected.";
-                    case SIGNUP -> "A new membership request is ready to review.";
-                    case DEADLINE -> d.getNotification().getUser().getRole() == User.Role.ADMIN
-                            ? "A member may need support. Open Attention to review."
-                            : "Your meal check-in is overdue. Open your timeline to review.";
-                    case DIGEST -> "Your morning club summary is ready.";
-                    case MEAL_POST, ACTIVITY -> "A member has a new check-in. Open your admin inbox.";
-                    case PLAN, ACCESS, APPROVAL -> "Your account has an update from your coach. Open Mr_Care to review.";
-                }, "sound", "default", "channelId", Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind()) ? "meal-reminders" : "coach-nudges",
+        var event = d.getNotification();
+        boolean personalisedReminder = Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT, PushDelivery.Kind.NUDGE).contains(d.getKind());
+        String title = personalisedReminder ? event.getTitle() : "Mr_Care";
+        String body = personalisedReminder ? event.getBody() : switch (d.getKind()) {
+            case TEST -> "Phone notifications are connected.";
+            case SIGNUP -> "A new membership request is ready to review.";
+            case DEADLINE -> event.getUser().getRole() == User.Role.ADMIN
+                    ? "A member may need support. Open Attention to review."
+                    : "Your scheduled check-in is overdue. Open your timeline to review.";
+            case DIGEST -> "Your morning club summary is ready.";
+            case MEAL_POST, ACTIVITY -> "A member has a new check-in. Open your admin inbox.";
+            case PLAN, ACCESS, APPROVAL -> "Your account has an update from your coach. Open Mr_Care to review.";
+            default -> "You have a reminder. Open Mr_Care to review it.";
+        };
+        return Map.of("to", d.getDevice().getExpoToken(), "title", title,
+                "body", body, "sound", "default", "channelId", Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind()) ? "meal-reminders" : "coach-nudges",
                 "ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()),
                 "data", Map.of("notificationId", d.getNotification().getId().toString(), "userId", d.getNotification().getUser().getId().toString(),
                         "kind", d.getKind().name()));

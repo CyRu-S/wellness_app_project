@@ -36,6 +36,9 @@ export const sendTestNotification = createAsyncThunk('notifications/test', async
   request('/notifications/test', { method: 'POST', headers: authorization(getState) }), {
   condition: (_, { getState }) => !getState().notifications.testing,
 });
+export const clearNotifications = createAsyncThunk('notifications/clear', async (_, { getState }) => {
+  await request('/notifications', { method: 'DELETE', headers: authorization(getState) });
+});
 const applyPreferences = (state, payload) => {
   state.timelineRemindersEnabled = payload.mealReminders;
   state.coachNudgesEnabled = payload.coachNudges;
@@ -62,6 +65,7 @@ const notificationSlice = createSlice({
       state.items = action.payload.map((item) => readIds.has(String(item.id)) ? { ...item, read: true } : item);
     })
     .addCase(markNotificationRead.fulfilled, (state, action) => { const item = state.items.find(n => String(n.id) === String(action.payload)); if (item) item.read = true; })
+    .addCase(clearNotifications.fulfilled, (state) => { state.items = []; })
     .addCase(markInboxNotificationsRead.pending, (state, action) => { state.readInboxId = action.meta.requestId; state.readInboxError = null; })
     .addCase(markInboxNotificationsRead.fulfilled, (state, action) => {
       if (state.readInboxId !== action.meta.requestId) return;
@@ -109,7 +113,10 @@ export const selectTimelineNotifications = createSelector(
     const now = new Date();
     const currentHour = now.getHours() + now.getMinutes() / 60;
     const todaysNotifications = notifications.filter((item) => isToday(item.scheduledAt));
-    return [...todaysNotifications.filter((item) => (nudgesEnabled && (item.kind === 'NUDGE' || item.title === 'A reminder from your coach')) || (remindersEnabled && item.kind === 'DEADLINE')).map((item) => ({ ...item, id: `event-${item.id}`, unread: !item.read, time: new Date(item.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) })), ...meals.filter((meal) => remindersEnabled && !meal.consumed).map((meal) => {
+    const serverReminders = todaysNotifications.filter((item) => (nudgesEnabled && (item.kind === 'NUDGE' || item.title === 'A reminder from your coach'))
+      || (remindersEnabled && ['MEAL', 'HABIT', 'DEADLINE'].includes(item.kind)));
+    return [...serverReminders.map((item) => ({ ...item, id: `event-${item.id}`, unread: !item.read, time: new Date(item.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) })), ...meals.filter((meal) => remindersEnabled && !meal.consumed
+      && !serverReminders.some((item) => item.kind === 'MEAL' && item.title?.toLowerCase().includes(meal.name.toLowerCase()))).map((meal) => {
       const minutesUntil = Math.round((meal.hour - currentHour) * 60);
       if (minutesUntil > 5) return { id: `meal-${meal.id}`, title: `${meal.name} at ${meal.time}`, body: 'A reminder will arrive five minutes before this check-in.', unread: false, time: meal.time };
       if (minutesUntil >= 0) return { id: `meal-${meal.id}`, title: `${meal.name} in ${Math.max(1, minutesUntil)} minutes`, body: 'Your scheduled check-in is coming up.', unread: true, time: 'SOON' };

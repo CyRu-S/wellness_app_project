@@ -311,7 +311,7 @@ function WaterGoalEditor({ visible, member, currentGoal, saving, onClose, onSave
           <Text style={styles.editorIntro}>Choose a personal daily target. It will appear immediately in the member’s hydration tracker.</Text>
           <View style={styles.waterGoalControl}>
             <Pressable accessibilityRole="button" accessibilityLabel="Reduce water goal by 250 millilitres" onPress={() => changeGoal(-250)} disabled={goal <= 500} style={({ pressed }) => [styles.waterStep, pressed && styles.pressed, goal <= 500 && styles.waterStepDisabled]}><Ionicons name="remove" size={23} color={adminColors.deepTeal} /></Pressable>
-            <View style={styles.waterGoalValue}><Text style={styles.waterGoalNumber}>{(goal / 1000).toFixed(goal % 1000 ? 2 : 1).replace(/0$/, '')} L</Text><Text style={styles.waterGoalGlasses}>{goal / 250} glasses of 250 ml</Text></View>
+            <View style={styles.waterGoalValue}><Text style={styles.waterGoalNumber}>{(goal / 1000).toFixed(goal % 1000 ? 2 : 1).replace(/0$/, '')} L</Text><Text style={styles.waterGoalGlasses}>Daily target in litres</Text></View>
             <Pressable accessibilityRole="button" accessibilityLabel="Increase water goal by 250 millilitres" onPress={() => changeGoal(250)} disabled={goal >= 6000} style={({ pressed }) => [styles.waterStep, pressed && styles.pressed, goal >= 6000 && styles.waterStepDisabled]}><Ionicons name="add" size={23} color={adminColors.deepTeal} /></Pressable>
           </View>
           <View style={styles.waterPresets}>
@@ -346,7 +346,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
         id: `${member?.id}-new-${Date.now()}`,
         kind,
         type: kind === 'HEALTHY_HABIT' ? 'Healthy habit' : 'Snack',
-        category: kind === 'HEALTHY_HABIT' ? 'Activity' : null,
+        category: null,
         name: '',
         time: '4:00 PM',
         hour: 16,
@@ -408,7 +408,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
               <View key={meal.id || `${meal.type}-${index}`} style={styles.editorMeal}>
                 <View style={styles.editorMealTop}>
                   <View style={styles.editorMealNumber}><Text style={styles.editorMealNumberText}>{String(index + 1).padStart(2, '0')}</Text></View>
-                  <Text style={styles.editorMealType}>{meal.kind === 'HEALTHY_HABIT' ? meal.category : meal.type}</Text>
+                  <Text style={styles.editorMealType}>{meal.kind === 'HEALTHY_HABIT' ? (meal.category || 'No category') : meal.type}</Text>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${meal.type}`} onPress={() => removeItem(index)} style={styles.removeMeal}>
                     <Ionicons name="trash-outline" size={17} color={adminColors.coral} />
                   </Pressable>
@@ -422,6 +422,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                   {[['MEAL', 'Meal'], ['HEALTHY_HABIT', 'Healthy habit']].map(([kind, label]) => <Pressable key={kind} onPress={() => changeItem(index, 'kind', kind)} style={[styles.typeOption, meal.kind === kind && styles.typeOptionSelected]}><Text style={[styles.typeOptionText, meal.kind === kind && styles.typeOptionTextSelected]}>{label}</Text></Pressable>)}
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeOptions}>
+                  {meal.kind === 'HEALTHY_HABIT' ? <Pressable accessibilityRole="button" accessibilityState={{ selected: !meal.category }} onPress={() => changeItem(index, 'category', '')} style={[styles.typeOption, !meal.category && styles.typeOptionSelected]}><Text style={[styles.typeOptionText, !meal.category && styles.typeOptionTextSelected]}>No category</Text></Pressable> : null}
                   {(meal.kind === 'HEALTHY_HABIT' ? HABIT_CATEGORIES : MEAL_TYPES).map((type) => {
                     const field = meal.kind === 'HEALTHY_HABIT' ? 'category' : 'type';
                     const selected = meal[field] === type;
@@ -449,7 +450,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => addItem('HEALTHY_HABIT')} style={({ pressed }) => [styles.addMealButton, pressed && styles.pressed]}>
               <View style={styles.addMealIcon}><Ionicons name="leaf-outline" size={20} color={adminColors.deepTeal} /></View>
-              <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add healthy habit</Text><Text style={styles.addMealDetail}>Choose a category so alerts can be filtered.</Text></View>
+              <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add healthy habit</Text><Text style={styles.addMealDetail}>Category is optional; every item still appears in the member timeline and reminders.</Text></View>
             </Pressable>
           </ScrollView>
           {timePickerIndex != null && items[timePickerIndex] ? <MealTimePicker key={`${timePickerIndex}-${items[timePickerIndex].id}`}

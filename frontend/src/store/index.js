@@ -56,7 +56,7 @@ completionToasts.startListening({
       const before = api.getOriginalState().dashboard;
       const operation = before.optimistic.water;
       if (!operation || operation.previous.waterGlasses >= before.waterTarget || before.waterGlasses < before.waterTarget) return;
-      api.dispatch(showToast({ kind: 'water', title: 'Congratulations! Water goal complete', message: `You reached all ${before.waterTarget} glasses today. Keep it up!` }));
+      api.dispatch(showToast({ kind: 'water', title: 'Congratulations! Water goal complete', message: `You reached ${(before.waterTarget * 0.25).toFixed(2)} litres today. Keep it up!` }));
       return;
     }
     if (action.type === 'activity/complete/fulfilled') {

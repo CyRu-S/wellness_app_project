@@ -150,7 +150,7 @@ public class PlanService {
             }
             savedItem.setType(kind);
             savedItem.setTitle(item.name().trim());
-            String category = item.category() == null || item.category().isBlank() ? "Healthy habits" : item.category().trim();
+            String category = item.category() == null ? "" : item.category().trim();
             savedItem.setDetail(kind == PlanItem.Type.HEALTHY_HABIT ? category : item.type());
             savedItem.setMealType(kind == PlanItem.Type.MEAL ? item.type() : null);
             savedItem.setScheduledTime(item.time());

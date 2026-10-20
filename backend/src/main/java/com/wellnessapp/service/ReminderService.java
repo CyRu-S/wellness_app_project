@@ -57,8 +57,11 @@ public class ReminderService {
                     continue;
                 }
                 if (!clock.instant().isBefore(due.minusSeconds(300)) && !clock.instant().isAfter(due.plusSeconds(3600)) && !notifications.existsBySourceKey(notificationKey)) {
-                    var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(notificationKey).title(meal.getType() + " check-in")
-                            .body(meal.getName() + " is scheduled for " + meal.getMealTime()).scheduledAt(due.minusSeconds(300)).build());
+                    var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(notificationKey)
+                            .title(meal.getName() + " in 5 minutes")
+                            .body("Your " + meal.getType().toLowerCase(Locale.ROOT) + " is scheduled for "
+                                    + meal.getMealTime().format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")) + ".")
+                            .scheduledAt(due.minusSeconds(300)).build());
                     push.enqueue(notification, PushDelivery.Kind.MEAL, due.plusSeconds(3600));
                 }
                 if (clock.instant().isAfter(due)) {
@@ -82,7 +85,8 @@ public class ReminderService {
                 if (!clock.instant().isBefore(due.minusSeconds(300)) && !clock.instant().isAfter(due.plusSeconds(3600))
                         && !notifications.existsBySourceKey(reminderKey)) {
                     var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(reminderKey)
-                            .title("Healthy habit reminder").body(habit.getTitle() + " is scheduled for " + habit.getScheduledTime())
+                            .title(habit.getTitle() + " in 5 minutes").body("Your daily plan reminder is scheduled for "
+                                    + habit.getScheduledTime().format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")) + ".")
                             .scheduledAt(due.minusSeconds(300)).build());
                     push.enqueue(notification, PushDelivery.Kind.HABIT, due.plusSeconds(3600));
                 }

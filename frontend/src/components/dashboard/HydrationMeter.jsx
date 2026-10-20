@@ -20,9 +20,9 @@ export default function HydrationMeter({ value = 0, target = 8, onAdd, pending =
   return (
     <View>
       <View style={styles.head}>
-        <View><Text style={styles.eyebrow}>HYDRATION</Text><Text style={styles.title}>{value} of {target} glasses</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add one glass of water" accessibilityState={{ busy: pending }} onPress={add} disabled={pending || value >= target} style={({ pressed }) => [styles.add, pressed && styles.pressed, (pending || value >= target) && styles.disabled]}>
-          <Ionicons name={value >= target ? 'checkmark' : 'add'} size={18} color={colors.ink} /><Text style={styles.addText}>{value >= target ? 'Done' : 'Add glass'}</Text>
+        <View><Text style={styles.eyebrow}>HYDRATION</Text><Text style={styles.title}>{(value * 0.25).toFixed(2)} of {(target * 0.25).toFixed(2)} L</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add 0.25 litres of water" accessibilityState={{ busy: pending }} onPress={add} disabled={pending || value >= target} style={({ pressed }) => [styles.add, pressed && styles.pressed, (pending || value >= target) && styles.disabled]}>
+          <Ionicons name={value >= target ? 'checkmark' : 'add'} size={18} color={colors.ink} /><Text style={styles.addText}>{value >= target ? 'Done' : 'Add 0.25 L'}</Text>
         </Pressable>
       </View>
       <View style={styles.track}>{Array.from({ length: target }).map((_, index) => <WaterSegment key={index} index={index} filled={index < value} />)}</View>

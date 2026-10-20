@@ -40,6 +40,11 @@ import java.util.List;
             throw new com.wellnessapp.exception.NotFoundException("Notification not found");
     }
 
+    @Transactional
+    public long clear(String email) {
+        return notifications.deleteByUserId(users.findByEmailIgnoreCase(email).orElseThrow().getId());
+    }
+
     private Instant todayStart() {
         return LocalDate.now(clock.withZone(applicationZoneId)).atStartOfDay(applicationZoneId).toInstant();
     }
