@@ -16,10 +16,13 @@ export default function PrivacyDataScreen({ navigation }) {
     { icon: 'body-outline', title: 'Review health data', detail: 'See the measurements stored in your profile', onPress: () => navigation.navigate('BodyDetails') },
     { icon: 'people-outline', title: 'Review shared access', detail: 'See the people currently shared with you', onPress: openShared },
   ];
-  const confirmDelete = () => Alert.alert('Delete your account?', 'This permanently removes your profile, plans, check-ins, photos, and shared access.', [
+  const confirmDelete = () => {
+    if (deleting) return;
+    Alert.alert('Delete your account?', 'This permanently removes your profile, plans, check-ins, photos, and shared access. This cannot be undone.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Delete account', style: 'destructive', onPress: async () => { setDeleting(true); try { await dispatch(deleteCurrentAccount()).unwrap(); } catch (error) { setDeleting(false); Alert.alert('Account not deleted', error.message || 'Please try again.'); } } },
-  ]);
+    ]);
+  };
   return (
     <Screen>
       <View style={styles.nav}><Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><Ionicons name="arrow-back" size={20} color={colors.ink} /></Pressable><Text style={styles.navTitle}>Privacy & data</Text><View style={styles.navSpace} /></View>
@@ -27,7 +30,7 @@ export default function PrivacyDataScreen({ navigation }) {
       <View style={styles.trust}><PrimaryTealCardBackground /><Ionicons name="shield-checkmark" size={28} color="#BFECE5" /><Text style={styles.trustTitle}>Private by default</Text><Text style={styles.trustText}>Meal photos, body measurements, activity, and plan progress are protected behind your signed-in account.</Text></View>
       <View style={styles.section}><Text style={styles.sectionLabel}>MANAGE</Text>{actions.map((action) => <Pressable accessibilityRole="button" key={action.title} onPress={action.onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}><View style={styles.icon}><Ionicons name={action.icon} size={20} color={colors.tealDark} /></View><View style={styles.copy}><Text style={styles.rowTitle}>{action.title}</Text><Text style={styles.rowDetail}>{action.detail}</Text></View><Ionicons name="arrow-forward" size={18} color={colors.muted} /></Pressable>)}</View>
       <View style={styles.boundary}><Ionicons name="lock-closed-outline" size={19} color={colors.tealDark} /><View style={styles.copy}><Text style={styles.boundaryTitle}>Access boundary</Text><Text style={styles.boundaryText}>Shared-member access is read-only and controlled by the club administrator.</Text></View></View>
-      <Pressable accessibilityRole="button" disabled={deleting} onPress={confirmDelete} style={styles.delete}><Ionicons name="trash-outline" size={19} color={colors.danger} /><Text style={styles.deleteText}>{deleting ? 'Deleting account…' : 'Delete account'}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Permanently delete my account" accessibilityState={{ disabled: deleting, busy: deleting }} disabled={deleting} onPress={confirmDelete} style={({ pressed }) => [styles.delete, (pressed || deleting) && styles.deletePressed]}><Ionicons name="trash-outline" size={19} color={colors.danger} /><Text style={styles.deleteText}>{deleting ? 'Deleting account…' : 'Delete my account'}</Text></Pressable>
     </Screen>
   );
 }
@@ -49,5 +52,6 @@ const styles = StyleSheet.create({
   boundaryTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14 }, boundaryText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: 19, marginTop: 4 },
   pressed: { opacity: 0.68, transform: [{ scale: 0.985 }] },
   delete: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 24, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0CBC7' },
+  deletePressed: { opacity: 0.55 },
   deleteText: { color: colors.danger, fontFamily: fonts.semibold, fontSize: 15 },
 });

@@ -253,6 +253,12 @@ class ApiEndToEndTests {
         call("POST", "/auth/reset-password", Map.of("email", "e2e-member@example.com", "otp", reset.get("e2e-member@example.com"),
                 "newPassword", "ChangedPass123!"), null, 200);
         call("GET", "/profile", null, member, 401);
-        assertThat(login("e2e-member@example.com", "ChangedPass123!")).isNotBlank();
+        var changedMember = login("e2e-member@example.com", "ChangedPass123!");
+        call("DELETE", "/profile/account", null, admin, 409);
+        assertThat(users.findByEmailIgnoreCase("admin@mr-care.app")).isPresent();
+        call("DELETE", "/profile/account", null, changedMember, 204);
+        assertThat(users.findByEmailIgnoreCase("e2e-member@example.com")).isEmpty();
+        call("DELETE", "/admin/users/" + viewerId, null, admin, 204);
+        assertThat(users.findByEmailIgnoreCase("e2e-viewer@example.com")).isEmpty();
     }
 }

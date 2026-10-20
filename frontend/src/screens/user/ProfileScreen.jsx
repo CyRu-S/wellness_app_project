@@ -12,8 +12,11 @@ import NotificationSettings from '../../components/user/NotificationSettings';
 import SyncFeedback from '../../components/common/SyncFeedback';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import { profileImageSource } from '../../utils/profilePhoto';
+import LanguageToggle from '../../components/common/LanguageToggle';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 export default function ProfileScreen({ navigation }) {
+  const { t } = useLanguage();
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
   const token = useSelector((state) => state.auth.token);
@@ -30,33 +33,34 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const rows = [
-    { icon: 'body-outline', label: 'Health profile', meta: 'Body measurements and weekly check-in', route: 'BodyDetails' },
-    { icon: 'heart-outline', label: 'Health preferences', meta: 'Dietary needs shared with your coach', route: 'HealthPreferences' },
-    { icon: 'document-text-outline', label: 'Health reports', meta: 'Saved profile updates over time', route: 'HealthReports' },
-    { icon: 'shield-checkmark-outline', label: 'Privacy & account', meta: 'Shared access and account deletion', route: 'PrivacyData' },
+    { icon: 'body-outline', label: t('healthProfile'), meta: t('healthProfileDetail'), route: 'BodyDetails' },
+    { icon: 'heart-outline', label: t('healthPreferences'), meta: t('healthPreferencesDetail'), route: 'HealthPreferences' },
+    { icon: 'document-text-outline', label: t('healthReports'), meta: t('healthReportsDetail'), route: 'HealthReports' },
+    { icon: 'shield-checkmark-outline', label: t('privacyAccount'), meta: t('privacyAccountDetail'), route: 'PrivacyData' },
   ];
   const displayName = user?.name || profile.name || 'Member';
-  const goal = profile.goal || 'No goal added yet';
+  const goal = profile.goal || t('noGoal');
   const avatarSource = profileImageSource(profile.profileImageUrl || user?.profileImageUrl, token, profile.profileImageVersion);
 
   return (
     <Screen>
-      <UserHeader navigation={navigation} title="Profile" showNotifications={false} />
+      <UserHeader navigation={navigation} title={t('profile')} showNotifications={false} />
       <StaggeredView delay={40} style={styles.head}>
         <View style={styles.avatar}>{avatarSource ? <Image source={avatarSource} resizeMode="cover" style={styles.avatarImage} /> : <Text style={styles.initial}>{displayName[0]?.toUpperCase()}</Text>}<View style={styles.status} /></View>
-        <View style={styles.identity}><Text style={styles.kicker}>YOUR PROFILE</Text><Text numberOfLines={2} style={styles.title}>{displayName}</Text><Text style={styles.email}>{user?.email}</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Edit profile name" onPress={() => navigation.navigate('EditProfile')} style={({ pressed }) => [styles.edit, pressed && styles.pressed]}><Ionicons name="pencil" size={18} color={colors.tealDark} /></Pressable>
+        <View style={styles.identity}><Text style={styles.kicker}>{t('yourProfile')}</Text><Text numberOfLines={2} style={styles.title}>{displayName}</Text><Text style={styles.email}>{user?.email}</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('editProfileName')} onPress={() => navigation.navigate('EditProfile')} style={({ pressed }) => [styles.edit, pressed && styles.pressed]}><Ionicons name="pencil" size={18} color={colors.tealDark} /></Pressable>
       </StaggeredView>
 
       <StaggeredView delay={130} style={styles.goal}>
-        <View style={styles.goalTop}><Text style={styles.goalLabel}>CURRENT GOAL</Text><Text style={styles.review}>YOUR GOAL</Text></View>
-        <Text style={styles.goalText}>{goal}</Text><Text style={styles.review}>Today’s meal plan: {completion || 0}% logged</Text><View style={styles.goalProgress}><View style={[styles.goalFill, { width: `${Math.min(100, Math.max(0, completion || 0))}%` }]} /></View>
+        <View style={styles.goalTop}><Text style={styles.goalLabel}>{t('currentGoal')}</Text><Text style={styles.review}>{t('yourGoal')}</Text></View>
+        <Text style={styles.goalText}>{goal}</Text><Text style={styles.review}>{t('todayMealPlan', { value: completion || 0 })}</Text><View style={styles.goalProgress}><View style={[styles.goalFill, { width: `${Math.min(100, Math.max(0, completion || 0))}%` }]} /></View>
       </StaggeredView>
 
       <NotificationSettings />
+      <LanguageToggle />
 
       <StaggeredView delay={235} style={styles.rows}>
-        <Text style={styles.settings}>ACCOUNT & HEALTH</Text>
+        <Text style={styles.settings}>{t('accountHealth')}</Text>
         {rows.map(({ icon, label, meta, route }) => (
           <Pressable accessibilityRole="button" key={label} onPress={() => navigation.navigate(route)} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
             <View style={styles.rowIcon}><Ionicons name={icon} size={20} color={colors.tealDark} /></View>
@@ -66,9 +70,9 @@ export default function ProfileScreen({ navigation }) {
         ))}
       </StaggeredView>
 
-      <StaggeredView delay={285} style={styles.trust}><PrimaryTealCardBackground /><Ionicons name="lock-closed" size={20} color="#BFECE5" /><Text style={styles.trustLabel}>PRIVATE BY DEFAULT</Text><Text style={styles.trustTitle}>Your wellbeing data stays yours.</Text><Text style={styles.trustCopy}>Meal photos, plan progress and activity details are visible to you, your admin, and members explicitly granted access.</Text></StaggeredView>
-      <Pressable accessibilityRole="button" disabled={loggingOut} onPress={logout} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Ionicons name="log-out-outline" size={20} color={colors.danger} /><Text style={styles.logoutText} >{loggingOut ? 'Disconnecting…' : 'Sign out'}</Text></Pressable>
-      <SyncFeedback error={logoutError} label="Sign out" onRetry={logout} />
+      <StaggeredView delay={285} style={styles.trust}><PrimaryTealCardBackground /><Ionicons name="lock-closed" size={20} color="#BFECE5" /><Text style={styles.trustLabel}>{t('privateDefault')}</Text><Text style={styles.trustTitle}>{t('dataYours')}</Text><Text style={styles.trustCopy}>{t('dataYoursDetail')}</Text></StaggeredView>
+      <Pressable accessibilityRole="button" disabled={loggingOut} onPress={logout} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Ionicons name="log-out-outline" size={20} color={colors.danger} /><Text style={styles.logoutText} >{loggingOut ? t('disconnecting') : t('signOut')}</Text></Pressable>
+      <SyncFeedback error={logoutError} label={t('signOut')} onRetry={logout} />
     </Screen>
   );
 }

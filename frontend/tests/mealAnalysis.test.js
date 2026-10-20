@@ -8,13 +8,14 @@ function captured(analyzeMealPhoto) {
     './mealAnalysisApi': { analyzeMealPhoto }, '../../utils/mealAnalysis': helpers,
   }).analyzeCapturedMeal;
 }
-test('Herbalife photo entries use the editable plan defaults and never call AI', async () => {
+test('Herbalife photo entries use editable plan values and fill missing nutrients conservatively', async () => {
   let requests = 0;
   const analyze = captured(async () => { requests++; });
   const result = await analyze({ uri: 'file:///product.jpg', meal: { type: 'Herbalife product', name: 'Formula 1', calories: 120, protein: 10 } });
   assert.equal(requests, 0); assert.equal(result.source, 'manual');
   assert.equal(result.name, 'Formula 1'); assert.equal(result.calories, 120);
-  assert.match(result.warning, /label/);
+  assert.equal(result.protein, 10); assert.equal(result.carbs, 24); assert.equal(result.fat, 6);
+  assert.match(result.warning, /Starter estimate/);
 });
 test('direct product analysis calls also bypass image upload and the backend', async () => {
   let requests = 0;
@@ -34,6 +35,16 @@ test('all meal categories open manual nutrition immediately without any AI reque
     assert.equal(result.items.length, 0); assert.equal(result.calories, 250);
   }
   assert.equal(requests, 0);
+});
+
+test('zero-value plans receive moderate meal-specific starter nutrition after a photo', async () => {
+  const analyze = captured(async () => { throw new Error('AI must remain unused'); });
+  const breakfast = await analyze({ uri: 'photo', meal: { type: 'Breakfast', name: 'Morning meal', calories: 0, protein: 0 } });
+  const dinner = await analyze({ uri: 'photo', meal: { type: 'Dinner', name: 'Evening meal' } });
+  assert.deepEqual([breakfast.calories, breakfast.protein, breakfast.carbs, breakfast.fat], [360, 18, 48, 11]);
+  assert.deepEqual([dinner.calories, dinner.protein, dinner.carbs, dinner.fat], [480, 26, 52, 17]);
+  assert.equal(breakfast.nutritionSource, 'starter-estimate');
+  assert.match(breakfast.warning, /Review and edit/);
 });
 
 test('manually entered gram weights scale per-100-g nutrients and excluded foods do not count', () => {
@@ -69,7 +80,8 @@ test('manual entry works while recognition is unavailable', async () => {
   const analyze = captured(async () => { throw new Error('No food could be identified.'); });
   const result = await analyze({ meal: { type: 'Lunch', name: 'Planned meal', calories: 300 } });
   assert.equal(result.source, 'manual'); assert.equal(result.name, 'Planned meal'); assert.equal(result.items.length, 0);
-  assert.match(result.warning, /Enter the nutrition/);
+  assert.equal(result.protein, 28); assert.equal(result.carbs, 62); assert.equal(result.fat, 18);
+  assert.match(result.warning, /Starter estimate/);
 });
 
 test('laddu reference remains visible before weight entry and scales to the eaten portion', () => {

@@ -11,6 +11,7 @@ import { store } from './src/store';
 import { restoreSession } from './src/store/slices/authSlice';
 import { beginPersistedStateWrites, readPersistedState } from './src/services/storage/persistedState';
 import { purgeLegacyCache } from './src/services/storage/encryptedStorage';
+import { LanguageProvider } from './src/i18n/LanguageContext';
 
 Text.defaultProps = Text.defaultProps || {};
 Text.defaultProps.style = [{ fontFamily: 'Chillax-Regular' }, Text.defaultProps.style];
@@ -54,11 +55,13 @@ export default function App() {
 
   return (
     <Provider store={store}>
-      <SafeAreaProvider>
-        <StatusBar style="auto" />
-        <PwaStatus />
-        <AppContent />
-      </SafeAreaProvider>
+      <LanguageProvider>
+        <SafeAreaProvider>
+          <StatusBar style="auto" />
+          <PwaStatus />
+          <AppContent />
+        </SafeAreaProvider>
+      </LanguageProvider>
     </Provider>
   );
 }

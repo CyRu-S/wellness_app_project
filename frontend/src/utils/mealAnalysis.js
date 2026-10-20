@@ -2,10 +2,24 @@ export function isManualProduct(value) {
   const category = typeof value === 'string' ? value : value?.type;
   return /^(product|herbalife|herbalife product)$/i.test(String(category || '').trim());
 }
+const starterNutrition = {
+  breakfast: { calories: 360, protein: 18, carbs: 48, fat: 11 },
+  lunch: { calories: 520, protein: 28, carbs: 62, fat: 18 },
+  snack: { calories: 220, protein: 9, carbs: 30, fat: 8 },
+  snacks: { calories: 220, protein: 9, carbs: 30, fat: 8 },
+  dinner: { calories: 480, protein: 26, carbs: 52, fat: 17 },
+  'herbalife product': { calories: 220, protein: 20, carbs: 24, fat: 6 },
+  product: { calories: 220, protein: 20, carbs: 24, fat: 6 },
+};
+const positiveOr = (value, fallback) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
 export function manualMealAnalysis(meal = {}, warning) {
-  return { name: meal.name || '', calories: meal.calories || 0, protein: meal.protein || 0,
-    carbs: meal.carbs || 0, fat: meal.fat || 0, confidence: 0, items: [], source: 'manual',
-    warning: warning || 'Enter the nutrition for the serving you used, using the product label or your plan.' };
+  const type = String(meal.type || 'meal').trim().toLowerCase();
+  const estimate = starterNutrition[type] || { calories: 420, protein: 22, carbs: 50, fat: 14 };
+  return { name: meal.name || meal.type || 'Meal estimate', calories: positiveOr(meal.calories, estimate.calories),
+    protein: positiveOr(meal.protein ?? meal.proteinGrams, estimate.protein),
+    carbs: positiveOr(meal.carbs ?? meal.carbsGrams, estimate.carbs), fat: positiveOr(meal.fat ?? meal.fatGrams, estimate.fat),
+    confidence: 0, items: [], source: 'manual', nutritionSource: 'starter-estimate',
+    warning: warning || 'Starter estimate based on the meal slot. Review and edit it before saving.' };
 }
 const nutrientKeys = ['calories', 'protein', 'carbs', 'fat'];
 export function hasFoodNutrition(item) {

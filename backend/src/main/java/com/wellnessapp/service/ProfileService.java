@@ -133,21 +133,29 @@ import java.time.Instant;
     }
 
     @Transactional
-    public void deleteOwnAccount(String email) { deleteUser(user(email), true); }
+    public void deleteOwnAccount(String email) {
+        User account = user(email);
+        if (account.getRole() == User.Role.ADMIN) {
+            throw new ConflictException("Administrator accounts cannot be deleted");
+        }
+        deleteUser(account);
+    }
 
     @Transactional
     public void deleteMember(Long memberId) {
         User member = users.findById(memberId).filter(value -> value.getRole() == User.Role.USER)
                 .orElseThrow(() -> new NotFoundException("Member not found"));
-        deleteUser(member, false);
+        deleteUser(member);
     }
 
-    private void deleteUser(User user, boolean allowAdmin) {
-        if (user.getRole() == User.Role.ADMIN && (!allowAdmin || users.countByRoleAndStatus(User.Role.ADMIN, User.Status.ACTIVE) <= 1))
-            throw new ConflictException("Add another active administrator before deleting this admin account");
+    private void deleteUser(User user) {
+        Long userId = user.getId();
         profiles.findByUserId(user.getId()).map(UserProfile::getPhotoMediaKey).ifPresent(mediaStorage::deleteQuietly);
         mealPosts.findByUserId(user.getId()).stream().map(MealPost::getMediaKey).forEach(mediaStorage::deleteQuietly);
-        users.delete(user);
+        // A bulk delete lets the database cascade account-owned rows and clears
+        // the persistence context so loaded profile/post entities cannot retain
+        // references to the deleted account during transaction completion.
+        users.deleteAccountById(userId);
     }
 
     private void recordHistory(User user, UserProfile profile) {

@@ -43,7 +43,6 @@ import { request } from '../../services/api/client';
 
 const TIME_PATTERN = /^(0?[1-9]|1[0-2]):[0-5]\d\s?(AM|PM)$/i;
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Snack', 'Dinner', 'Herbalife product'];
-const HABIT_CATEGORIES = ['Activity', 'Hydration', 'Mindfulness', 'Supplements', 'Sleep'];
 
 function timeToHour(value, fallback) {
   const match = value.trim().match(TIME_PATTERN);
@@ -383,6 +382,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
       items: items.map((item) => ({
         ...item,
         name: item.name.trim(),
+        category: item.kind === 'HEALTHY_HABIT' ? null : item.category,
         time: item.time.trim().toUpperCase(),
         hour: timeToHour(item.time, item.hour),
         ingredients: (item.ingredients || []).map((ingredient) => ingredient.trim()).filter(Boolean),
@@ -409,7 +409,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
               <View key={meal.id || `${meal.type}-${index}`} style={styles.editorMeal}>
                 <View style={styles.editorMealTop}>
                   <View style={styles.editorMealNumber}><Text style={styles.editorMealNumberText}>{String(index + 1).padStart(2, '0')}</Text></View>
-                  <Text style={styles.editorMealType}>{meal.kind === 'HEALTHY_HABIT' ? (meal.category || 'No category') : meal.type}</Text>
+                  <Text style={styles.editorMealType}>{meal.kind === 'HEALTHY_HABIT' ? 'Healthy habit' : meal.type}</Text>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${meal.type}`} onPress={() => removeItem(index)} style={styles.removeMeal}>
                     <Ionicons name="trash-outline" size={17} color={adminColors.coral} />
                   </Pressable>
@@ -419,21 +419,16 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                     <Ionicons name="time-outline" size={15} color={adminColors.deepTeal} />
                   </Pressable>
                 </View>
-                <View style={styles.kindOptions}>
-                  {[['MEAL', 'Meal'], ['HEALTHY_HABIT', 'Healthy habit']].map(([kind, label]) => <Pressable key={kind} onPress={() => changeItem(index, 'kind', kind)} style={[styles.typeOption, meal.kind === kind && styles.typeOptionSelected]}><Text style={[styles.typeOptionText, meal.kind === kind && styles.typeOptionTextSelected]}>{label}</Text></Pressable>)}
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeOptions}>
-                  {meal.kind === 'HEALTHY_HABIT' ? <Pressable accessibilityRole="button" accessibilityState={{ selected: !meal.category }} onPress={() => changeItem(index, 'category', '')} style={[styles.typeOption, !meal.category && styles.typeOptionSelected]}><Text style={[styles.typeOptionText, !meal.category && styles.typeOptionTextSelected]}>No category</Text></Pressable> : null}
-                  {(meal.kind === 'HEALTHY_HABIT' ? HABIT_CATEGORIES : MEAL_TYPES).map((type) => {
-                    const field = meal.kind === 'HEALTHY_HABIT' ? 'category' : 'type';
-                    const selected = meal[field] === type;
+                {meal.kind !== 'HEALTHY_HABIT' ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeOptions}>
+                  {MEAL_TYPES.map((type) => {
+                    const selected = meal.type === type;
                     return (
-                      <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => changeItem(index, field, type)} style={[styles.typeOption, selected && styles.typeOptionSelected]}>
+                      <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => changeItem(index, 'type', type)} style={[styles.typeOption, selected && styles.typeOptionSelected]}>
                         <Text style={[styles.typeOptionText, selected && styles.typeOptionTextSelected]}>{type}</Text>
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </ScrollView> : null}
                 <TextInput
                   accessibilityLabel={`${meal.type} description`}
                   value={meal.name}
@@ -451,7 +446,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => addItem('HEALTHY_HABIT')} style={({ pressed }) => [styles.addMealButton, pressed && styles.pressed]}>
               <View style={styles.addMealIcon}><Ionicons name="leaf-outline" size={20} color={adminColors.deepTeal} /></View>
-              <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add healthy habit</Text><Text style={styles.addMealDetail}>Category is optional; every item still appears in the member timeline and reminders.</Text></View>
+              <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add healthy habit</Text><Text style={styles.addMealDetail}>Add one daily wellbeing action with its reminder time.</Text></View>
             </Pressable>
           </ScrollView>
           {timePickerIndex != null && items[timePickerIndex] ? <MealTimePicker key={`${timePickerIndex}-${items[timePickerIndex].id}`}
@@ -499,6 +494,7 @@ export default function UserDetailsScreen({ route, navigation }) {
   const [editingWaterGoal, setEditingWaterGoal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [deletingMember, setDeletingMember] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const member = useMemo(
     () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name) || directMember,
@@ -538,10 +534,22 @@ export default function UserDetailsScreen({ route, navigation }) {
       Alert.alert('Could not update water goal', error?.message || 'Please try again.');
     }
   };
-  const confirmDeleteMember = () => Alert.alert(`Delete ${profileMember.name}’s account?`, 'This permanently removes their profile, plans, reports, check-ins, photos, and shared access.', [
+  const confirmDeleteMember = () => {
+    if (deletingMember) return;
+    Alert.alert(`Delete ${profileMember.name}’s account?`, 'This permanently removes their profile, plans, reports, check-ins, photos, and shared access. This cannot be undone.', [
     { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete account', style: 'destructive', onPress: async () => { try { await dispatch(deleteMemberAccount(member.id)).unwrap(); navigation.navigate('AdminTabs', { screen: 'UserList' }); } catch (error) { Alert.alert('Account not deleted', error.message || 'Please try again.'); } } },
-  ]);
+    { text: 'Delete account', style: 'destructive', onPress: async () => {
+      setDeletingMember(true);
+      try {
+        await dispatch(deleteMemberAccount(member.id)).unwrap();
+        navigation.navigate('AdminTabs', { screen: 'UserList' });
+      } catch (error) {
+        setDeletingMember(false);
+        Alert.alert('Account not deleted', error.message || 'Please try again.');
+      }
+    } },
+    ]);
+  };
   const confirmDeletePost = () => Alert.alert('Delete this member post?', 'The photo and check-in will be permanently removed. The member can then upload the correct post.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Delete post', style: 'destructive', onPress: async () => {
@@ -618,7 +626,7 @@ export default function UserDetailsScreen({ route, navigation }) {
         <Pressable onPress={() => navigation.navigate('ManageMemberAccess', { viewerId: member.id })} style={styles.retryButton}><Text style={styles.retryText}>Manage access</Text></Pressable>
       </View>}
       {segment === 'History' && (journal ? <History days={journal.history || []} token={token} retentionDays={journal.retentionDays || 21} onOpenPhoto={setSelectedPhoto} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
-      <Pressable accessibilityRole="button" onPress={confirmDeleteMember} style={styles.deleteMember}><Ionicons name="trash-outline" size={18} color={adminColors.coral} /><Text style={styles.deleteMemberText}>Delete member account</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: deletingMember, busy: deletingMember }} disabled={deletingMember} onPress={confirmDeleteMember} style={({ pressed }) => [styles.deleteMember, (pressed || deletingMember) && styles.pressed]}><Ionicons name="trash-outline" size={18} color={adminColors.coral} /><Text style={styles.deleteMemberText}>{deletingMember ? 'Deleting member account…' : 'Delete member account'}</Text></Pressable>
 
       {editingPlan ? <PlanEditor visible member={member} plan={plan} onClose={() => setEditingPlan(false)} onSave={savePlan} /> : null}
       {editingWaterGoal ? <WaterGoalEditor visible member={profileMember} currentGoal={profileMember.waterGoalMl || 2000} saving={waterGoalRequest.status === 'saving'} onClose={() => setEditingWaterGoal(false)} onSave={saveWaterGoal} /> : null}
@@ -786,7 +794,6 @@ const styles = StyleSheet.create({
   timeInput: { minWidth: 100, minHeight: 42, paddingHorizontal: 9, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: adminColors.aqua },
   timeInputText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 12 },
   typeOptions: { gap: 7, paddingTop: 11, paddingBottom: 1 },
-  kindOptions: { flexDirection: 'row', gap: 7, paddingTop: 11 },
   typeOption: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 13, backgroundColor: adminColors.surfaceMuted, borderWidth: 1, borderColor: adminColors.line },
   typeOptionSelected: { backgroundColor: adminColors.deepTeal, borderColor: adminColors.deepTeal },
   typeOptionText: { color: adminColors.muted, fontFamily: adminFonts.medium, fontSize: 12 },

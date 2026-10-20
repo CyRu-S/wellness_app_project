@@ -6,10 +6,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AppLogo from '../../components/common/AppLogo';
-import { deleteCurrentAccount, signOutSafely } from '../../store/slices/authSlice';
+import { signOutSafely } from '../../store/slices/authSlice';
 import NotificationSettings from '../../components/user/NotificationSettings';
 import SyncFeedback from '../../components/common/SyncFeedback';
 import { adminColors, adminFonts } from '../../theme/admin';
+import LanguageToggle from '../../components/common/LanguageToggle';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 function SectionHeading({ eyebrow, title, meta }) {
   return (
@@ -44,11 +46,11 @@ function AccountRow({ icon, title, detail, onPress, last }) {
 }
 
 export default function AdminSettingsScreen({ navigation }) {
+  const { t } = useLanguage();
   const dispatch = useDispatch();
   const admin = useSelector((state) => state.auth.user);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState(null);
-  const [deleting, setDeleting] = useState(false);
   const logout = async () => {
     if (loggingOut) return;
     setLoggingOut(true); setLogoutError(null);
@@ -58,32 +60,27 @@ export default function AdminSettingsScreen({ navigation }) {
 
   const confirmSignOut = () => {
     if (Platform.OS === 'web') {
-      if (globalThis.confirm?.('Sign out of admin?\n\nYou will return to the login screen.')) logout();
+      if (globalThis.confirm?.(`${t('signOutAdminQuestion')}\n\n${t('signOutAdminDetail')}`)) logout();
       return;
     }
 
     Alert.alert(
-      'Sign out of admin?',
-      'You will return to the login screen.',
+      t('signOutAdminQuestion'),
+      t('signOutAdminDetail'),
       [
-        { text: 'Stay signed in', style: 'cancel' },
-        { text: 'Sign out', style: 'destructive', onPress: () => logout() },
+        { text: t('staySignedIn'), style: 'cancel' },
+        { text: t('signOut'), style: 'destructive', onPress: () => logout() },
       ],
     );
   };
-  const confirmDelete = () => Alert.alert('Delete admin account?', 'This action is permanent. Another active admin must remain.', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete account', style: 'destructive', onPress: async () => { setDeleting(true); try { await dispatch(deleteCurrentAccount()).unwrap(); } catch (error) { setDeleting(false); Alert.alert('Account not deleted', error.message || 'Please try again.'); } } },
-  ]);
-
   return (
     <AdminScreen contentStyle={styles.screenContent}>
-      <AdminHeader title="Settings" back onBackPress={() => navigation.navigate('AdminDashboard')} />
+      <AdminHeader title={t('settings')} back onBackPress={() => navigation.navigate('AdminDashboard')} />
 
       <View style={styles.heading}>
-        <Text style={styles.eyebrow}>ADMIN SPACE</Text>
-        <Text style={styles.title}>Tune your space.</Text>
-        <Text style={styles.subtitle}>Choose what deserves your attention and keep the rest of your day quiet.</Text>
+        <Text style={styles.eyebrow}>{t('adminSpace')}</Text>
+        <Text style={styles.title}>{t('tuneSpace')}</Text>
+        <Text style={styles.subtitle}>{t('tuneSpaceDetail')}</Text>
       </View>
 
       <View style={styles.profile}>
@@ -92,43 +89,43 @@ export default function AdminSettingsScreen({ navigation }) {
           <View style={styles.profileStatus} />
         </View>
         <View style={styles.profileCopy}>
-          <Text style={styles.profileEyebrow}>ADMIN PROFILE</Text>
+          <Text style={styles.profileEyebrow}>{t('adminProfile')}</Text>
           <Text numberOfLines={1} style={styles.profileName}>{admin?.name || 'Arjun'}</Text>
           <Text numberOfLines={1} style={styles.profileClub}>{admin?.clubName || 'Mr_Care Collective'}</Text>
         </View>
       </View>
 
       <NotificationSettings />
-      <AccountRow icon="notifications-outline" title="Notification inbox" detail="Signup requests, member updates and daily summaries" onPress={() => navigation.navigate('AdminNotifications')} last />
+      <LanguageToggle admin />
+      <AccountRow icon="notifications-outline" title={t('notificationInbox')} detail={t('notificationInboxDetail')} onPress={() => navigation.navigate('AdminNotifications')} last />
 
-      <SectionHeading eyebrow="ACCOUNT & ACCESS" title="The essentials" />
+      <SectionHeading eyebrow={t('accountAccess')} title={t('essentials')} />
       <View style={styles.accountList}>
-        <AccountRow icon="person-outline" title="Profile details" detail="Name, contact and club information" onPress={() => navigation.navigate('AdminProfile')} />
-        <AccountRow icon="key-outline" title="Security" detail="Reset your password" onPress={() => navigation.navigate('AdminPasswordReset', {
+        <AccountRow icon="person-outline" title={t('profileDetails')} detail={t('profileDetailsDetail')} onPress={() => navigation.navigate('AdminProfile')} />
+        <AccountRow icon="key-outline" title={t('security')} detail={t('securityDetail')} onPress={() => navigation.navigate('AdminPasswordReset', {
           email: admin?.email,
           verifyRoute: 'AdminVerifyOtp',
           signedInReset: true,
         })} last />
       </View>
 
-      <SectionHeading eyebrow="TRUST CENTER" title="Care beyond coaching" />
+      <SectionHeading eyebrow={t('trustCenter')} title={t('careBeyond')} />
       <View style={styles.trustCard}>
         <View pointerEvents="none" style={styles.trustOrb} />
         <View style={styles.trustTopline}>
           <View style={styles.trustIcon}><Ionicons name="lock-closed" size={20} color="#BFECE5" /></View>
-          <Text style={styles.trustLabel}>PRIVATE BY DEFAULT</Text>
+          <Text style={styles.trustLabel}>{t('privateDefault')}</Text>
         </View>
-        <Text style={styles.trustTitle}>Member data deserves the same care as member wellbeing.</Text>
-        <Text style={styles.trustText}>Activity and coaching information remain confidential inside the admin workspace.</Text>
+        <Text style={styles.trustTitle}>{t('memberDataCare')}</Text>
+        <Text style={styles.trustText}>{t('memberDataDetail')}</Text>
       </View>
 
       <Pressable accessibilityRole="button" disabled={loggingOut} onPress={confirmSignOut} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}>
         <Ionicons name="log-out-outline" size={20} color={adminColors.coral} />
-        <Text style={styles.logoutText}>{loggingOut ? 'Disconnecting…' : 'Sign out of admin'}</Text>
+        <Text style={styles.logoutText}>{loggingOut ? t('disconnecting') : t('signOutAdmin')}</Text>
         <Ionicons name="arrow-forward" size={18} color={adminColors.coral} />
       </Pressable>
-      <SyncFeedback error={logoutError} label="Sign out" onRetry={logout} />
-      <Pressable accessibilityRole="button" disabled={deleting} onPress={confirmDelete} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Ionicons name="trash-outline" size={20} color={adminColors.coral} /><Text style={styles.logoutText}>{deleting ? 'Deleting account…' : 'Delete admin account'}</Text></Pressable>
+      <SyncFeedback error={logoutError} label={t('signOut')} onRetry={logout} />
     </AdminScreen>
   );
 }

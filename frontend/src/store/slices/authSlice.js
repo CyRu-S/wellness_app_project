@@ -46,7 +46,10 @@ export const signOutSafely = createAsyncThunk('auth/signOutSafely', async (_, { 
 });
 export const deleteCurrentAccount = createAsyncThunk('auth/deleteAccount', async (_, { getState, dispatch }) => {
   await deleteAccountApi(getState().auth.token);
-  await cancelPersistedState(); await clearSession(); await clearCachedResponses(); await clearProtectedImageCache();
+  // The account is already gone on the server. Always end the local session,
+  // even if a browser/device storage cleanup operation is unavailable.
+  await cancelPersistedState().catch(() => {});
+  await Promise.allSettled([clearSession(), clearCachedResponses(), clearProtectedImageCache()]);
   dispatch(signOut());
 });
 const slice = createSlice({

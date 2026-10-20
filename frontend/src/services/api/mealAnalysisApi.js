@@ -2,7 +2,7 @@ import { isManualProduct, manualMealAnalysis } from '../../utils/mealAnalysis';
 import { appendImage } from './imageUpload';
 import { request } from './client';
 export async function analyzeMealPhoto({ uri, category = 'meal', token }) {
-  if (isManualProduct(category)) return manualMealAnalysis();
+  if (isManualProduct(category)) return manualMealAnalysis({ type: category });
   const form = new FormData();
   form.append('category', category);
   await appendImage(form, { uri, fileName: 'meal.jpg' });
