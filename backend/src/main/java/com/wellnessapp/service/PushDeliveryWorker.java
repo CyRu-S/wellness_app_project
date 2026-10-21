@@ -62,6 +62,9 @@ public class PushDeliveryWorker {
     }
     private Map<String, Object> message(PushDelivery d) {
         var event = d.getNotification();
+        boolean customSound = queue.customSound(event.getUser().getId());
+        String channel = Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind())
+                ? "meal-reminders" : "coach-nudges";
         boolean personalisedReminder = Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT, PushDelivery.Kind.NUDGE).contains(d.getKind());
         String title = personalisedReminder ? event.getTitle() : "Mr_Care";
         String body = personalisedReminder ? event.getBody() : switch (d.getKind()) {
@@ -76,11 +79,11 @@ public class PushDeliveryWorker {
             default -> "You have a reminder. Open Mr_Care to review it.";
         };
         return Map.of("to", d.getDevice().getExpoToken(), "title", title,
-                "body", body, "sound", "default", "priority", "high", "badge", 1,
-                "channelId", Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind()) ? "meal-reminders" : "coach-nudges",
+                "body", body, "sound", customSound ? "main_theme_alert.mp3" : "default", "priority", "high", "badge", 1,
+                "channelId", customSound ? channel + "-theme" : channel,
                 "ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()),
                 "data", Map.of("notificationId", d.getNotification().getId().toString(), "userId", d.getNotification().getUser().getId().toString(),
-                        "kind", d.getKind().name()));
+                        "kind", d.getKind().name(), "customSound", customSound));
     }
     private void fail(PushDelivery d, String code, boolean retryable) {
         // Only persist known error codes, never raw provider bodies (which may contain tokens).

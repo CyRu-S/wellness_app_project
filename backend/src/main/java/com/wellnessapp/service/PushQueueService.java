@@ -21,7 +21,13 @@ public class PushQueueService {
             case MEAL, HABIT -> p.isMealReminders(); case NUDGE -> p.isCoachNudges(); case TEST -> true;
             case SIGNUP -> p.isSignupAlerts(); case DEADLINE -> p.isDeadlineAlerts(); case DIGEST -> p.isDailyDigest();
             case MEAL_POST, ACTIVITY -> p.isMemberUpdates(); case PLAN, ACCESS, APPROVAL -> p.isAccountUpdates();
-        }).orElse(kind != PushDelivery.Kind.DIGEST);
+        }).orElse(Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT, PushDelivery.Kind.NUDGE,
+                PushDelivery.Kind.SIGNUP, PushDelivery.Kind.DEADLINE, PushDelivery.Kind.PLAN,
+                PushDelivery.Kind.ACCESS, PushDelivery.Kind.APPROVAL, PushDelivery.Kind.TEST).contains(kind));
+    }
+
+    public boolean customSound(Long userId) {
+        return preferences.findById(userId).map(NotificationPreferences::isCustomSound).orElse(true);
     }
 
     /** Called in the same transaction that creates the event; never sends over the network here. */

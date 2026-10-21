@@ -31,3 +31,18 @@ test('admin settings never exposes admin account deletion while member deletion 
   assert.doesNotMatch(settings, /deleteCurrentAccount|Delete admin account/);
   assert.match(details, /Delete member account/);
 });
+
+test('theme ringtone is configurable and the test notification control is removed', async () => {
+  const [nativeSettings, webSettings, preferences, app] = await Promise.all([
+    source('../src/components/user/NotificationSettings.jsx'),
+    source('../src/components/user/NotificationSettings.web.jsx'),
+    source('../src/store/slices/notificationSlice.js'),
+    source('../app.json'),
+  ]);
+  assert.match(nativeSettings, /customSound/);
+  assert.match(webSettings, /customSound/);
+  assert.match(preferences, /customSound: true/);
+  assert.doesNotMatch(webSettings, /sendTestNotification|Send test notification/);
+  assert.doesNotMatch(preferences, /sendTestNotification|notifications\/test/);
+  assert.match(app, /main_theme_alert\.mp3/);
+});

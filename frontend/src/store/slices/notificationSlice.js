@@ -10,7 +10,7 @@ const isToday = (value) => {
     && date.getMonth() === today.getMonth()
     && date.getDate() === today.getDate();
 };
-const extraPreferenceDefaults = { signupAlerts: true, deadlineAlerts: true, dailyDigest: false, memberUpdates: true, accountUpdates: true };
+const extraPreferenceDefaults = { signupAlerts: true, deadlineAlerts: true, dailyDigest: false, memberUpdates: false, accountUpdates: true, customSound: true };
 export const notificationPreferences = (n) => ({ mealReminders: n.timelineRemindersEnabled, coachNudges: n.coachNudgesEnabled,
   ...Object.fromEntries(Object.entries(extraPreferenceDefaults).map(([key, fallback]) => [key, n[key] ?? fallback])) });
 export const markNotificationRead = createAsyncThunk('notifications/read', async (id, { getState }) => {
@@ -32,10 +32,6 @@ export const saveNotificationPreferences = createAsyncThunk('notifications/saveP
   request('/notifications/preferences', { method: 'PUT', headers: authorization(getState), body: JSON.stringify(preferences) }), {
   condition: (_, { getState }) => !getState().notifications.savingPreferences,
 });
-export const sendTestNotification = createAsyncThunk('notifications/test', async (_, { getState }) =>
-  request('/notifications/test', { method: 'POST', headers: authorization(getState) }), {
-  condition: (_, { getState }) => !getState().notifications.testing,
-});
 export const clearNotifications = createAsyncThunk('notifications/clear', async (_, { getState }) => {
   await request('/notifications', { method: 'DELETE', headers: authorization(getState) });
 });
@@ -51,7 +47,7 @@ const notificationSlice = createSlice({
   name: 'notifications',
   initialState: { items: [], timelineRemindersEnabled: true, coachNudgesEnabled: true, preferencesLoaded: false, ...extraPreferenceDefaults,
     pushAvailable: false, preferencesReadId: null, savingPreferences: false, preferencesError: null, failedPreferences: null,
-    previousPreferences: null, push: { status: 'idle', message: '' }, pushRetry: 0, testing: false, testMessage: null,
+    previousPreferences: null, push: { status: 'idle', message: '' }, pushRetry: 0,
     readInboxId: null, readInboxError: null },
   reducers: {
     setTimelineRemindersEnabled: (state, action) => { state.timelineRemindersEnabled = action.payload; },
@@ -101,10 +97,7 @@ const notificationSlice = createSlice({
       if (state.previousPreferences) applyPreferences(state, state.previousPreferences);
       state.savingPreferences = false; state.previousPreferences = null; state.preferencesError = action.error.message;
       state.failedPreferences = action.meta.arg;
-    })
-    .addCase(sendTestNotification.pending, (state) => { state.testing = true; state.testMessage = null; })
-    .addCase(sendTestNotification.fulfilled, (state) => { state.testing = false; state.testMessage = 'Test queued. Check this device; delivery may take a few seconds.'; })
-    .addCase(sendTestNotification.rejected, (state, action) => { state.testing = false; state.testMessage = action.error.message; }),
+    }),
 });
 
 export const selectTimelineNotifications = createSelector(

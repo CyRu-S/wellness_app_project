@@ -3,7 +3,7 @@
     "name": "Mr_Care",
     "slug": "mr-care",
     "scheme": "mrcare",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "icon": "./assets/images/arjun-nutrition-logo.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -27,7 +27,10 @@
         "expo-notifications",
         {
           "color": "#007077",
-          "defaultChannel": "coach-nudges"
+          "defaultChannel": "coach-nudges",
+          "sounds": [
+            "./assets/sounds/main_theme_alert.mp3"
+          ]
         }
       ],
       "expo-font",

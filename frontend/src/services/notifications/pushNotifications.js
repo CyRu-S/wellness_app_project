@@ -49,9 +49,13 @@ export function syncPushRegistration(s, askPermission = false, devicePushToken) 
     if (unsupported) return { status: 'unsupported', message: unsupported };
     const Notifications = await notificationModule();
     for (const [id, name] of [['meal-reminders', 'Meal reminders'], ['coach-nudges', 'Coach nudges']]) {
-      // Omit sound to use Android's default. SDK 57 validates a supplied string
-      // (including 'default') as a bundled custom sound; null would make it silent.
+      // Android channel sound is immutable, so keep separate theme and device-default channels.
       await Notifications.setNotificationChannelAsync(id, { name, importance: Notifications.AndroidImportance.HIGH });
+      await Notifications.setNotificationChannelAsync(`${id}-theme`, {
+        name: `${name} · Main Theme Alert`,
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: 'main_theme_alert.mp3',
+      });
     }
     let permission = await Notifications.getPermissionsAsync();
     if (!permission.granted && askPermission && permission.canAskAgain) permission = await Notifications.requestPermissionsAsync();

@@ -3,8 +3,11 @@ import { isInstalled, isIOS, registerPwa, bindPushAccount, pendingPushTap, clear
 import { readEncryptedJson, writeEncryptedJson, removeEncryptedPrefix } from '../storage/encryptedStorage';
 
 const BINDING_KEY = 'mr-care.web-push.binding';
+const THEME_SOUND = '/sounds/main_theme_alert.mp3';
 let session;
 let operations = Promise.resolve();
+let activeSound;
+const soundedNotifications = new Set();
 const exclusive = (work) => {
   const result = operations.then(work, work); operations = result.catch(() => {}); return result;
 };
@@ -20,6 +23,21 @@ export function requestPushPermission() {
   const unsupported = pushSupport();
   if (unsupported) return Promise.resolve(false);
   return Notification.requestPermission().then((permission) => permission === 'granted');
+}
+export function previewThemeSound() {
+  if (typeof globalThis.Audio !== 'function') return Promise.resolve(false);
+  activeSound?.pause?.();
+  activeSound = new globalThis.Audio(THEME_SOUND);
+  activeSound.preload = 'auto';
+  activeSound.volume = 1;
+  return Promise.resolve(activeSound.play()).then(() => true).catch(() => false);
+}
+function playThemeSound(data) {
+  const id = String(data?.notificationId || '');
+  if ((data?.customSound !== true && data?.customSound !== 'true') || !id || soundedNotifications.has(id)) return;
+  soundedNotifications.add(id);
+  if (soundedNotifications.size > 60) soundedNotifications.delete(soundedNotifications.values().next().value);
+  previewThemeSound();
 }
 export function beginPushSession(authToken, userId) {
   session = { authToken, userId: String(userId), registrationId: crypto.randomUUID?.() || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => { const value = crypto.getRandomValues(new Uint8Array(1))[0] % 16; return (character === 'x' ? value : (value & 3) | 8).toString(16); }), subscription: null, stopped: false };
@@ -100,6 +118,7 @@ const fromUrl = () => {
 const listener = (type, callback) => {
   const receive = (event) => {
     if (event.data?.type !== type) return;
+    if (type === 'WEB_PUSH_RECEIVED') playThemeSound(event.data.data);
     const item = notification(event.data.data, event.data.title, event.data.body);
     callback(type === 'WEB_PUSH_TAP' ? { notification: item } : item);
   };

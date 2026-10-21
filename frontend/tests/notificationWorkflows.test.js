@@ -43,10 +43,10 @@ test('account and admin category settings are retained after saving and reading 
     return { ...saved, pushAvailable: true };
   });
   await store.dispatch(n.saveNotificationPreferences({ mealReminders: false, coachNudges: true, signupAlerts: false,
-    deadlineAlerts: false, dailyDigest: true, memberUpdates: false, accountUpdates: false })).unwrap();
+    deadlineAlerts: false, dailyDigest: true, memberUpdates: false, accountUpdates: false, customSound: false })).unwrap();
   await store.dispatch(n.loadNotificationPreferences()).unwrap();
   const state = store.getState().notifications;
-  assert.equal(state.accountUpdates, false); assert.equal(state.memberUpdates, false);
+  assert.equal(state.accountUpdates, false); assert.equal(state.memberUpdates, false); assert.equal(state.customSound, false);
   assert.equal(state.dailyDigest, true); assert.equal(state.pushAvailable, true);
 });
 

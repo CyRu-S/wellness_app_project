@@ -6,8 +6,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 import java.time.Clock;
 import java.util.Objects;
 
@@ -16,16 +14,16 @@ public class PushAccountService {
     private final UserRepository users;
     private final PushDeviceRepository devices;
     private final NotificationPreferencesRepository preferences;
-    private final NotificationRepository events;
     private final PushQueueService queue;
     private final Clock clock;
     @Value("${app.push.enabled:false}") private boolean enabled;
     @Value("${app.schedulers.enabled:true}") private boolean schedulersEnabled;
     public record Preferences(boolean mealReminders, boolean coachNudges, boolean pushAvailable,
-            boolean signupAlerts, boolean deadlineAlerts, boolean dailyDigest, boolean memberUpdates, boolean accountUpdates) {}
+            boolean signupAlerts, boolean deadlineAlerts, boolean dailyDigest, boolean memberUpdates, boolean accountUpdates,
+            boolean customSound) {}
     private Preferences response(NotificationPreferences p) {
         return new Preferences(p.isMealReminders(), p.isCoachNudges(), enabled && schedulersEnabled,
-                p.isSignupAlerts(), p.isDeadlineAlerts(), p.isDailyDigest(), p.isMemberUpdates(), p.isAccountUpdates());
+                p.isSignupAlerts(), p.isDeadlineAlerts(), p.isDailyDigest(), p.isMemberUpdates(), p.isAccountUpdates(), p.isCustomSound());
     }
 
     private User user(String email) { return users.findByEmailIgnoreCase(email).orElseThrow(); }
@@ -37,6 +35,10 @@ public class PushAccountService {
     }
     @Transactional public Preferences savePreferences(String email, boolean meals, boolean nudges,
             Boolean signup, Boolean deadline, Boolean digest, Boolean updates, Boolean account) {
+        return savePreferences(email, meals, nudges, signup, deadline, digest, updates, account, null);
+    }
+    @Transactional public Preferences savePreferences(String email, boolean meals, boolean nudges,
+            Boolean signup, Boolean deadline, Boolean digest, Boolean updates, Boolean account, Boolean customSound) {
         var user = user(email); users.lockById(user.getId()).orElseThrow();
         var row = preferences.findById(user.getId()).orElseGet(() -> { var p = new NotificationPreferences(); p.setUser(user); return p; });
         row.setMealReminders(meals); row.setCoachNudges(nudges);
@@ -45,6 +47,7 @@ public class PushAccountService {
         if (digest != null) row.setDailyDigest(digest);
         if (updates != null) row.setMemberUpdates(updates);
         if (account != null) row.setAccountUpdates(account);
+        if (customSound != null) row.setCustomSound(customSound);
         preferences.save(row);
         return response(row);
     }
@@ -59,15 +62,5 @@ public class PushAccountService {
         var user = user(email);
         devices.findByExpoToken(token).filter(d -> Objects.equals(d.getUser().getId(), user.getId()) && d.getRegistrationId().equals(registrationId))
                 .ifPresent(d -> { d.setEnabled(false); d.setUpdatedAt(clock.instant()); });
-    }
-    @Transactional public void test(String email) {
-        var user = user(email); users.lockById(user.getId()).orElseThrow();
-        if (!enabled) throw new ResponseStatusException(HttpStatus.CONFLICT, "Push delivery is not configured on the backend yet");
-        if (devices.findByUserIdAndEnabledTrue(user.getId()).isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Enable notifications on this device first");
-        String key = "push-test-" + user.getId() + "-" + clock.instant().getEpochSecond() / 60;
-        if (events.existsBySourceKey(key)) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Please wait a minute before another test");
-        var event = events.save(NotificationEvent.builder().user(user).title("Mr_Care notifications")
-                .body("Phone notifications are connected.").sourceKey(key).scheduledAt(clock.instant()).build());
-        queue.enqueue(event, PushDelivery.Kind.TEST, clock.instant().plusSeconds(300));
     }
 }

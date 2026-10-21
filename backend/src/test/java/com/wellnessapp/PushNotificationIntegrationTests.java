@@ -88,8 +88,10 @@ class PushNotificationIntegrationTests {
         mvc.perform(put("/api/notifications/devices").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent());
         assertThat(devices.count()).isEqualTo(1);
         mvc.perform(put("/api/notifications/preferences").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"mealReminders\":false,\"coachNudges\":true}")).andExpect(status().isOk()).andExpect(jsonPath("$.mealReminders").value(false));
-        mvc.perform(get("/api/notifications/preferences").header("Authorization", auth(member))).andExpect(jsonPath("$.mealReminders").value(false)).andExpect(jsonPath("$.coachNudges").value(true));
+                .content("{\"mealReminders\":false,\"coachNudges\":true,\"customSound\":false}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.mealReminders").value(false)).andExpect(jsonPath("$.customSound").value(false));
+        mvc.perform(get("/api/notifications/preferences").header("Authorization", auth(member))).andExpect(jsonPath("$.mealReminders").value(false))
+                .andExpect(jsonPath("$.coachNudges").value(true)).andExpect(jsonPath("$.customSound").value(false));
     }
     @Test void pendingAccountCannotRegister() throws Exception {
         member.setStatus(User.Status.PENDING); users.saveAndFlush(member);
@@ -100,7 +102,8 @@ class PushNotificationIntegrationTests {
         var row = queuedTest();
         when(expo.send(anyList())).thenAnswer(a -> {
             String payload = json.writeValueAsString(a.getArgument(0));
-            assertThat(payload).contains("userId", "notificationId").doesNotContain("Private detail", member.getEmail());
+            assertThat(payload).contains("userId", "notificationId", "main_theme_alert.mp3", "coach-nudges-theme")
+                    .doesNotContain("Private detail", member.getEmail());
             return json.readTree("[{\"status\":\"ok\",\"id\":\"receipt-1\"}]");
         });
         worker.sendPending(); worker.sendPending();
@@ -141,7 +144,7 @@ class PushNotificationIntegrationTests {
         accounts.register(member.getEmail(), pushToken, registration);
         var missedEvent = missed.save(MissedEvent.builder().user(member).itemType("Meals").itemTitle("Meal overdue").missedAt(now).build());
         reminders.nudge(missedEvent.getId()); reminders.nudge(missedEvent.getId());
-        assertThat(deliveries.count()).isEqualTo(2);
+        assertThat(deliveries.count()).isEqualTo(1);
         accounts.savePreferences(member.getEmail(), true, false);
         worker.sendPending(); assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED); verifyNoInteractions(expo);
     }
@@ -163,24 +166,22 @@ class PushNotificationIntegrationTests {
         assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
         advance(3600); reminders.refresh(); assertThat(deliveries.count()).isEqualTo(2);
     }
-    @Test void testEndpointQueuesOnlyForCurrentUserAndHasCooldown() throws Exception {
-        accounts.register(member.getEmail(), pushToken, registration);
-        mvc.perform(post("/api/notifications/test").header("Authorization", auth(member))).andExpect(status().isAccepted());
-        mvc.perform(post("/api/notifications/test").header("Authorization", auth(member))).andExpect(status().isTooManyRequests());
-        assertThat(deliveries.count()).isEqualTo(1);
+    @Test void removedTestEndpointCannotQueueNotifications() throws Exception {
+        mvc.perform(post("/api/notifications/test").header("Authorization", auth(member))).andExpect(status().isNotFound());
+        assertThat(deliveries.count()).isZero();
     }
-    @Test void adminCanRegisterTestAndPersistAllPreferences() throws Exception {
+    @Test void adminCanRegisterAndPersistAllPreferences() throws Exception {
         var admin = admin();
         mvc.perform(put("/api/notifications/devices").header("Authorization", auth(admin)).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(Map.of("token", pushToken, "registrationId", registration)))).andExpect(status().isNoContent());
         mvc.perform(put("/api/notifications/preferences").header("Authorization", auth(admin)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"mealReminders\":true,\"coachNudges\":true,\"signupAlerts\":false,\"deadlineAlerts\":false,\"dailyDigest\":true,\"memberUpdates\":false,\"accountUpdates\":false}"))
+                .content("{\"mealReminders\":true,\"coachNudges\":true,\"signupAlerts\":false,\"deadlineAlerts\":false,\"dailyDigest\":true,\"memberUpdates\":false,\"accountUpdates\":false,\"customSound\":false}"))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/notifications/preferences").header("Authorization", auth(admin)))
                 .andExpect(jsonPath("$.signupAlerts").value(false)).andExpect(jsonPath("$.deadlineAlerts").value(false))
-                .andExpect(jsonPath("$.dailyDigest").value(true)).andExpect(jsonPath("$.memberUpdates").value(false));
-        mvc.perform(post("/api/notifications/test").header("Authorization", auth(admin))).andExpect(status().isAccepted());
-        assertThat(deliveries.findAll()).allMatch(d -> d.getNotification().getUser().getId().equals(admin.getId()));
+                .andExpect(jsonPath("$.dailyDigest").value(true)).andExpect(jsonPath("$.memberUpdates").value(false))
+                .andExpect(jsonPath("$.customSound").value(false));
+        assertThat(deliveries.count()).isZero();
     }
     @Test void registrationNotifiesAdminAndApprovalCancelsStalePush() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
@@ -220,7 +221,7 @@ class PushNotificationIntegrationTests {
         reminders.refresh();
         var attention = missed.findByResolvedFalseOrderByMissedAtDesc().getFirst();
         reminders.nudge(attention.getId()); reminders.nudge(attention.getId());
-        assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(2);
+        assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(1);
         assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()))
                 .extracting(NotificationEvent::getKind).contains(PushDelivery.Kind.DEADLINE, PushDelivery.Kind.NUDGE);
     }

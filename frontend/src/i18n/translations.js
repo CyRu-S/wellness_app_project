@@ -89,6 +89,13 @@ export const translations = {
     enablePhoneNotifications: 'Enable phone notifications',
     loadingNotificationPreferences: 'Loading notification preferences',
     connectingPhoneNotifications: 'Connecting phone notifications',
+    themeRingtone: 'Use Main Theme Alert',
+    themeRingtoneDetail: "Turn this off to use your device's default notification sound.",
+    webNotificationsOn: 'Web notifications are on.',
+    webDeliveryUnavailable: 'Web notification delivery is not enabled on the server yet.',
+    retryWebNotifications: 'Retry web notifications',
+    enableWebNotifications: 'Enable web notifications',
+    connectingWebNotifications: 'Connecting web notifications',
   },
   te: {
     language: 'భాష',
@@ -180,6 +187,13 @@ export const translations = {
     enablePhoneNotifications: 'ఫోన్ నోటిఫికేషన్లు ప్రారంభించండి',
     loadingNotificationPreferences: 'నోటిఫికేషన్ ప్రాధాన్యతలు లోడ్ అవుతున్నాయి',
     connectingPhoneNotifications: 'ఫోన్ నోటిఫికేషన్లు కనెక్ట్ అవుతున్నాయి',
+    themeRingtone: 'మెయిన్ థీమ్ అలర్ట్ ఉపయోగించండి',
+    themeRingtoneDetail: 'మీ పరికరం డిఫాల్ట్ నోటిఫికేషన్ శబ్దాన్ని ఉపయోగించడానికి దీన్ని ఆఫ్ చేయండి.',
+    webNotificationsOn: 'వెబ్ నోటిఫికేషన్లు ఆన్‌లో ఉన్నాయి.',
+    webDeliveryUnavailable: 'సర్వర్‌లో వెబ్ నోటిఫికేషన్ పంపిణీ ఇంకా ప్రారంభించలేదు.',
+    retryWebNotifications: 'వెబ్ నోటిఫికేషన్లను మళ్లీ ప్రయత్నించండి',
+    enableWebNotifications: 'వెబ్ నోటిఫికేషన్లు ప్రారంభించండి',
+    connectingWebNotifications: 'వెబ్ నోటిఫికేషన్లు కనెక్ట్ అవుతున్నాయి',
   },
 };
 

@@ -140,7 +140,8 @@ class ApiEndToEndTests {
         call("PATCH", "/profile", Map.of("name", "QA Coach", "phone", "+919876543210", "clubName", "QA Club"), admin, 200);
         call("GET", "/notifications/preferences", null, admin, 200);
         call("PUT", "/notifications/preferences", Map.of("mealReminders", true, "coachNudges", true,
-                "signupAlerts", true, "deadlineAlerts", true, "dailyDigest", true, "memberUpdates", true, "accountUpdates", true), admin, 200);
+                "signupAlerts", true, "deadlineAlerts", true, "dailyDigest", true, "memberUpdates", true, "accountUpdates", true,
+                "customSound", false), admin, 200);
         products.save(HerbalifeProduct.builder().name("QA Product").sku("QA-001").price(new java.math.BigDecimal("250"))
                 .stockQuantity(5).active(true).build());
         assertThat(call("GET", "/admin/products", null, admin, 200).get(0).path("name").asText()).isEqualTo("QA Product");

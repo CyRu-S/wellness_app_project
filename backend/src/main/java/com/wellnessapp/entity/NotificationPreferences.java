@@ -13,6 +13,7 @@ public class NotificationPreferences {
     @Column(nullable = false) private boolean signupAlerts = true;
     @Column(nullable = false) private boolean deadlineAlerts = true;
     @Column(nullable = false) private boolean dailyDigest;
-    @Column(nullable = false) private boolean memberUpdates = true;
+    @Column(nullable = false) private boolean memberUpdates;
     @Column(nullable = false) private boolean accountUpdates = true;
+    @Column(nullable = false) private boolean customSound = true;
 }

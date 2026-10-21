@@ -149,6 +149,27 @@ test('worker logout acknowledgement reaches the caller so browser unsubscribe ca
   assert.equal(result.cleared, true);
 });
 
+test('PWA bundles the theme ringtone and only plays opted-in foreground alerts once', async () => {
+  assert.ok(readFileSync(new URL('../public/sounds/main_theme_alert.mp3', import.meta.url)).length > 1000);
+  const listeners = {}; let plays = 0;
+  class Audio { pause() {} play() { plays += 1; return Promise.resolve(); } }
+  const push = loadModule('../src/services/notifications/pushNotifications.web.js', {
+    '../api/client': { request: async () => {} },
+    '../pwa/registration': { isInstalled: () => true, isIOS: () => false, pendingPushTap: async () => ({ data: null }) },
+    '../storage/encryptedStorage': { readEncryptedJson: async () => null },
+  }, { window: { PushManager: {}, Notification: {}, location: { href: 'https://care.example/' } }, navigator: { serviceWorker: {
+    addEventListener: (type, callback) => { listeners[type] = callback; }, removeEventListener: () => {},
+  } }, Notification: { permission: 'granted' }, Audio, isSecureContext: true });
+  const notifications = await push.notificationModule();
+  notifications.addNotificationReceivedListener(() => {});
+  const message = { data: { type: 'WEB_PUSH_RECEIVED', data: { notificationId: '12', customSound: true } } };
+  listeners.message(message); listeners.message(message);
+  await Promise.resolve();
+  assert.equal(plays, 1);
+  listeners.message({ data: { type: 'WEB_PUSH_RECEIVED', data: { notificationId: '13', customSound: false } } });
+  assert.equal(plays, 1);
+});
+
 test('web pull to refresh only fires for a vertical pull from the top of a page', () => {
   const handlers = {}; let refreshed = 0;
   const element = { contains: () => true, addEventListener: (name, handler) => { handlers[name] = handler; }, removeEventListener: () => {} };

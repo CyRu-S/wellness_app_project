@@ -14,3 +14,8 @@ test('missing Telugu entries fall back to English', () => {
   assert.equal(translate('te', 'unknown-key'), 'unknown-key');
   assert.equal(translate('invalid', 'language'), 'Language');
 });
+
+test('ringtone setting has real Telugu script', () => {
+  assert.equal(translate('te', 'themeRingtone'), 'మెయిన్ థీమ్ అలర్ట్ ఉపయోగించండి');
+  assert.match(translate('te', 'themeRingtoneDetail'), /[\u0C00-\u0C7F]/);
+});

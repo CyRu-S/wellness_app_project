@@ -169,8 +169,9 @@ public class ReminderService {
     @Transactional public void nudge(Long id) {
         var event = missed.findById(id).orElseThrow(() -> new NotFoundException("Attention item not found"));
         users.lockById(event.getUser().getId()).orElseThrow();
-        if (event.isResolved()) return;
-        var notification = notifications.save(NotificationEvent.builder().user(event.getUser()).sourceKey("nudge-" + id + "-" + UUID.randomUUID()).title("A reminder from your coach")
+        String sourceKey = "nudge-" + id;
+        if (event.isResolved() || notifications.existsBySourceKey(sourceKey)) return;
+        var notification = notifications.save(NotificationEvent.builder().user(event.getUser()).sourceKey(sourceKey).title("A reminder from your coach")
                 .body(event.getItemTitle()).scheduledAt(clock.instant()).build());
         push.enqueue(notification, PushDelivery.Kind.NUDGE, clock.instant().plusSeconds(14400));
     }

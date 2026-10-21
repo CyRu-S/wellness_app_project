@@ -20,16 +20,20 @@ test('Expo Go explains the development build requirement and never calls push re
   assert.equal(result.status, 'unsupported'); assert.match(result.message, /installed Mr_Care APK/);
   assert.equal(await push.notificationModule(), null);
 });
-test('Android channels use the system sound without passing a custom filename or silencing them', async () => {
+test('Android creates separate device-default and theme ringtone channels', async () => {
   const channels = [];
   const push = createPush({ native: { setNotificationChannelAsync: async (id, options) => {
-    channels.push(id);
-    assert.equal(Object.hasOwn(options, 'sound'), false);
+    channels.push([id, options.sound]);
+    if (id.endsWith('-theme')) assert.equal(options.sound, 'main_theme_alert.mp3');
+    else assert.equal(Object.hasOwn(options, 'sound'), false);
     assert.equal(options.importance, 4);
   } } });
   const result = await push.syncPushRegistration(push.beginPushSession('auth', 1));
   assert.equal(result.status, 'enabled');
-  assert.deepEqual(channels, ['meal-reminders', 'coach-nudges']);
+  assert.deepEqual(channels, [
+    ['meal-reminders', undefined], ['meal-reminders-theme', 'main_theme_alert.mp3'],
+    ['coach-nudges', undefined], ['coach-nudges-theme', 'main_theme_alert.mp3'],
+  ]);
 });
 test('permission is requested only on explicit enable and token is bound to authenticated session', async () => {
   const requests = []; let prompts = 0;
