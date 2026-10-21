@@ -102,7 +102,7 @@ class PushNotificationIntegrationTests {
         var row = queuedTest();
         when(expo.send(anyList())).thenAnswer(a -> {
             String payload = json.writeValueAsString(a.getArgument(0));
-            assertThat(payload).contains("userId", "notificationId", "main_theme_alert.mp3", "coach-nudges-theme")
+            assertThat(payload).contains("userId", "notificationId", "main_theme_alert.wav", "coach-nudges-theme-v2")
                     .doesNotContain("Private detail", member.getEmail());
             return json.readTree("[{\"status\":\"ok\",\"id\":\"receipt-1\"}]");
         });

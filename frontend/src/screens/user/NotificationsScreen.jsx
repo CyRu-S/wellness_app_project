@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../../components/common/LocalizedText';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import NotificationInbox from '../../components/common/NotificationInbox';
 import SyncFeedback from '../../components/common/SyncFeedback';

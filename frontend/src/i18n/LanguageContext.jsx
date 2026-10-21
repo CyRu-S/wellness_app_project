@@ -4,9 +4,14 @@ import { translate } from './translations';
 
 const STORAGE_KEY = 'mr-care.language';
 const LanguageContext = createContext(null);
+let activeLanguage = 'en';
+
+export const getActiveLanguage = () => activeLanguage;
 
 export function LanguageProvider({ children }) {
   const [language, setLanguageState] = useState('en');
+
+  useEffect(() => { activeLanguage = language; }, [language]);
 
   useEffect(() => {
     let active = true;

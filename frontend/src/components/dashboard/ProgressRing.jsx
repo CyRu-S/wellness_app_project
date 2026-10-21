@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../common/LocalizedText';
 import React, { useEffect, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import AnimatedNumber from '../common/AnimatedNumber';
 import { colors, fonts } from '../../theme';

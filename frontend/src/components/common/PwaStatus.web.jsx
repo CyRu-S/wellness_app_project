@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './LocalizedText';
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { isInstalled, isIOS, registerPwa } from '../../services/pwa/registration';
 
 export default function PwaStatus() {

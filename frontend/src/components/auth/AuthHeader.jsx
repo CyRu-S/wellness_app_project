@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../common/LocalizedText';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import BrandMark from '../common/BrandMark';

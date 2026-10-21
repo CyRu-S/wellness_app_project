@@ -1,6 +1,7 @@
+import { LocalizedText as Text } from '../../components/common/LocalizedText';
 import React, { useMemo, useState } from 'react';
 import Image from '../../components/common/ProtectedImage';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';

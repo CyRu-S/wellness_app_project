@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../../components/common/LocalizedText';
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthField from '../../components/auth/AuthField';
 import AuthHeader from '../../components/auth/AuthHeader';

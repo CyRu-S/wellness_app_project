@@ -51,10 +51,10 @@ export function syncPushRegistration(s, askPermission = false, devicePushToken) 
     for (const [id, name] of [['meal-reminders', 'Meal reminders'], ['coach-nudges', 'Coach nudges']]) {
       // Android channel sound is immutable, so keep separate theme and device-default channels.
       await Notifications.setNotificationChannelAsync(id, { name, importance: Notifications.AndroidImportance.HIGH });
-      await Notifications.setNotificationChannelAsync(`${id}-theme`, {
+      await Notifications.setNotificationChannelAsync(`${id}-theme-v2`, {
         name: `${name} · Main Theme Alert`,
         importance: Notifications.AndroidImportance.HIGH,
-        sound: 'main_theme_alert.mp3',
+        sound: 'main_theme_alert.wav',
       });
     }
     let permission = await Notifications.getPermissionsAsync();

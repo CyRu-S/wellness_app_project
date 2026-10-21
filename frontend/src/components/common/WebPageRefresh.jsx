@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './LocalizedText';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, StyleSheet, View } from 'react-native';
 import { colors } from '../../theme';
 
 // React Native Web does not implement the native RefreshControl gesture.

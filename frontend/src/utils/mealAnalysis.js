@@ -3,18 +3,21 @@ export function isManualProduct(value) {
   return /^(product|herbalife|herbalife product)$/i.test(String(category || '').trim());
 }
 const starterNutrition = {
-  breakfast: { calories: 360, protein: 18, carbs: 48, fat: 11 },
-  lunch: { calories: 520, protein: 28, carbs: 62, fat: 18 },
-  snack: { calories: 220, protein: 9, carbs: 30, fat: 8 },
-  snacks: { calories: 220, protein: 9, carbs: 30, fat: 8 },
-  dinner: { calories: 480, protein: 26, carbs: 52, fat: 17 },
-  'herbalife product': { calories: 220, protein: 20, carbs: 24, fat: 6 },
-  product: { calories: 220, protein: 20, carbs: 24, fat: 6 },
+  // Conservative single-serving starters for familiar Indian meals. These are deliberately
+  // modest placeholders (for example idli/upma, rice-dal-sabzi, fruit/tea, or roti-sabzi),
+  // never a claim that the photo itself was nutritionally measured.
+  breakfast: { calories: 220, protein: 8, carbs: 36, fat: 5 },
+  lunch: { calories: 320, protein: 12, carbs: 48, fat: 9 },
+  snack: { calories: 110, protein: 4, carbs: 18, fat: 3 },
+  snacks: { calories: 110, protein: 4, carbs: 18, fat: 3 },
+  dinner: { calories: 280, protein: 11, carbs: 42, fat: 8 },
+  'herbalife product': { calories: 180, protein: 15, carbs: 22, fat: 4 },
+  product: { calories: 180, protein: 15, carbs: 22, fat: 4 },
 };
 const positiveOr = (value, fallback) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
 export function manualMealAnalysis(meal = {}, warning) {
   const type = String(meal.type || 'meal').trim().toLowerCase();
-  const estimate = starterNutrition[type] || { calories: 420, protein: 22, carbs: 50, fat: 14 };
+  const estimate = starterNutrition[type] || { calories: 260, protein: 10, carbs: 40, fat: 7 };
   return { name: meal.name || meal.type || 'Meal estimate', calories: positiveOr(meal.calories, estimate.calories),
     protein: positiveOr(meal.protein ?? meal.proteinGrams, estimate.protein),
     carbs: positiveOr(meal.carbs ?? meal.carbsGrams, estimate.carbs), fat: positiveOr(meal.fat ?? meal.fatGrams, estimate.fat),

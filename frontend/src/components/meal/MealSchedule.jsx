@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../common/LocalizedText';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, radius, type } from '../../theme';
 

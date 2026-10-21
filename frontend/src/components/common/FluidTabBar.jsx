@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './LocalizedText';
 import React, { useEffect, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useReducedMotion from '../../hooks/useReducedMotion';

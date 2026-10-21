@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './LocalizedText';
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { colors, fonts } from '../../theme';
 
 const logo = require('../../../assets/images/arjun-nutrition-logo.png');

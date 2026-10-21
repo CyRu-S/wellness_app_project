@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './LocalizedText';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearNotifications, markNotificationRead } from '../../store/slices/notificationSlice';
 import { notificationDestination } from '../../utils/notificationDestination';

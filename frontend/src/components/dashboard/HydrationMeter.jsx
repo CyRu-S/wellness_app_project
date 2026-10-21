@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../common/LocalizedText';
 import React, { useEffect, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, radius, type } from '../../theme';

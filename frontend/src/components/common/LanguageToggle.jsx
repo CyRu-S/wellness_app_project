@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './LocalizedText';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { colors, fonts, radius } from '../../theme';
 

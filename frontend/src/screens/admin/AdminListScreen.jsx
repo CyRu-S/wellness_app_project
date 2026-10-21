@@ -1,6 +1,7 @@
+import { LocalizedText as Text } from '../../components/common/LocalizedText';
 import React from 'react';
 import { useSelector } from 'react-redux';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Screen from '../../components/common/Screen';
 import { type } from '../../theme';

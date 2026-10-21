@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './LocalizedText';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Text } from 'react-native';
+import { Animated } from 'react-native';
 
 export default function AnimatedNumber({ value, formatter = (number) => Math.round(number).toLocaleString(), style, suffix = '' }) {
   const previous = useRef(value);

@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../common/LocalizedText';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { adminColors, adminFonts } from '../../theme/admin';
 
 export default function AdminSegmentedControl({ options, value, onChange, accessibilityLabel = 'View options' }) {

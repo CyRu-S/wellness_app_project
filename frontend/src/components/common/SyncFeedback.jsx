@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './LocalizedText';
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { colors, fonts } from '../../theme';
 
 export default function SyncFeedback({ pending, error, onRetry, label = 'Changes', retryLabel = 'Retry' }) {

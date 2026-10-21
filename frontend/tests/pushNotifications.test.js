@@ -24,15 +24,15 @@ test('Android creates separate device-default and theme ringtone channels', asyn
   const channels = [];
   const push = createPush({ native: { setNotificationChannelAsync: async (id, options) => {
     channels.push([id, options.sound]);
-    if (id.endsWith('-theme')) assert.equal(options.sound, 'main_theme_alert.mp3');
+    if (id.endsWith('-theme-v2')) assert.equal(options.sound, 'main_theme_alert.wav');
     else assert.equal(Object.hasOwn(options, 'sound'), false);
     assert.equal(options.importance, 4);
   } } });
   const result = await push.syncPushRegistration(push.beginPushSession('auth', 1));
   assert.equal(result.status, 'enabled');
   assert.deepEqual(channels, [
-    ['meal-reminders', undefined], ['meal-reminders-theme', 'main_theme_alert.mp3'],
-    ['coach-nudges', undefined], ['coach-nudges-theme', 'main_theme_alert.mp3'],
+    ['meal-reminders', undefined], ['meal-reminders-theme-v2', 'main_theme_alert.wav'],
+    ['coach-nudges', undefined], ['coach-nudges-theme-v2', 'main_theme_alert.wav'],
   ]);
 });
 test('permission is requested only on explicit enable and token is bound to authenticated session', async () => {

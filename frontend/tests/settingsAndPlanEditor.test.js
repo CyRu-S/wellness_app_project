@@ -44,5 +44,5 @@ test('theme ringtone is configurable and the test notification control is remove
   assert.match(preferences, /customSound: true/);
   assert.doesNotMatch(webSettings, /sendTestNotification|Send test notification/);
   assert.doesNotMatch(preferences, /sendTestNotification|notifications\/test/);
-  assert.match(app, /main_theme_alert\.mp3/);
+  assert.match(app, /main_theme_alert\.wav/);
 });

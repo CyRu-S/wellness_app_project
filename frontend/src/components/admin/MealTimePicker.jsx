@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../common/LocalizedText';
 import React, { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { adminColors, adminFonts } from '../../theme/admin';
 
 const CLOCK = /^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i;

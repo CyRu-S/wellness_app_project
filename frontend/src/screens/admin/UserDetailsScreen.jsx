@@ -1,17 +1,7 @@
+import { LocalizedText as Text, LocalizedTextInput as TextInput } from '../../components/common/LocalizedText';
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from '../../components/common/ProtectedImage';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -444,7 +434,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
               <View style={styles.addMealIcon}><Ionicons name="add" size={20} color={adminColors.deepTeal} /></View>
               <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add another meal</Text><Text style={styles.addMealDetail}>Create as many daily meal or product slots as needed.</Text></View>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => addItem('HEALTHY_HABIT')} style={({ pressed }) => [styles.addMealButton, pressed && styles.pressed]}>
+            <Pressable accessibilityRole="button" onPress={() => addItem('HEALTHY_HABIT')} style={({ pressed }) => [styles.addMealButton, styles.addHabitButton, pressed && styles.pressed]}>
               <View style={styles.addMealIcon}><Ionicons name="leaf-outline" size={20} color={adminColors.deepTeal} /></View>
               <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add healthy habit</Text><Text style={styles.addMealDetail}>Add one daily wellbeing action with its reminder time.</Text></View>
             </Pressable>
@@ -800,6 +790,7 @@ const styles = StyleSheet.create({
   typeOptionTextSelected: { color: adminColors.white, fontFamily: adminFonts.semibold },
   mealInput: { minHeight: 52, maxHeight: 82, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, color: adminColors.ink, fontFamily: adminFonts.regular, fontSize: 14, lineHeight: 19, textAlignVertical: 'top', backgroundColor: adminColors.surfaceMuted, marginTop: 10 },
   addMealButton: { minHeight: 72, flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: adminColors.teal, backgroundColor: adminColors.aqua },
+  addHabitButton: { marginTop: 12 },
   addMealIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.72)' },
   addMealCopy: { flex: 1, minWidth: 0, paddingLeft: 11 },
   addMealTitle: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 14 },

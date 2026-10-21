@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../common/LocalizedText';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, View } from 'react-native';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { adminColors, adminFonts } from '../../theme/admin';
 

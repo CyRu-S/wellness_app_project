@@ -29,7 +29,7 @@
           "color": "#007077",
           "defaultChannel": "coach-nudges",
           "sounds": [
-            "./assets/sounds/main_theme_alert.mp3"
+            "./assets/sounds/main_theme_alert.wav"
           ]
         }
       ],

@@ -13,7 +13,14 @@ export function loadModule(path, dependencies, globals = {}) {
   });
   const exports = {};
   runInNewContext(code, { exports, Date, URL, AbortController, FormData, setTimeout, clearTimeout, process: { env: {} },
-    require: (name) => { assert.ok(name in dependencies, `Unexpected dependency: ${name}`); return dependencies[name]; }, ...globals });
+    require: (name) => {
+      if (name.endsWith('/LocalizedText') || name === './LocalizedText') {
+        const LocalizedText = ({ children }) => children;
+        const LocalizedTextInput = () => null;
+        return { __esModule: true, default: LocalizedText, LocalizedText, LocalizedTextInput };
+      }
+      assert.ok(name in dependencies, `Unexpected dependency: ${name}`); return dependencies[name];
+    }, ...globals });
   return exports;
 }
 

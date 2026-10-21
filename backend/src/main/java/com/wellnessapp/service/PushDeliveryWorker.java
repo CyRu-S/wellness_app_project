@@ -79,8 +79,8 @@ public class PushDeliveryWorker {
             default -> "You have a reminder. Open Mr_Care to review it.";
         };
         return Map.of("to", d.getDevice().getExpoToken(), "title", title,
-                "body", body, "sound", customSound ? "main_theme_alert.mp3" : "default", "priority", "high", "badge", 1,
-                "channelId", customSound ? channel + "-theme" : channel,
+                "body", body, "sound", customSound ? "main_theme_alert.wav" : "default", "priority", "high", "badge", 1,
+                "channelId", customSound ? channel + "-theme-v2" : channel,
                 "ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()),
                 "data", Map.of("notificationId", d.getNotification().getId().toString(), "userId", d.getNotification().getUser().getId().toString(),
                         "kind", d.getKind().name(), "customSound", customSound));

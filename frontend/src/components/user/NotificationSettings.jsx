@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from '../common/LocalizedText';
 import React from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { loadNotificationPreferences, notificationPreferences, retryPushRegistration, saveNotificationPreferences } from '../../store/slices/notificationSlice';
 import SyncFeedback from '../common/SyncFeedback';

@@ -20,7 +20,10 @@ test('iOS home screen detection works with navigator.standalone and iPad desktop
 
 test('web confirmation performs decline or shared access removal only after acceptance', () => {
   let accepted = false, acted = 0, cancelled = 0;
-  const { default: Alert } = loadModule('../src/utils/appAlert.web.js', {}, {
+  const { default: Alert } = loadModule('../src/utils/appAlert.web.js', {
+    '../i18n/LanguageContext': { getActiveLanguage: () => 'en' },
+    '../i18n/displayTranslations': { translateUiText: (_, value) => value },
+  }, {
     confirm: () => accepted, alert: () => {},
   });
   const buttons = [{ text: 'Keep access', style: 'cancel', onPress: () => cancelled++ },
@@ -34,7 +37,10 @@ test('web confirmation performs decline or shared access removal only after acce
 
 test('web success alerts run the sign in or return navigation callback after dismissal', () => {
   let dismissed = false, navigated = false;
-  const { default: Alert } = loadModule('../src/utils/appAlert.web.js', {}, { alert: () => { dismissed = true; } });
+  const { default: Alert } = loadModule('../src/utils/appAlert.web.js', {
+    '../i18n/LanguageContext': { getActiveLanguage: () => 'en' },
+    '../i18n/displayTranslations': { translateUiText: (_, value) => value },
+  }, { alert: () => { dismissed = true; } });
   Alert.alert('Password reset', 'Saved', [{ text: 'Sign in', onPress: () => { assert.equal(dismissed, true); navigated = true; } }]);
   assert.equal(navigated, true);
 });
