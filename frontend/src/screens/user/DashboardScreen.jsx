@@ -39,7 +39,9 @@ export default function DashboardScreen({ navigation }) {
   const firstName = user?.name?.split(' ')[0] || 'there';
   const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
   const nextMeal = meals.items.find((meal) => !meal.consumed);
-  const assignedCount = meals.items.length + plan.tasks.length;
+  // The plan response repeats its meal rows, so adding every plan task would
+  // count meals twice. Assigned means diet items plus checklist items.
+  const assignedCount = meals.items.length + plan.tasks.filter((task) => task.type === 'HEALTHY_HABIT').length;
   const hydration = dashboard.waterTarget ? Math.min(100, Math.round((dashboard.waterGlasses / dashboard.waterTarget) * 100)) : 0;
   const healthyHabits = plan.tasks.filter((task) => task.type === 'HEALTHY_HABIT');
   useEffect(() => {

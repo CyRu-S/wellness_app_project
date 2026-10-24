@@ -17,6 +17,7 @@ public record SharedMembersResponse(int total, List<SharedMemberSummary> members
             int activityGoalMinutes,
             int plannedTasks,
             int completedTasks,
-            int completionPercentage
+            int completionPercentage,
+            boolean nudgedToday
     ) {}
 }

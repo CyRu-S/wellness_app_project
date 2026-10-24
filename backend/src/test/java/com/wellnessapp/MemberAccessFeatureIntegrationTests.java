@@ -38,6 +38,8 @@ class MemberAccessFeatureIntegrationTests {
     @Autowired MealRepository meals;
     @Autowired HealthProfileHistoryRepository healthHistory;
     @Autowired com.wellnessapp.repository.NotificationRepository notifications;
+    @Autowired WorkflowNotificationService workflowNotifications;
+    @Autowired java.time.Clock clock;
     @Autowired ZoneId applicationZoneId;
 
     @Test
@@ -162,14 +164,37 @@ class MemberAccessFeatureIntegrationTests {
     @Test
     void assignedCoachCanNudgeOnlyTheirMemberOncePerDay() {
         User coach = user("user@mr-care.app");
+        User secondCoach = user("rohan.das@example.com");
         User member = user("kavya.menon@example.com");
         assertThatThrownBy(() -> reminders.nudgeSharedMember(coach.getEmail(), member.getId()))
                 .isInstanceOf(NotFoundException.class);
         memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+        memberAccess.replaceAssignments("admin@mr-care.app", secondCoach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+        assertThat(memberAccess.sharedMembers(coach.getEmail()).members().getFirst().nudgedToday()).isFalse();
+        assertThat(memberAccess.sharedMembers(secondCoach.getEmail()).members().getFirst().nudgedToday()).isFalse();
         assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId())).isTrue();
         assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId())).isFalse();
+        assertThat(memberAccess.sharedMembers(coach.getEmail()).members().getFirst().nudgedToday()).isTrue();
+        assertThat(memberAccess.sharedMembers(secondCoach.getEmail()).members().getFirst().nudgedToday()).isTrue();
         assertThat(notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).stream()
                 .filter(event -> event.getKind() == com.wellnessapp.entity.PushDelivery.Kind.NUDGE)).hasSize(1);
+    }
+
+    @Test
+    void adminNudgeIsImmediatelySharedWithEveryAssignedCoach() {
+        User coach = user("user@mr-care.app");
+        User secondCoach = user("rohan.das@example.com");
+        User member = user("kavya.menon@example.com");
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+        memberAccess.replaceAssignments("admin@mr-care.app", secondCoach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+
+        String source = "care-nudge-" + LocalDate.now(clock.withZone(applicationZoneId));
+        workflowNotifications.notify(member, com.wellnessapp.entity.PushDelivery.Kind.NUDGE, source,
+                "Kavya · Reminder", "Review today's assigned items.");
+
+        assertThat(memberAccess.sharedMembers(coach.getEmail()).members().getFirst().nudgedToday()).isTrue();
+        assertThat(memberAccess.sharedMembers(secondCoach.getEmail()).members().getFirst().nudgedToday()).isTrue();
+        assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId())).isFalse();
     }
 
     @Test

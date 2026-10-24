@@ -21,7 +21,6 @@ const activities = [
   { key: 'run', label: 'Run', icon: 'fitness-outline', rate: 10 },
   { key: 'cycling', label: 'Cycling', icon: 'bicycle-outline', rate: 8 },
   { key: 'strength', label: 'Strength', icon: 'barbell-outline', rate: 6 },
-  { key: 'yoga', label: 'Yoga', icon: 'body-outline', rate: 3.5 },
 ];
 
 export default function ActivityTimerScreen({ navigation }) {

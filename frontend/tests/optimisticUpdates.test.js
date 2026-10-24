@@ -178,6 +178,27 @@ test('switching shared members ignores a late response for the previous member',
   assert.equal(store.getState().memberAccess.sharedToday.member.id, 2);
 });
 
+test('a coach nudge marks that member for every shared coach view without a repeat', async () => {
+  const memberAccess = loadModule('../src/store/slices/memberAccessSlice.js', {
+    '@reduxjs/toolkit': toolkit,
+    '../../services/api/memberAccessApi': { nudgeSharedMember: async () => ({ sent: false }) },
+  });
+  const initial = memberAccess.default(undefined, { type: 'init' });
+  const members = [{ id: 2, name: 'Member', nudgedToday: false }, { id: 3, name: 'Other', nudgedToday: false }];
+  const store = setup({ memberAccess }, { memberAccess: {
+    ...initial,
+    shared: { total: 2, members: members.map((member) => ({ ...member })) },
+    sharedMembers: { total: 2, members: members.map((member) => ({ ...member })) },
+  } });
+
+  const sending = store.dispatch(memberAccess.nudgeSharedMember(2));
+  assert.equal(store.getState().memberAccess.sharedNudge.memberId, 2);
+  await sending.unwrap();
+  assert.equal(store.getState().memberAccess.shared.members[0].nudgedToday, true);
+  assert.equal(store.getState().memberAccess.sharedMembers.members[0].nudgedToday, true);
+  assert.equal(store.getState().memberAccess.shared.members[1].nudgedToday, false);
+});
+
 test('an older admin journal read cannot undo a confirmed water goal change', async () => {
   const read = deferred();
   const adminMemberJournal = loadModule('../src/store/slices/adminMemberJournalSlice.js', {

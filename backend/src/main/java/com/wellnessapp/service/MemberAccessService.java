@@ -231,7 +231,7 @@ public class MemberAccessService {
                 response.member().id(), response.member().name(), summary.plannedMeals(), summary.completedMeals(),
                 summary.mealPosts(), summary.calories(), summary.proteinGrams(), summary.hydrationMl(),
                 summary.hydrationGoalMl(), summary.activityMinutes(), summary.activityGoalMinutes(),
-                summary.plannedTasks(), summary.completedTasks(), summary.completionPercentage());
+                summary.plannedTasks(), summary.completedTasks(), summary.completionPercentage(), response.nudgedToday());
     }
 
     private int dailyCompletion(int plannedMeals, int completedMeals, int plannedTasks, int completedTasks,

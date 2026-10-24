@@ -57,7 +57,7 @@ export const loadAdminMemberAccess = createAsyncThunk(
 export const nudgeSharedMember = createAsyncThunk('memberAccess/nudgeSharedMember', async (memberId, { getState }) => {
   const token = getState().auth?.token;
   requireApiToken(token);
-  return nudgeSharedMemberApi(token, memberId);
+  return { memberId: Number(memberId), ...await nudgeSharedMemberApi(token, memberId) };
 });
 
 export const replaceMemberAccessAssignments = createAsyncThunk(
@@ -224,12 +224,18 @@ const memberAccessSlice = createSlice({
           state.sharedJournal = null;
         }
       })
-      .addCase(nudgeSharedMember.pending, (state) => { state.sharedNudge = { status: 'loading', sent: false, error: null }; })
+      .addCase(nudgeSharedMember.pending, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg), status: 'loading', sent: false, error: null }; })
       .addCase(nudgeSharedMember.fulfilled, (state, action) => {
-        state.sharedNudge = { status: 'succeeded', sent: !!action.payload?.sent, error: null };
-        if (state.sharedToday) state.sharedToday.nudgedToday = true;
+        const id = Number(action.payload.memberId);
+        state.sharedNudge = { memberId: id, status: 'succeeded', sent: !!action.payload?.sent, error: null };
+        if (Number(state.sharedToday?.member?.id) === id) state.sharedToday.nudgedToday = true;
+        if (state.todayByMemberId[id]) state.todayByMemberId[id].nudgedToday = true;
+        [state.shared?.members, state.sharedMembers?.members].forEach((members) => {
+          const member = members?.find((item) => Number(item.id ?? item.memberId) === id);
+          if (member) member.nudgedToday = true;
+        });
       })
-      .addCase(nudgeSharedMember.rejected, (state, action) => { state.sharedNudge = { status: 'failed', sent: false, error: action.error?.message || 'Nudge could not be sent.' }; });
+      .addCase(nudgeSharedMember.rejected, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg), status: 'failed', sent: false, error: action.error?.message || 'Nudge could not be sent.' }; });
   },
 });
 

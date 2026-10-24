@@ -61,7 +61,9 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   const errorMessage = typeof error === 'string' ? error : error?.message;
   const revoked = errorStatus === 404 || /not found|no longer|permission|access/i.test(errorMessage || '');
   const memberName = today?.member?.name || fallbackName;
-  const nudgedToday = !!today?.nudgedToday || nudge.status === 'succeeded';
+  const nudgeForMember = Number(nudge.memberId) === Number(memberId);
+  const nudgedToday = !!today?.nudgedToday || (nudgeForMember && nudge.status === 'succeeded');
+  const nudgeLoading = nudgeForMember && nudge.status === 'loading';
 
   const load = useCallback(() => {
     if (memberId != null) return dispatch(loadSharedMemberToday(memberId));
@@ -110,7 +112,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
         <View style={styles.sections}>
           {['Today', 'History', 'Reports'].map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: section === item }} onPress={() => setSection(item)} style={[styles.section, section === item && styles.sectionActive]}><Text style={[styles.sectionText, section === item && styles.sectionTextActive]}>{item}</Text></Pressable>)}
         </View>
-        {section === 'Today' ? <Pressable accessibilityRole="button" disabled={nudge.status === 'loading' || nudgedToday} onPress={sendNudge} style={({ pressed }) => [styles.nudge, nudgedToday && styles.nudgeDone, pressed && styles.pressed]}><View style={styles.nudgeIcon}><Ionicons name={nudgedToday ? 'checkmark' : 'notifications-outline'} size={19} color={colors.white} /></View><View style={styles.nudgeCopy}><Text style={styles.nudgeTitle}>{nudge.status === 'loading' ? 'Sending nudge…' : nudgedToday ? 'Nudge already sent today' : 'Send today’s nudge'}</Text><Text style={styles.nudgeText}>{nudgedToday ? 'Another coach or administrator has already reminded this member.' : 'Remind this assigned member to review assigned items, exercise, and habits.'}</Text></View></Pressable> : null}
+        {section === 'Today' ? <Pressable accessibilityRole="button" disabled={nudgeLoading || nudgedToday} onPress={sendNudge} style={({ pressed }) => [styles.nudge, nudgedToday && styles.nudgeDone, pressed && styles.pressed]}><View style={styles.nudgeIcon}><Ionicons name={nudgedToday ? 'checkmark' : 'notifications-outline'} size={19} color={colors.white} /></View><View style={styles.nudgeCopy}><Text style={styles.nudgeTitle}>{nudgeLoading ? 'Sending nudge…' : nudgedToday ? 'Nudge already sent today' : 'Send today’s nudge'}</Text><Text style={styles.nudgeText}>{nudgedToday ? 'Another coach or administrator has already reminded this member.' : 'Remind this assigned member to review assigned items, exercise, and habits.'}</Text></View></Pressable> : null}
         {section === 'Today' ? <MemberTodaySnapshot snapshot={today} token={token} onOpenPhoto={openPhoto} showAccessNote /> : null}
         {section === 'History' ? <SharedHistory days={journal?.history || []} retentionDays={journal?.retentionDays || 21} onOpenPhoto={openPhoto} /> : null}
         {section === 'Reports' ? <SharedReports reports={journal?.healthReports || []} memberName={today?.member?.name || fallbackName} /> : null}

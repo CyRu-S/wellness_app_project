@@ -33,6 +33,17 @@ test('coach exercise is removed from the diet editor and available in Move', asy
   assert.match(activity, /Exercise with coach/);
   assert.match(activity, /coachExercises/);
   assert.match(activity, /completeHealthyHabit\(selected\.planItemId\)/);
+  assert.doesNotMatch(activity, /key: 'yoga'/);
+});
+
+test('assigned count avoids duplicate meals and the Log count stays compact', async () => {
+  const [dashboard, log] = await Promise.all([
+    source('../src/screens/user/DashboardScreen.jsx'),
+    source('../src/screens/user/MealsScreen.jsx'),
+  ]);
+  assert.match(dashboard, /meals\.items\.length \+ plan\.tasks\.filter\(\(task\) => task\.type === 'HEALTHY_HABIT'\)\.length/);
+  assert.match(log, /count: \{[^}]*fontSize: 15/);
+  assert.doesNotMatch(log, /count: \{[^}]*fontSize: 29/);
 });
 
 test('admin settings never exposes admin account deletion while member deletion remains available', async () => {

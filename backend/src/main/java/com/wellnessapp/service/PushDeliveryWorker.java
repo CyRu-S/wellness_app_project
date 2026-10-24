@@ -93,6 +93,12 @@ public class PushDeliveryWorker {
         message.put("to", d.getDevice().getExpoToken()); message.put("title", title); message.put("body", body);
         message.put("sound", customSound ? "main_theme_alert.wav" : "default");
         message.put("priority", "high"); message.put("badge", 1);
+        // Expo is an at-least-once transport. A stable event key makes Android
+        // replace an already displayed duplicate and makes Android/iOS coalesce
+        // a repeated provider delivery while keeping different reminders intact.
+        String dedupeKey = "mr-care-" + event.getId();
+        message.put("collapseId", dedupeKey);
+        message.put("tag", dedupeKey);
         message.put("channelId", customSound ? channel + "-theme-v2" : channel + "-default-v1");
         message.put("ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()));
         Map<String, Object> data = new LinkedHashMap<>();
