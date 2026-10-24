@@ -1,10 +1,12 @@
 package com.wellnessapp;
 
 import com.wellnessapp.dto.access.ReplaceMemberAccessRequest;
+import com.wellnessapp.dto.access.MemberNudgeType;
 import com.wellnessapp.dto.mealpost.CreateMealPostRequest;
 import com.wellnessapp.dto.profile.BodyMetricsRequest;
 import com.wellnessapp.dto.profile.UpdateProfileRequest;
 import com.wellnessapp.entity.User;
+import com.wellnessapp.entity.MissedEvent;
 import com.wellnessapp.exception.BadRequestException;
 import com.wellnessapp.exception.ConflictException;
 import com.wellnessapp.exception.NotFoundException;
@@ -38,6 +40,8 @@ class MemberAccessFeatureIntegrationTests {
     @Autowired MealRepository meals;
     @Autowired HealthProfileHistoryRepository healthHistory;
     @Autowired com.wellnessapp.repository.NotificationRepository notifications;
+    @Autowired com.wellnessapp.repository.MissedEventRepository missedEvents;
+    @Autowired AdminWorkspaceService workspace;
     @Autowired WorkflowNotificationService workflowNotifications;
     @Autowired java.time.Clock clock;
     @Autowired ZoneId applicationZoneId;
@@ -162,22 +166,30 @@ class MemberAccessFeatureIntegrationTests {
     }
 
     @Test
-    void assignedCoachCanNudgeOnlyTheirMemberOncePerDay() {
+    void assignedCoachNudgesHaveAThirtyMinuteSharedCooldownPerType() {
         User coach = user("user@mr-care.app");
         User secondCoach = user("rohan.das@example.com");
         User member = user("kavya.menon@example.com");
-        assertThatThrownBy(() -> reminders.nudgeSharedMember(coach.getEmail(), member.getId()))
+        assertThatThrownBy(() -> reminders.nudgeSharedMember(coach.getEmail(), member.getId(), MemberNudgeType.HABITS))
                 .isInstanceOf(NotFoundException.class);
         memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
         memberAccess.replaceAssignments("admin@mr-care.app", secondCoach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
         assertThat(memberAccess.sharedMembers(coach.getEmail()).members().getFirst().nudgedToday()).isFalse();
         assertThat(memberAccess.sharedMembers(secondCoach.getEmail()).members().getFirst().nudgedToday()).isFalse();
-        assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId())).isTrue();
-        assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId())).isFalse();
+        var first = reminders.nudgeSharedMember(coach.getEmail(), member.getId(), MemberNudgeType.HABITS);
+        var repeatedByAnotherCoach = reminders.nudgeSharedMember(secondCoach.getEmail(), member.getId(), MemberNudgeType.HABITS);
+        var differentType = reminders.nudgeSharedMember(secondCoach.getEmail(), member.getId(), MemberNudgeType.MEALS);
+        assertThat(first.sent()).isTrue();
+        assertThat(repeatedByAnotherCoach.sent()).isFalse();
+        assertThat(repeatedByAnotherCoach.availableAt()).isEqualTo(first.availableAt());
+        assertThat(differentType.sent()).isTrue();
         assertThat(memberAccess.sharedMembers(coach.getEmail()).members().getFirst().nudgedToday()).isTrue();
         assertThat(memberAccess.sharedMembers(secondCoach.getEmail()).members().getFirst().nudgedToday()).isTrue();
         assertThat(notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).stream()
-                .filter(event -> event.getKind() == com.wellnessapp.entity.PushDelivery.Kind.NUDGE)).hasSize(1);
+                .filter(event -> event.getKind() == com.wellnessapp.entity.PushDelivery.Kind.NUDGE)).hasSize(2);
+        assertThat(memberAccess.sharedMemberToday(coach.getEmail(), member.getId()).nudges())
+                .filteredOn(option -> option.type() == MemberNudgeType.HABITS)
+                .singleElement().satisfies(option -> assertThat(option.availableAt()).isEqualTo(first.availableAt()));
     }
 
     @Test
@@ -188,13 +200,41 @@ class MemberAccessFeatureIntegrationTests {
         memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
         memberAccess.replaceAssignments("admin@mr-care.app", secondCoach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
 
-        String source = "care-nudge-" + LocalDate.now(clock.withZone(applicationZoneId));
+        String source = "member-nudge-HABITS-admin-test";
         workflowNotifications.notify(member, com.wellnessapp.entity.PushDelivery.Kind.NUDGE, source,
                 "Kavya · Reminder", "Review today's assigned items.");
 
         assertThat(memberAccess.sharedMembers(coach.getEmail()).members().getFirst().nudgedToday()).isTrue();
         assertThat(memberAccess.sharedMembers(secondCoach.getEmail()).members().getFirst().nudgedToday()).isTrue();
-        assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId())).isFalse();
+        assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId(), MemberNudgeType.HABITS).sent()).isFalse();
+    }
+
+    @Test
+    void attentionCountsDropOnlyForTheMatchingNudgeType() {
+        User coach = user("user@mr-care.app");
+        User member = user("kavya.menon@example.com");
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+        missedEvents.saveAllAndFlush(List.of(
+                MissedEvent.builder().user(member).sourceKey("test-meal-attention").itemType("Meals")
+                        .itemTitle("Test breakfast is overdue").missedAt(clock.instant().minusSeconds(14400)).build(),
+                MissedEvent.builder().user(member).sourceKey("test-habit-attention").itemType("Healthy habit")
+                        .itemTitle("Test walk is overdue").missedAt(clock.instant().minusSeconds(14400)).build()));
+
+        reminders.nudgeSharedMember(coach.getEmail(), member.getId(), MemberNudgeType.MEALS);
+        var memberAttention = reminders.attention().stream()
+                .filter(item -> member.getId().equals(item.get("memberId")))
+                .filter(item -> ((String) item.get("title")).startsWith("Test "))
+                .toList();
+        assertThat(memberAttention).anySatisfy(item -> {
+            assertThat(item.get("title")).isEqualTo("Test breakfast is overdue");
+            assertThat(item.get("status")).isEqualTo("NUDGED");
+        }).anySatisfy(item -> {
+            assertThat(item.get("title")).isEqualTo("Test walk is overdue");
+            assertThat(item.get("status")).isEqualTo("OPEN");
+        });
+        long openCount = reminders.attention().stream().filter(item -> "OPEN".equals(item.get("status"))).count();
+        assertThat(((Number) ((java.util.Map<?, ?>) workspace.workspace().get("summary")).get("missedItems")).longValue())
+                .isEqualTo(openCount);
     }
 
     @Test

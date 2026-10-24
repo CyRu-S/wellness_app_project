@@ -150,6 +150,7 @@ export default function AdminAttentionScreen({ navigation }) {
   const watch = openItems.filter((item) => item.severity !== 'HIGH');
   const priorityOpen = attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN' && item.category !== 'Hydration').length;
   const nudgedCount = allOpenItems.filter((item) => item.status === 'NUDGED').length;
+  const needsAttentionCount = allOpenItems.filter((item) => item.status === 'OPEN').length;
   const filters = useMemo(() => ['All', ...defaultFilters.filter((category) => allOpenItems.some((item) => item.category === category)),
     ...allOpenItems.map((item) => item.category).filter((category, index, values) => category && !defaultFilters.includes(category) && values.indexOf(category) === index)], [allOpenItems]);
 
@@ -173,7 +174,7 @@ export default function AdminAttentionScreen({ navigation }) {
             <View style={styles.livePill}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
           </View>
           <View style={styles.heroStatement}>
-            <Text style={styles.heroValue}>{allOpenItems.length}</Text>
+            <Text style={styles.heroValue}>{needsAttentionCount}</Text>
             <View style={styles.heroStatementCopy}>
               <Text style={styles.heroTitle}>moments need attention</Text>
               <Text style={styles.heroSubtitle}>Start with priority members, then work through the watch list.</Text>

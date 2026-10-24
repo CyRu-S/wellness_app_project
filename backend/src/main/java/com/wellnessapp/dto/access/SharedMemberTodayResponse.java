@@ -10,6 +10,7 @@ public record SharedMemberTodayResponse(
         String timeZone,
         Summary summary,
         boolean nudgedToday,
+        List<NudgeOption> nudges,
         List<MealEntry> meals,
         List<TaskEntry> tasks,
         List<WaterEntry> waterLogs,
@@ -33,6 +34,15 @@ public record SharedMemberTodayResponse(
     ) {}
 
     public record Nutrition(BigDecimal calories, BigDecimal proteinGrams, BigDecimal carbsGrams, BigDecimal fatGrams) {}
+
+    public record NudgeOption(
+            MemberNudgeType type,
+            String title,
+            String detail,
+            boolean needed,
+            Instant lastSentAt,
+            Instant availableAt
+    ) {}
 
     public record MealEntry(
             Long plannedMealId,

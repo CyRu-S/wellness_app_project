@@ -1,5 +1,6 @@
 package com.wellnessapp.service;
 
+import com.wellnessapp.dto.access.MemberNudgeType;
 import com.wellnessapp.entity.*;
 import com.wellnessapp.exception.NotFoundException;
 import com.wellnessapp.repository.*;
@@ -12,6 +13,10 @@ import java.util.*;
 @lombok.extern.slf4j.Slf4j
 @Service @RequiredArgsConstructor
 public class ReminderService {
+    private static final Duration NUDGE_COOLDOWN = Duration.ofMinutes(30);
+
+    public record NudgeResult(boolean sent, MemberNudgeType type, Instant lastSentAt, Instant availableAt) {}
+
     private final UserRepository users;
     private final MealRepository meals;
     private final MissedEventRepository missed;
@@ -146,13 +151,20 @@ public class ReminderService {
             try { return Long.parseLong(key.substring(dailyPrefix.length())); }
             catch (RuntimeException ignored) { return null; }
         }).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        Set<String> recentMemberNudges = notifications
+                .sourceKeysStartingWithSince("member-nudge-", clock.instant().minus(NUDGE_COOLDOWN)).stream()
+                .map(this::nudgeAudienceFromKey)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
         return events.stream().filter(e -> e.getUser().getStatus() == User.Status.ACTIVE).map(e -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", e.getId()); row.put("memberId", e.getUser().getId()); row.put("memberName", e.getUser().getFullName());
             row.put("initials", AdminWorkspaceService.initials(e.getUser().getFullName())); row.put("category", e.getItemType()); row.put("title", e.getItemTitle());
             row.put("missedAt", e.getMissedAt().atZone(applicationZoneId).format(java.time.format.DateTimeFormatter.ofPattern("d MMM, h:mm a")));
             row.put("severity", e.getMissedAt().isBefore(clock.instant().minusSeconds(10800)) ? "HIGH" : "MEDIUM");
-            row.put("status", nudgedIds.contains(e.getId()) || nudgedMemberIds.contains(e.getUser().getId()) ? "NUDGED" : "OPEN"); return row;
+            String audience = e.getUser().getId() + ":" + nudgeType(e).name();
+            row.put("status", nudgedIds.contains(e.getId()) || nudgedMemberIds.contains(e.getUser().getId())
+                    || recentMemberNudges.contains(audience) ? "NUDGED" : "OPEN"); return row;
         }).toList();
     }
     @Transactional public void resolve(Long id) {
@@ -164,18 +176,15 @@ public class ReminderService {
         if ("Hydration".equalsIgnoreCase(event.getItemType())) {
             throw new com.wellnessapp.exception.BadRequestException("Use the club hydration reminder from the dashboard");
         }
-        users.lockById(event.getUser().getId()).orElseThrow();
-        String source = "care-nudge-" + LocalDate.now(clock.withZone(applicationZoneId));
-        if (event.isResolved() || notifications.existsBySourceKey(source + "-to-" + event.getUser().getId())) return;
-        notices.notify(event.getUser(), PushDelivery.Kind.NUDGE, source,
-                firstName(event.getUser()) + " · Reminder", nudgeAction(event));
+        if (event.isResolved()) return;
+        sendMemberNudge(event.getUser(), nudgeType(event), nudgeAction(event));
     }
 
     @Transactional public int nudgeHydrationForAll() {
         var today = LocalDate.now(clock.withZone(applicationZoneId));
         int notified = 0;
         for (var user : users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE)) {
-            String source = "hydration-club-" + today;
+            String source = nudgeSourcePrefix(MemberNudgeType.HYDRATION) + "club-" + today;
             boolean existed = notifications.existsBySourceKey(source + "-to-" + user.getId());
             notices.notify(user, PushDelivery.Kind.NUDGE, source, firstName(user) + " · Hydration",
                     "Drink water and log your intake.");
@@ -184,19 +193,76 @@ public class ReminderService {
         return notified;
     }
 
-    @Transactional public boolean nudgeSharedMember(String viewerEmail, Long memberId) {
+    @Transactional public NudgeResult nudgeSharedMember(String viewerEmail, Long memberId, MemberNudgeType type) {
         User viewer = users.findByEmailIgnoreCase(viewerEmail)
                 .orElseThrow(() -> new NotFoundException("Shared member not found"));
         if (!memberAccess.canReadMember(viewer, memberId) || viewer.getRole() == User.Role.ADMIN) {
             throw new NotFoundException("Shared member not found");
         }
         User member = users.findById(memberId).orElseThrow(() -> new NotFoundException("Shared member not found"));
-        String source = "care-nudge-" + LocalDate.now(clock.withZone(applicationZoneId));
-        String key = source + "-to-" + memberId;
-        boolean existed = notifications.existsBySourceKey(key);
-        notices.notify(member, PushDelivery.Kind.NUDGE, source, firstName(member) + " · Daily reminder",
-                "Review today's meals, exercise and habits.");
-        return !existed;
+        return sendMemberNudge(member, type, nudgeMessage(type));
+    }
+
+    static String nudgeSourcePrefix(MemberNudgeType type) {
+        return "member-nudge-" + type.name() + "-";
+    }
+
+    private NudgeResult sendMemberNudge(User member, MemberNudgeType type, String body) {
+        User lockedMember = users.lockById(member.getId())
+                .orElseThrow(() -> new NotFoundException("Shared member not found"));
+        Instant now = clock.instant();
+        var recent = notifications
+                .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
+                        lockedMember.getId(), nudgeSourcePrefix(type), now.minus(NUDGE_COOLDOWN));
+        if (recent.isPresent()) {
+            Instant sentAt = recent.get().getScheduledAt();
+            return new NudgeResult(false, type, sentAt, sentAt.plus(NUDGE_COOLDOWN));
+        }
+        notices.notify(lockedMember, PushDelivery.Kind.NUDGE, nudgeSourcePrefix(type) + now.toEpochMilli(),
+                firstName(lockedMember) + " · " + nudgeTitle(type), body);
+        Instant sentAt = notifications
+                .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
+                        lockedMember.getId(), nudgeSourcePrefix(type), now.minus(NUDGE_COOLDOWN))
+                .map(NotificationEvent::getScheduledAt)
+                .orElse(now);
+        return new NudgeResult(true, type, sentAt, sentAt.plus(NUDGE_COOLDOWN));
+    }
+
+    private MemberNudgeType nudgeType(MissedEvent event) {
+        String value = (event.getItemType() + " " + event.getItemTitle()).toLowerCase(Locale.ROOT);
+        if (value.contains("meal")) return MemberNudgeType.MEALS;
+        if (value.contains("hydration") || value.contains("water")) return MemberNudgeType.HYDRATION;
+        if (value.contains("exercise") || value.contains("activity") || value.contains("move")) return MemberNudgeType.EXERCISE;
+        return MemberNudgeType.HABITS;
+    }
+
+    private String nudgeTitle(MemberNudgeType type) {
+        return switch (type) {
+            case MEALS -> "Meal reminder";
+            case HYDRATION -> "Hydration";
+            case EXERCISE -> "Move reminder";
+            case HABITS -> "To-do reminder";
+        };
+    }
+
+    private String nudgeMessage(MemberNudgeType type) {
+        return switch (type) {
+            case MEALS -> "Complete and log your assigned meal.";
+            case HYDRATION -> "Drink water and log your intake.";
+            case EXERCISE -> "Complete your movement and log it.";
+            case HABITS -> "Complete your assigned to-do items.";
+        };
+    }
+
+    private String nudgeAudienceFromKey(String key) {
+        try {
+            String prefix = "member-nudge-";
+            int typeEnd = key.indexOf('-', prefix.length());
+            String type = key.substring(prefix.length(), typeEnd);
+            Long memberId = Long.parseLong(key.substring(key.lastIndexOf("-to-") + 4));
+            return memberId + ":" + type;
+        }
+        catch (RuntimeException ignored) { return null; }
     }
 
     private String nudgeAction(MissedEvent event) {

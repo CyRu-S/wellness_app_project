@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 public interface NotificationRepository extends JpaRepository<NotificationEvent, Long> {
     List<NotificationEvent> findTop30ByUserIdOrderByScheduledAtDesc(Long userId);
     long deleteByUserId(Long userId);
@@ -17,6 +18,10 @@ public interface NotificationRepository extends JpaRepository<NotificationEvent,
     boolean existsBySourceKeyStartingWith(String sourceKeyPrefix);
     @Query("select event.sourceKey from NotificationEvent event where event.sourceKey like concat(:prefix, '%')")
     List<String> sourceKeysStartingWith(@Param("prefix") String prefix);
+    @Query("select event.sourceKey from NotificationEvent event where event.sourceKey like concat(:prefix, '%') and event.scheduledAt >= :cutoff")
+    List<String> sourceKeysStartingWithSince(@Param("prefix") String prefix, @Param("cutoff") Instant cutoff);
+    Optional<NotificationEvent> findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
+            Long userId, String sourceKeyPrefix, Instant cutoff);
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update NotificationEvent event set event.read = true where event.user.id = :userId and event.id in :ids")
     int markReadByUserIdAndIdIn(@Param("userId") Long userId, @Param("ids") java.util.Collection<Long> ids);

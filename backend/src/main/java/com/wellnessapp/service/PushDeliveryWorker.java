@@ -52,7 +52,8 @@ public class PushDeliveryWorker {
                 }).orElse(false);
             }
             if (d.getKind() == PushDelivery.Kind.NUDGE) {
-                if (key != null && (key.startsWith("hydration-club-") || key.startsWith("care-nudge-") || key.startsWith("coach-nudge-"))) return true;
+                if (key != null && (key.startsWith("hydration-club-") || key.startsWith("care-nudge-")
+                        || key.startsWith("coach-nudge-") || key.startsWith("member-nudge-"))) return true;
                 return key != null && key.startsWith("nudge-") && missed.findById(Long.parseLong(key.substring(6).split("-")[0]))
                         .map(m -> !m.isResolved()).orElse(false);
             }

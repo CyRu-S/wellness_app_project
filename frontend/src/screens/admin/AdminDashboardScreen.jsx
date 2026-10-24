@@ -142,7 +142,7 @@ export default function AdminDashboardScreen({ navigation }) {
   const { width, fontScale } = useWindowDimensions();
   const [heroWidth, setHeroWidth] = useState(0);
   const firstName = admin?.name?.split(' ')[0] || 'Coach';
-  const openAttention = useMemo(() => attention.filter((item) => item.status !== 'RESOLVED'), [attention]);
+  const openAttention = useMemo(() => attention.filter((item) => item.status === 'OPEN'), [attention]);
   const highPriorityCount = openAttention.filter((item) => item.severity === 'HIGH').length;
   const compactHero = (heroWidth > 0 ? heroWidth < 350 : width < 390) || fontScale > 1.15;
   const stackedMosaic = width < 340 || fontScale > 1.25;

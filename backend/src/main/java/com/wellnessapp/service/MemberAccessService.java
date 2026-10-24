@@ -22,6 +22,7 @@ public class MemberAccessService {
     private static final int DEFAULT_WATER_GOAL_ML = 2000;
     private static final int DAILY_ACTIVITY_GOAL_MINUTES = 30;
     private static final int DAILY_ACTIVITY_GOAL_SECONDS = DAILY_ACTIVITY_GOAL_MINUTES * 60;
+    private static final Duration NUDGE_COOLDOWN = Duration.ofMinutes(30);
 
     private final UserRepository users;
     private final MemberAccessGrantRepository grants;
@@ -190,17 +191,63 @@ public class MemberAccessService {
         SharedMemberTodayResponse.Summary summary = new SharedMemberTodayResponse.Summary(
                 planned.size(), completed, posts.size(), calories, protein, hydration, hydrationGoal,
                 activityMinutes, DAILY_ACTIVITY_GOAL_MINUTES, tasks.size(), completedTasks, completionPercentage);
+        List<SharedMemberTodayResponse.NudgeOption> nudges = nudgeOptions(subject, summary, tasks);
         return new SharedMemberTodayResponse(
                 new SharedMemberTodayResponse.Member(subject.getId(), subject.getFullName()),
                 date,
                 applicationZoneId.getId(),
                 summary,
-                notifications.existsBySourceKey("care-nudge-" + date + "-to-" + subject.getId()),
+                notifications.existsBySourceKey("care-nudge-" + date + "-to-" + subject.getId())
+                        || nudges.stream().anyMatch(option -> option.lastSentAt() != null),
+                nudges,
                 List.copyOf(mealEntries),
                 tasks,
                 water.stream().map(item -> new SharedMemberTodayResponse.WaterEntry(item.getId(), item.getAmountMl(), item.getLoggedAt())).toList(),
                 activity.stream().map(item -> new SharedMemberTodayResponse.ActivityEntry(
                         item.getId(), item.getActivity(), item.getDurationSeconds() / 60, item.getDistanceKm(), item.getStartedAt())).toList());
+    }
+
+    private List<SharedMemberTodayResponse.NudgeOption> nudgeOptions(
+            User subject,
+            SharedMemberTodayResponse.Summary summary,
+            List<SharedMemberTodayResponse.TaskEntry> tasks) {
+        long pendingHabits = tasks.stream()
+                .filter(task -> "HEALTHY_HABIT".equals(task.type()) && !task.completed())
+                .count();
+        long pendingExercises = tasks.stream()
+                .filter(task -> "ACTIVITY".equals(task.type()) && !task.completed())
+                .count();
+        int mealsRemaining = Math.max(0, summary.plannedMeals() - summary.completedMeals());
+        int waterRemaining = Math.max(0, summary.hydrationGoalMl() - summary.hydrationMl());
+        int moveRemaining = Math.max(0, summary.activityGoalMinutes() - summary.activityMinutes());
+
+        return List.of(
+                nudgeOption(subject, MemberNudgeType.MEALS, "Meals",
+                        mealsRemaining == 0 ? "Completed for today" : mealsRemaining + " assigned meal" + (mealsRemaining == 1 ? "" : "s") + " remaining",
+                        mealsRemaining > 0),
+                nudgeOption(subject, MemberNudgeType.HYDRATION, "Hydration",
+                        waterRemaining == 0 ? "Daily water goal completed" : waterRemaining + " ml remaining",
+                        waterRemaining > 0),
+                nudgeOption(subject, MemberNudgeType.EXERCISE, "Move",
+                        pendingExercises > 0 ? pendingExercises + " coach exercise" + (pendingExercises == 1 ? "" : "s") + " remaining"
+                                : moveRemaining == 0 ? "Movement goal completed" : moveRemaining + " movement minutes remaining",
+                        pendingExercises > 0 || moveRemaining > 0),
+                nudgeOption(subject, MemberNudgeType.HABITS, "To-do",
+                        pendingHabits == 0 ? "Checklist completed for today" : pendingHabits + " checklist item" + (pendingHabits == 1 ? "" : "s") + " remaining",
+                        pendingHabits > 0));
+    }
+
+    private SharedMemberTodayResponse.NudgeOption nudgeOption(
+            User subject, MemberNudgeType type, String title, String detail, boolean needed) {
+        Instant cutoff = clock.instant().minus(NUDGE_COOLDOWN);
+        NotificationEvent recent = notifications
+                .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
+                        subject.getId(), ReminderService.nudgeSourcePrefix(type), cutoff)
+                .orElse(null);
+        Instant lastSentAt = recent == null ? null : recent.getScheduledAt();
+        return new SharedMemberTodayResponse.NudgeOption(
+                type, title, detail, needed, lastSentAt,
+                lastSentAt == null ? null : lastSentAt.plus(NUDGE_COOLDOWN));
     }
 
     private SharedMemberTodayResponse.MealEntry mealEntry(Meal meal, MealPost post) {

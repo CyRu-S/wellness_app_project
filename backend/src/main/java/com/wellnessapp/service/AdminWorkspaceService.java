@@ -52,7 +52,8 @@ public class AdminWorkspaceService {
             var profile = profileByUser.get(user.getId());
             var plan = memberPlans.get(user.getId());
             var memberHistory = historyByUser.getOrDefault(user.getId(), List.of());
-            var alerts = attentionByUser.getOrDefault(user.getId(), List.of());
+            var alerts = attentionByUser.getOrDefault(user.getId(), List.of()).stream()
+                    .filter(alert -> "OPEN".equals(alert.get("status"))).toList();
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", user.getId()); row.put("name", user.getFullName()); row.put("email", user.getEmail());
             row.put("status", user.getStatus()); row.put("initials", initials(user.getFullName()));
@@ -122,7 +123,8 @@ public class AdminWorkspaceService {
         summary.put("activeUsers", active.stream().filter(u -> u.getLastSeenAt() != null && u.getLastSeenAt().isAfter(clock.instant().minusSeconds(120))).count());
         summary.put("mealLogsToday", todayLogged);
         summary.put("membersWithMealLogsToday", loggedMemberIds(todayMeals, todayPosts).size());
-        summary.put("mealComparison", comparison(todayLogged, loggedCount(yesterdayMeals, yesterdayPosts))); summary.put("missedItems", attention.size());
+        summary.put("mealComparison", comparison(todayLogged, loggedCount(yesterdayMeals, yesterdayPosts)));
+        summary.put("missedItems", attention.stream().filter(item -> "OPEN".equals(item.get("status"))).count());
         summary.put("averageAdherence", rate); summary.put("onTrackPercentage", rate);
         summary.put("activePlans", memberPlans.values().stream().filter(p -> !((Map<?, ?>) p).get("planName").equals("")).count()); summary.put("products", products.countByActiveTrue());
         Map<String, Object> ranges = new LinkedHashMap<>();
@@ -163,7 +165,8 @@ public class AdminWorkspaceService {
             long logged = todayPosts.stream().filter(p -> p.getMealType().equals(type)).map(p -> p.getUser().getId()).distinct().count();
             return Map.of("id", type.toLowerCase(Locale.ROOT), "label", type, "logged", logged, "completion", members.isEmpty() ? 0 : logged * 100 / members.size());
         }).toList();
-        var missing = attention.stream().map(a -> Map.of("memberId", a.get("memberId"), "name", a.get("memberName"), "initials", a.get("initials"), "detail", a.get("title"), "severity", a.get("severity"))).toList();
+        var missing = attention.stream().filter(item -> "OPEN".equals(item.get("status")))
+                .map(a -> Map.of("memberId", a.get("memberId"), "name", a.get("memberName"), "initials", a.get("initials"), "detail", a.get("title"), "severity", a.get("severity"))).toList();
         return Map.of("summary", summary, "members", members, "approvals", approvals, "attention", attention, "memberMealPlans", memberPlans,
                 "leaderboard", leaderboards.rows(null),
                 "mealInsights", Map.of("selectedRange", "TODAY", "ranges", ranges, "mealTypes", mealTypes, "missingMembers", missing));

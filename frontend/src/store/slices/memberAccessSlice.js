@@ -54,10 +54,10 @@ export const loadAdminMemberAccess = createAsyncThunk(
   },
 );
 
-export const nudgeSharedMember = createAsyncThunk('memberAccess/nudgeSharedMember', async (memberId, { getState }) => {
+export const nudgeSharedMember = createAsyncThunk('memberAccess/nudgeSharedMember', async ({ memberId, type }, { getState }) => {
   const token = getState().auth?.token;
   requireApiToken(token);
-  return { memberId: Number(memberId), ...await nudgeSharedMemberApi(token, memberId) };
+  return { memberId: Number(memberId), type, ...await nudgeSharedMemberApi(token, memberId, type) };
 });
 
 export const replaceMemberAccessAssignments = createAsyncThunk(
@@ -224,18 +224,31 @@ const memberAccessSlice = createSlice({
           state.sharedJournal = null;
         }
       })
-      .addCase(nudgeSharedMember.pending, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg), status: 'loading', sent: false, error: null }; })
+      .addCase(nudgeSharedMember.pending, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg.memberId), type: action.meta.arg.type, status: 'loading', sent: false, error: null }; })
       .addCase(nudgeSharedMember.fulfilled, (state, action) => {
         const id = Number(action.payload.memberId);
-        state.sharedNudge = { memberId: id, status: 'succeeded', sent: !!action.payload?.sent, error: null };
+        const type = action.payload.type;
+        state.sharedNudge = { memberId: id, type, status: 'succeeded', sent: !!action.payload?.sent, error: null };
         if (Number(state.sharedToday?.member?.id) === id) state.sharedToday.nudgedToday = true;
-        if (state.todayByMemberId[id]) state.todayByMemberId[id].nudgedToday = true;
+        if (state.todayByMemberId[id]) {
+          state.todayByMemberId[id].nudgedToday = true;
+          const option = state.todayByMemberId[id].nudges?.find((item) => item.type === type);
+          if (option) {
+            option.lastSentAt = action.payload.lastSentAt;
+            option.availableAt = action.payload.availableAt;
+          }
+        }
+        const currentOption = state.sharedToday?.nudges?.find((item) => item.type === type);
+        if (currentOption) {
+          currentOption.lastSentAt = action.payload.lastSentAt;
+          currentOption.availableAt = action.payload.availableAt;
+        }
         [state.shared?.members, state.sharedMembers?.members].forEach((members) => {
           const member = members?.find((item) => Number(item.id ?? item.memberId) === id);
           if (member) member.nudgedToday = true;
         });
       })
-      .addCase(nudgeSharedMember.rejected, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg), status: 'failed', sent: false, error: action.error?.message || 'Nudge could not be sent.' }; });
+      .addCase(nudgeSharedMember.rejected, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg.memberId), type: action.meta.arg.type, status: 'failed', sent: false, error: action.error?.message || 'Nudge could not be sent.' }; });
   },
 });
 

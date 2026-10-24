@@ -9,8 +9,7 @@ import PrimaryTealCardBackground from '../../components/common/PrimaryTealCardBa
 import UserHeader from '../../components/user/UserHeader';
 import PageRefresh from '../../components/common/PageRefresh';
 import usePageRefresh from '../../hooks/usePageRefresh';
-import { loadSharedMembers, nudgeSharedMember } from '../../store/slices/memberAccessSlice';
-import Alert from '../../utils/appAlert';
+import { loadSharedMembers } from '../../store/slices/memberAccessSlice';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 
 const memberId = (member) => member?.id ?? member?.memberId ?? member?.userId;
@@ -28,7 +27,7 @@ const hydrationLabel = (value) => {
   return `${millilitres}ml`;
 };
 
-function MemberCard({ member, onPress, onNudge, nudging }) {
+function MemberCard({ member, onPress }) {
   const summary = summaryFor(member);
   const plannedTasks = asNumber(summary.plannedTasks);
   const completedTasks = asNumber(summary.completedTasks);
@@ -37,7 +36,6 @@ function MemberCard({ member, onPress, onNudge, nudging }) {
   const progress = Math.min(100, asNumber(summary.completionPercentage));
   const name = member.name || member.memberName || 'Member';
   const initial = name.trim().slice(0, 1).toUpperCase() || 'M';
-  const nudged = !!member.nudgedToday;
 
   return (
     <View style={styles.memberCard}>
@@ -86,18 +84,6 @@ function MemberCard({ member, onPress, onNudge, nudging }) {
           </View>
         </View>
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: nudged || nudging, busy: nudging }}
-        accessibilityLabel={nudged ? `${name} was already nudged today` : `Send nudge to ${name}`}
-        disabled={nudged || nudging}
-        onPress={onNudge}
-        style={({ pressed }) => [styles.nudgeAction, nudged && styles.nudgeActionDone, pressed && styles.pressed]}
-      >
-        <Ionicons name={nudged ? 'checkmark-circle' : 'notifications-outline'} size={17} color={colors.tealDark} />
-        <Text style={styles.nudgeActionText}>{nudging ? 'Sending…' : nudged ? 'Nudge sent today' : 'Send nudge'}</Text>
-        <Text style={styles.nudgeActionMeta}>{nudged ? 'Visible to every assigned coach' : 'One reminder for this member today'}</Text>
-      </Pressable>
     </View>
   );
 }
@@ -125,7 +111,6 @@ export default function SharedMembersScreen({ navigation }) {
   const status = access.sharedMembersStatus || access.listStatus || access.status || 'idle';
   const error = access.sharedMembersError || access.error;
   const loading = status === 'loading' || status === 'pending';
-  const nudge = access.sharedNudge || { status: 'idle' };
 
   const refresh = useCallback(() => dispatch(loadSharedMembers()), [dispatch]);
 
@@ -139,19 +124,6 @@ export default function SharedMembersScreen({ navigation }) {
       memberName: member.name || member.memberName || 'Member',
     });
   }, [navigation]);
-
-  const sendNudge = useCallback(async (member) => {
-    const id = memberId(member);
-    const name = member.name || member.memberName || 'Member';
-    try {
-      const result = await dispatch(nudgeSharedMember(id)).unwrap();
-      Alert.alert(result.sent ? 'Nudge sent' : 'Already nudged today', result.sent
-        ? `${name} received the reminder.`
-        : 'An administrator or another assigned coach already sent today’s nudge.');
-    } catch (sendError) {
-      Alert.alert('Nudge not sent', sendError.message || 'Please try again.');
-    }
-  }, [dispatch]);
 
   const header = (
     <>
@@ -200,7 +172,7 @@ export default function SharedMembersScreen({ navigation }) {
       <FlatList
         data={members}
         keyExtractor={(item, index) => String(memberId(item) ?? index)}
-        renderItem={({ item }) => <MemberCard member={item} onPress={() => openMember(item)} onNudge={() => sendNudge(item)} nudging={nudge.status === 'loading' && Number(nudge.memberId) === Number(memberId(item))} />}
+        renderItem={({ item }) => <MemberCard member={item} onPress={() => openMember(item)} />}
         ListHeaderComponent={header}
         ListEmptyComponent={loading ? <View style={styles.loadingState}><ActivityIndicator color={colors.tealMid} /><Text style={styles.loadingText}>Loading your shared circle…</Text></View> : errorState || <EmptyState />}
         ListFooterComponent={members.length ? <View style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={16} color={colors.tealDark} /><Text style={styles.privacyText}>You can view assigned members’ activity history and reports. Access is managed by your club admin.</Text></View> : null}
@@ -250,10 +222,6 @@ const styles = StyleSheet.create({
   signalValue: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 13 },
   signalLabel: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 10, lineHeight: 13, letterSpacing: 0.6, marginTop: 1 },
   signalRule: { width: StyleSheet.hairlineWidth, height: 27, backgroundColor: colors.line },
-  nudgeAction: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, marginTop: 14, paddingTop: 12 },
-  nudgeActionDone: { opacity: 0.68 },
-  nudgeActionText: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 12 },
-  nudgeActionMeta: { flex: 1, color: colors.muted, fontFamily: fonts.medium, fontSize: 10, textAlign: 'right' },
   loadingState: { minHeight: 210, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12 },
   emptyState: { minHeight: 252, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 28 },

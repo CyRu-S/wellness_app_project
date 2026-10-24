@@ -24,7 +24,7 @@ export const getSharedMemberJournal = (token, memberId) => request(`/shared-memb
   headers: authHeaders(token),
 });
 
-export const nudgeSharedMember = (token, memberId) => request(`/shared-members/${memberId}/nudge`, {
+export const nudgeSharedMember = (token, memberId, type) => request(`/shared-members/${memberId}/nudges/${type}`, {
   method: 'POST', headers: authHeaders(token),
 });
 

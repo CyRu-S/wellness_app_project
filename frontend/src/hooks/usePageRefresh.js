@@ -15,7 +15,7 @@ import { loadSharedMembers, loadSharedMemberToday, loadAdminMemberAccess } from 
 import { loadAdminMemberJournal } from '../store/slices/adminMemberJournalSlice';
 import { loadLeaderboard } from '../store/slices/leaderboardSlice';
 
-const LIVE_SYNC_PAGES = new Set(['AdminDashboard', 'Reports', 'Dashboard', 'TodayTimeline', 'UserDetails', 'SharedMembers', 'SharedMemberToday', 'Leaderboard']);
+const LIVE_SYNC_PAGES = new Set(['AdminDashboard', 'Reports', 'Alerts', 'Dashboard', 'TodayTimeline', 'UserDetails', 'SharedMembers', 'SharedMemberToday', 'Leaderboard']);
 
 export default function usePageRefresh() {
   const route = useRoute();

@@ -133,19 +133,25 @@ test('attention nudges and resolves update immediately and return as actions aft
     '../../services/api/client': { request: (path) => path.endsWith('/nudge') ? nudge.promise : resolve.promise },
   });
   const initial = admin.default(undefined, { type: 'init' });
-  const alert = { id: 8, memberId: 2, status: 'OPEN', severity: 'HIGH' };
-  const store = setup({ admin }, { admin: { ...initial, attention: [alert] } });
+  const alert = { id: 8, memberId: 2, status: 'OPEN', severity: 'HIGH', category: 'Meals', title: 'Breakfast overdue' };
+  const other = { id: 9, memberId: 2, status: 'OPEN', severity: 'MEDIUM', category: 'Hydration', title: 'Water overdue' };
+  const store = setup({ admin }, { admin: { ...initial, summary: { ...initial.summary, missedItems: 2 }, attention: [alert, other], members: [{ id: 2, attentionLevel: 'NEEDS_ATTENTION' }] } });
 
   const nudging = store.dispatch(admin.nudgeAttention(8));
   assert.equal(store.getState().admin.attention[0].status, 'NUDGED');
+  assert.equal(store.getState().admin.summary.missedItems, 1);
+  assert.equal(store.getState().admin.members[0].attentionReason, 'Water overdue');
   nudge.reject(new Error('Offline')); await nudging;
   assert.equal(store.getState().admin.attention[0].status, 'OPEN');
+  assert.equal(store.getState().admin.summary.missedItems, 2);
 
   const resolving = store.dispatch(admin.resolveAttention(8));
-  assert.equal(store.getState().admin.attention.length, 0);
+  assert.equal(store.getState().admin.attention.length, 1);
+  assert.equal(store.getState().admin.summary.missedItems, 1);
   resolve.reject(new Error('Offline')); await resolving;
   assert.equal(store.getState().admin.attention[0].id, alert.id);
   assert.equal(store.getState().admin.attention[0].status, 'OPEN');
+  assert.equal(store.getState().admin.summary.missedItems, 2);
 });
 
 test('access is granted only after confirmation and uses the PUT response without a second request', async () => {
@@ -178,10 +184,10 @@ test('switching shared members ignores a late response for the previous member',
   assert.equal(store.getState().memberAccess.sharedToday.member.id, 2);
 });
 
-test('a coach nudge marks that member for every shared coach view without a repeat', async () => {
+test('a coach nudge locks only that member and nudge type with the shared cooldown', async () => {
   const memberAccess = loadModule('../src/store/slices/memberAccessSlice.js', {
     '@reduxjs/toolkit': toolkit,
-    '../../services/api/memberAccessApi': { nudgeSharedMember: async () => ({ sent: false }) },
+    '../../services/api/memberAccessApi': { nudgeSharedMember: async () => ({ sent: false, lastSentAt: '2026-10-25T04:00:00Z', availableAt: '2026-10-25T04:30:00Z' }) },
   });
   const initial = memberAccess.default(undefined, { type: 'init' });
   const members = [{ id: 2, name: 'Member', nudgedToday: false }, { id: 3, name: 'Other', nudgedToday: false }];
@@ -189,14 +195,19 @@ test('a coach nudge marks that member for every shared coach view without a repe
     ...initial,
     shared: { total: 2, members: members.map((member) => ({ ...member })) },
     sharedMembers: { total: 2, members: members.map((member) => ({ ...member })) },
+    sharedToday: { member: { id: 2 }, nudges: [{ type: 'MEALS', availableAt: null }, { type: 'HYDRATION', availableAt: null }] },
+    todayByMemberId: { 2: { member: { id: 2 }, nudges: [{ type: 'MEALS', availableAt: null }, { type: 'HYDRATION', availableAt: null }] } },
   } });
 
-  const sending = store.dispatch(memberAccess.nudgeSharedMember(2));
+  const sending = store.dispatch(memberAccess.nudgeSharedMember({ memberId: 2, type: 'MEALS' }));
   assert.equal(store.getState().memberAccess.sharedNudge.memberId, 2);
+  assert.equal(store.getState().memberAccess.sharedNudge.type, 'MEALS');
   await sending.unwrap();
   assert.equal(store.getState().memberAccess.shared.members[0].nudgedToday, true);
   assert.equal(store.getState().memberAccess.sharedMembers.members[0].nudgedToday, true);
   assert.equal(store.getState().memberAccess.shared.members[1].nudgedToday, false);
+  assert.equal(store.getState().memberAccess.sharedToday.nudges[0].availableAt, '2026-10-25T04:30:00Z');
+  assert.equal(store.getState().memberAccess.sharedToday.nudges[1].availableAt, null);
 });
 
 test('an older admin journal read cannot undo a confirmed water goal change', async () => {

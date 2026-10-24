@@ -2,6 +2,7 @@ package com.wellnessapp.controller;
 
 import com.wellnessapp.dto.access.SharedMemberTodayResponse;
 import com.wellnessapp.dto.access.SharedMembersResponse;
+import com.wellnessapp.dto.access.MemberNudgeType;
 import com.wellnessapp.service.MemberAccessService;
 import com.wellnessapp.service.AdminMemberJournalService;
 import com.wellnessapp.service.ReminderService;
@@ -34,7 +35,15 @@ public class SharedMemberController {
     }
 
     @PostMapping("/{memberId}/nudge")
-    java.util.Map<String, Object> nudge(Authentication authentication, @PathVariable Long memberId) {
-        return java.util.Map.of("sent", reminders.nudgeSharedMember(authentication.getName(), memberId));
+    ReminderService.NudgeResult legacyNudge(Authentication authentication, @PathVariable Long memberId) {
+        return reminders.nudgeSharedMember(authentication.getName(), memberId, MemberNudgeType.HABITS);
+    }
+
+    @PostMapping("/{memberId}/nudges/{type}")
+    ReminderService.NudgeResult nudge(
+            Authentication authentication,
+            @PathVariable Long memberId,
+            @PathVariable MemberNudgeType type) {
+        return reminders.nudgeSharedMember(authentication.getName(), memberId, type);
     }
 }

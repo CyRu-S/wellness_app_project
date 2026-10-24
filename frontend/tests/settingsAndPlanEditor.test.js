@@ -46,6 +46,19 @@ test('assigned count avoids duplicate meals and the Log count stays compact', as
   assert.doesNotMatch(log, /count: \{[^}]*fontSize: 29/);
 });
 
+test('shared member profile has category nudges with a shared thirty minute cooldown', async () => {
+  const [profile, list, api] = await Promise.all([
+    source('../src/screens/user/SharedMemberTodayScreen.jsx'),
+    source('../src/screens/user/SharedMembersScreen.jsx'),
+    source('../src/services/api/memberAccessApi.js'),
+  ]);
+  assert.match(profile, /\['Today', 'Nudges', 'History', 'Reports'\]/);
+  assert.match(profile, /Available in \$\{minutes\} min/);
+  assert.match(profile, /locked for every admin and coach for 30 minutes/);
+  assert.match(api, /nudges\/\$\{type\}/);
+  assert.doesNotMatch(list, /Send nudge/);
+});
+
 test('admin settings never exposes admin account deletion while member deletion remains available', async () => {
   const [settings, details] = await Promise.all([
     source('../src/screens/admin/AdminSettingsScreen.jsx'),

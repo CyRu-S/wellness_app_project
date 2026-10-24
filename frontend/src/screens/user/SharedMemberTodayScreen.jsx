@@ -47,6 +47,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   const payload = access.sharedToday;
   const journal = access.sharedJournal;
   const [section, setSection] = useState('Today');
+  const [now, setNow] = useState(0);
   const nudge = access.sharedNudge || { status: 'idle' };
   const today = useMemo(() => {
     if (!payload) return null;
@@ -62,8 +63,6 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   const revoked = errorStatus === 404 || /not found|no longer|permission|access/i.test(errorMessage || '');
   const memberName = today?.member?.name || fallbackName;
   const nudgeForMember = Number(nudge.memberId) === Number(memberId);
-  const nudgedToday = !!today?.nudgedToday || (nudgeForMember && nudge.status === 'succeeded');
-  const nudgeLoading = nudgeForMember && nudge.status === 'loading';
 
   const load = useCallback(() => {
     if (memberId != null) return dispatch(loadSharedMemberToday(memberId));
@@ -71,16 +70,23 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   }, [dispatch, memberId]);
 
   useEffect(() => () => { dispatch(clearSharedMemberToday()); }, [dispatch]);
+  useEffect(() => {
+    if (section !== 'Nudges') return undefined;
+    const initialTimer = setTimeout(() => setNow(Date.now()), 0);
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => { clearTimeout(initialTimer); clearInterval(timer); };
+  }, [section]);
 
   const openPhoto = useCallback((post) => {
     navigation.navigate('SharedPhoto', { post, memberName });
   }, [memberName, navigation]);
-  const sendNudge = useCallback(async () => {
+  const sendNudge = useCallback(async (type, title) => {
     try {
-      const result = await dispatch(nudgeSharedMember(memberId)).unwrap();
-      Alert.alert(result.sent ? 'Nudge sent' : 'Already nudged today', result.sent
-        ? `${memberName} received your reminder.`
-        : 'This member has already received your nudge today.');
+      const result = await dispatch(nudgeSharedMember({ memberId, type })).unwrap();
+      setNow(Date.now());
+      Alert.alert(result.sent ? 'Nudge sent' : 'Nudge already sent', result.sent
+        ? `${memberName} received the ${title.toLowerCase()} reminder.`
+        : 'An administrator or assigned coach sent this nudge recently. It is locked for 30 minutes.');
     } catch (error) { Alert.alert('Nudge not sent', error.message || 'Please try again.'); }
   }, [dispatch, memberId, memberName]);
 
@@ -110,16 +116,48 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
       >
         <BackHeader navigation={navigation} />
         <View style={styles.sections}>
-          {['Today', 'History', 'Reports'].map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: section === item }} onPress={() => setSection(item)} style={[styles.section, section === item && styles.sectionActive]}><Text style={[styles.sectionText, section === item && styles.sectionTextActive]}>{item}</Text></Pressable>)}
+          {['Today', 'Nudges', 'History', 'Reports'].map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: section === item }} onPress={() => setSection(item)} style={[styles.section, section === item && styles.sectionActive]}><Text style={[styles.sectionText, section === item && styles.sectionTextActive]}>{item}</Text></Pressable>)}
         </View>
-        {section === 'Today' ? <Pressable accessibilityRole="button" disabled={nudgeLoading || nudgedToday} onPress={sendNudge} style={({ pressed }) => [styles.nudge, nudgedToday && styles.nudgeDone, pressed && styles.pressed]}><View style={styles.nudgeIcon}><Ionicons name={nudgedToday ? 'checkmark' : 'notifications-outline'} size={19} color={colors.white} /></View><View style={styles.nudgeCopy}><Text style={styles.nudgeTitle}>{nudgeLoading ? 'Sending nudge…' : nudgedToday ? 'Nudge already sent today' : 'Send today’s nudge'}</Text><Text style={styles.nudgeText}>{nudgedToday ? 'Another coach or administrator has already reminded this member.' : 'Remind this assigned member to review assigned items, exercise, and habits.'}</Text></View></Pressable> : null}
         {section === 'Today' ? <MemberTodaySnapshot snapshot={today} token={token} onOpenPhoto={openPhoto} showAccessNote /> : null}
+        {section === 'Nudges' ? <SharedNudges options={today?.nudges || []} now={now} memberId={memberId} nudge={nudgeForMember ? nudge : null} onSend={sendNudge} /> : null}
         {section === 'History' ? <SharedHistory days={journal?.history || []} retentionDays={journal?.retentionDays || 21} onOpenPhoto={openPhoto} /> : null}
         {section === 'Reports' ? <SharedReports reports={journal?.healthReports || []} memberName={today?.member?.name || fallbackName} /> : null}
       </ScrollView>
       </PageRefresh>
     </SafeAreaView>
   );
+}
+
+const nudgeIcon = (type) => ({
+  MEALS: 'restaurant-outline',
+  HYDRATION: 'water-outline',
+  EXERCISE: 'walk-outline',
+  HABITS: 'checkbox-outline',
+}[type] || 'notifications-outline');
+
+function SharedNudges({ options, now, memberId, nudge, onSend }) {
+  const needed = options.filter((option) => option.needed).length;
+  return <View style={styles.detailSection}>
+    <Text style={styles.detailEyebrow}>MEMBER REMINDERS</Text>
+    <Text style={styles.detailTitle}>Nudges</Text>
+    <Text style={styles.detailCopy}>{needed ? `${needed} area${needed === 1 ? '' : 's'} may need a reminder.` : 'Everything assigned for today is complete.'} A sent nudge is locked for every admin and coach for 30 minutes.</Text>
+    <View style={styles.nudgeList}>
+      {options.map((option) => {
+        const availableAt = option.availableAt ? Date.parse(option.availableAt) : 0;
+        const coolingDown = Number.isFinite(availableAt) && availableAt > 0 && (now === 0 || availableAt > now);
+        const minutes = coolingDown && now > 0 ? Math.max(1, Math.ceil((availableAt - now) / 60000)) : 0;
+        const sending = nudge?.status === 'loading' && nudge.type === option.type && Number(nudge.memberId) === Number(memberId);
+        const disabled = !option.needed || coolingDown || sending;
+        const status = sending ? 'Sending…' : coolingDown ? (minutes ? `Available in ${minutes} min` : 'Cooling down') : option.needed ? 'Send nudge' : 'Completed';
+        return <View key={option.type} style={styles.nudgeRow}>
+          <View style={[styles.nudgeIcon, !option.needed && styles.nudgeIconComplete]}><Ionicons name={nudgeIcon(option.type)} size={19} color={option.needed ? colors.white : colors.tealDark} /></View>
+          <View style={styles.nudgeCopy}><Text style={styles.nudgeTitle}>{option.title}</Text><Text style={styles.nudgeText}>{option.detail}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled, busy: sending }} accessibilityLabel={`${status} for ${option.title}`} disabled={disabled} onPress={() => onSend(option.type, option.title)} style={({ pressed }) => [styles.nudgeButton, disabled && styles.nudgeButtonDisabled, pressed && !disabled && styles.pressed]}><Text style={[styles.nudgeButtonText, disabled && styles.nudgeButtonTextDisabled]}>{status}</Text></Pressable>
+        </View>;
+      })}
+    </View>
+    {!options.length ? <View style={styles.emptyDetail}><Ionicons name="notifications-off-outline" size={27} color={colors.tealMid} /><Text style={styles.emptyDetailTitle}>No nudge options available</Text><Text style={styles.detailCopy}>Refresh the profile to check today’s assigned items.</Text></View> : null}
+  </View>;
 }
 
 function SharedHistory({ days, retentionDays, onOpenPhoto }) {
@@ -193,10 +231,15 @@ const styles = StyleSheet.create({
   reportPreference: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 6 },
   emptyDetail: { alignItems: 'center', paddingVertical: 48 },
   emptyDetailTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 17, marginTop: 11 },
-  nudge: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 19, backgroundColor: colors.accentSoft, marginBottom: 2 },
-  nudgeDone: { opacity: 0.72 },
+  nudgeList: { marginTop: 18, borderTopWidth: 1, borderTopColor: colors.line },
+  nudgeRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line, paddingVertical: 11 },
   nudgeIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.tealMid },
-  nudgeCopy: { flex: 1 },
+  nudgeIconComplete: { backgroundColor: colors.accentSoft },
+  nudgeCopy: { flex: 1, minWidth: 0 },
   nudgeTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14 },
   nudgeText: { color: colors.muted, fontFamily: fonts.regular, fontSize: 10, lineHeight: 15, marginTop: 3 },
+  nudgeButton: { minWidth: 82, minHeight: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.tealMid, paddingHorizontal: 10 },
+  nudgeButtonDisabled: { backgroundColor: colors.mist },
+  nudgeButtonText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 10, textAlign: 'center' },
+  nudgeButtonTextDisabled: { color: colors.muted },
 });
