@@ -12,6 +12,11 @@ public record SharedMembersResponse(int total, List<SharedMemberSummary> members
             int calories,
             int proteinGrams,
             int hydrationMl,
-            int activityMinutes
+            int hydrationGoalMl,
+            int activityMinutes,
+            int activityGoalMinutes,
+            int plannedTasks,
+            int completedTasks,
+            int completionPercentage
     ) {}
 }

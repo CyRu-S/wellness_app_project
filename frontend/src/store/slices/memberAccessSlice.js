@@ -225,7 +225,10 @@ const memberAccessSlice = createSlice({
         }
       })
       .addCase(nudgeSharedMember.pending, (state) => { state.sharedNudge = { status: 'loading', sent: false, error: null }; })
-      .addCase(nudgeSharedMember.fulfilled, (state, action) => { state.sharedNudge = { status: 'succeeded', sent: !!action.payload?.sent, error: null }; })
+      .addCase(nudgeSharedMember.fulfilled, (state, action) => {
+        state.sharedNudge = { status: 'succeeded', sent: !!action.payload?.sent, error: null };
+        if (state.sharedToday) state.sharedToday.nudgedToday = true;
+      })
       .addCase(nudgeSharedMember.rejected, (state, action) => { state.sharedNudge = { status: 'failed', sent: false, error: action.error?.message || 'Nudge could not be sent.' }; });
   },
 });

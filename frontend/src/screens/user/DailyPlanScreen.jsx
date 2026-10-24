@@ -17,8 +17,9 @@ export default function DailyPlanScreen({ navigation }) {
   const dispatch = useDispatch();
   const { fontScale } = useWindowDimensions();
   const compactLayout = Platform.OS === 'ios' || fontScale > 1.15;
-  const complete = plan.tasks.filter((task) => task.done).length;
-  const progress = plan.tasks.length ? (complete / plan.tasks.length) * 100 : 0;
+  const dietTasks = plan.tasks.filter((task) => task.type !== 'ACTIVITY');
+  const complete = dietTasks.filter((task) => task.done).length;
+  const progress = dietTasks.length ? (complete / dietTasks.length) * 100 : 0;
 
   return (
     <Screen>
@@ -29,12 +30,12 @@ export default function DailyPlanScreen({ navigation }) {
         <Text {...fittedText} style={[styles.body, compactLayout && styles.bodyCompact]}>Complete each ritual at your pace. Consistency matters more than perfect timing.</Text>
       </StaggeredView>
       <StaggeredView delay={130} style={[styles.progressBlock, compactLayout && styles.progressBlockCompact]}>
-        <View style={styles.progressMeta}><Text {...fittedText} style={styles.progressLabel}>TODAY’S PROGRESS</Text><Text {...fittedText} style={styles.progressValue}>{complete}/{plan.tasks.length}</Text></View>
+        <View style={styles.progressMeta}><Text {...fittedText} style={styles.progressLabel}>TODAY’S PROGRESS</Text><Text {...fittedText} style={styles.progressValue}>{complete}/{dietTasks.length}</Text></View>
         <View style={styles.progress}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
       </StaggeredView>
       <StaggeredView delay={220}>
         <Text {...fittedText} style={styles.sectionLabel}>TODAY’S RITUALS</Text>
-        {plan.tasks.map((task, index) => (
+        {dietTasks.map((task, index) => (
           <Pressable key={task.id} disabled={task.done || plan.completingId === task.id} onPress={() => task.type === 'HEALTHY_HABIT' ? dispatch(completeHealthyHabit(task.id)) : task.type === 'ACTIVITY' ? navigation.getParent()?.navigate('Move', { coachExerciseId: task.id }) : navigation.getParent()?.navigate('Log')} style={({ pressed }) => [styles.task, compactLayout && styles.taskCompact, pressed && styles.pressed]}>
             <View style={[styles.check, task.done && styles.checkDone]}>{task.done && <Ionicons name="checkmark" size={17} color={colors.white} />}</View>
             <View style={styles.copy}><Text {...fittedText} style={[styles.taskTitle, compactLayout && styles.taskTitleCompact, task.done && styles.done]}>{task.title}</Text><Text {...fittedText} style={[styles.detail, compactLayout && styles.detailCompact]}>{task.detail}</Text></View>

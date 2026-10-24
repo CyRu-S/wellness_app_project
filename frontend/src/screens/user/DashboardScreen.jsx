@@ -39,7 +39,7 @@ export default function DashboardScreen({ navigation }) {
   const firstName = user?.name?.split(' ')[0] || 'there';
   const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
   const nextMeal = meals.items.find((meal) => !meal.consumed);
-  const loggedMeals = meals.items.filter((meal) => meal.consumed).length;
+  const assignedCount = meals.items.length + plan.tasks.length;
   const hydration = dashboard.waterTarget ? Math.min(100, Math.round((dashboard.waterGlasses / dashboard.waterTarget) * 100)) : 0;
   const healthyHabits = plan.tasks.filter((task) => task.type === 'HEALTHY_HABIT');
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function DashboardScreen({ navigation }) {
       </StaggeredView>
 
       <StaggeredView delay={170} style={styles.quickStats}>
-        <View style={styles.quickStat}><Text style={styles.quickValue}>{loggedMeals}/{meals.items.length}</Text><Text style={styles.quickLabel}>MEALS TODAY</Text></View><View style={styles.statRule} />
+        <View style={styles.quickStat}><Text style={styles.quickValue}>{assignedCount}</Text><Text style={styles.quickLabel}>ASSIGNED</Text></View><View style={styles.statRule} />
         <View style={styles.quickStat}><Text style={styles.quickValue}>{hydration}%</Text><Text style={styles.quickLabel}>HYDRATION</Text></View><View style={styles.statRule} />
         <View style={styles.quickStat}><Text style={styles.quickValue}>{dashboard.streak}</Text><Text style={styles.quickLabel}>DAY STREAK</Text></View>
       </StaggeredView>

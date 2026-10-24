@@ -19,17 +19,17 @@ export default function AdminLeaderboardScreen({ navigation }) {
       <View style={styles.heading}>
         <View style={styles.liveLine}><View style={styles.liveDot} /><Text style={styles.eyebrow}>LIVE TODAY</Text></View>
         <Text style={styles.title}>Daily consistency, ranked.</Text>
-        <Text style={styles.subtitle}>Meals, tasks, hydration and movement shape the percentage. Equal scores are ordered by the closest scheduled check-in.</Text>
+        <Text style={styles.subtitle}>Assigned items, to-dos, hydration and movement shape the percentage. Equal percentages are ordered by who reached them first.</Text>
       </View>
       <View style={styles.rule} />
       {rows.map((member) => (
-        <Pressable key={member.memberId} accessibilityRole="button" accessibilityLabel={`${member.rank}. ${member.name}, ${member.score} percent. ${member.mealsCompleted} of ${member.mealsPlanned} meals completed.`} onPress={() => navigation.navigate('UserDetails', { id: member.memberId })} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+        <Pressable key={member.memberId} accessibilityRole="button" accessibilityLabel={`${member.rank}. ${member.name}, ${member.score} percent. ${member.tasksCompleted} of ${member.tasksPlanned} to-dos completed.`} onPress={() => navigation.navigate('UserDetails', { id: member.memberId })} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
           <Text style={[styles.rank, member.rank <= 3 && styles.topRank]}>{String(member.rank).padStart(2, '0')}</Text>
           <AdminMemberAvatar token={token} initials={member.initials} style={styles.avatar} imageStyle={styles.avatarImage} textStyle={styles.avatarText} />
           <View style={styles.copy}>
             <View style={styles.nameLine}><Text numberOfLines={1} style={styles.name}>{member.name}</Text><Text style={styles.score}>{member.score}%</Text></View>
-            <Text style={styles.timing}>{member.averageTimingMinutes >= 0 ? `${member.averageTimingMinutes} min from plan` : 'No timed meal yet'}</Text>
-            <Text style={styles.metrics}>{member.mealsCompleted}/{member.mealsPlanned} meals · {member.tasksCompleted}/{member.tasksPlanned} tasks · {member.hydrationMl}/{member.hydrationGoalMl} ml · {member.activityMinutes} min</Text>
+            <Text style={styles.timing}>{member.score > 0 && member.percentageReachedAt ? `Reached ${member.score}% at ${new Date(member.percentageReachedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'No progress logged yet'}</Text>
+            <Text style={styles.metrics}>{member.tasksCompleted}/{member.tasksPlanned} to-do · {member.hydrationMl}/{member.hydrationGoalMl} ml water · {member.activityMinutes} min movement</Text>
           </View>
           <Ionicons name="chevron-forward" size={17} color={adminColors.muted} />
         </Pressable>

@@ -146,9 +146,12 @@ class MemberAccessFeatureIntegrationTests {
                 .map(value -> (java.util.Map<?, ?>) value).findFirst().orElseThrow().get("id")).longValue();
         memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
 
-        assertThat(memberAccess.adminMemberToday(member.getId()).tasks()).hasSize(2).allMatch(task -> !task.completed());
+        var before = memberAccess.adminMemberToday(member.getId());
+        assertThat(before.tasks()).hasSize(2).allMatch(task -> !task.completed());
         plans.completeTask(member.getEmail(), exerciseId);
         var coachView = memberAccess.sharedMemberToday(coach.getEmail(), member.getId());
+        assertThat(coachView.summary().completedTasks()).isEqualTo(1);
+        assertThat(coachView.summary().completionPercentage()).isGreaterThan(before.summary().completionPercentage());
         assertThat(coachView.tasks()).anySatisfy(task -> {
             assertThat(task.type()).isEqualTo("ACTIVITY");
             assertThat(task.completed()).isTrue();

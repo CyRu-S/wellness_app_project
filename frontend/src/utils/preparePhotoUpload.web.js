@@ -1,5 +1,25 @@
-// Normalize browser camera/library images to the same size and format as native uploads.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const PASSTHROUGH_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+const photoType = (photo) => (photo.mimeType || photo.file?.type || '').toLowerCase();
+
+// Safari can render some iPhone HDR photos correctly in an <img> but turn them
+// black when that image is redrawn through a canvas. Keep an already-supported
+// browser File intact; only use canvas conversion for unsupported or oversized
+// files that really need it.
 export async function preparePhotoUpload(photo, maxDimension = 1600) {
+  const mimeType = photoType(photo);
+  const fileSize = photo.fileSize ?? photo.file?.size;
+  if (PASSTHROUGH_TYPES.has(mimeType) && (!fileSize || fileSize <= MAX_UPLOAD_BYTES)) {
+    return {
+      ...photo,
+      persistentUri: photo.uri,
+      mimeType,
+      fileName: photo.fileName || `photo.${mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg'}`,
+      needsCrop: false,
+    };
+  }
+
   const image = new globalThis.Image();
   await new Promise((resolve, reject) => {
     image.onload = resolve;

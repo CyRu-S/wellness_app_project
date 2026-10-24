@@ -127,7 +127,7 @@ self.addEventListener('notificationclick', (event) => {
     await contextOperation(true, { data, tappedAt: Date.now() }, 'pendingTap');
     const url = new URL('/', self.location.origin);
     url.searchParams.set('webPush', '1');
-    ['notificationId', 'userId', 'registrationId', 'kind'].forEach((key) => url.searchParams.set(key, String(data[key] || '')));
+    ['notificationId', 'userId', 'registrationId', 'kind', 'targetId'].forEach((key) => url.searchParams.set(key, String(data[key] || '')));
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find((client) => new URL(client.url).origin === url.origin);
     if (existing) {

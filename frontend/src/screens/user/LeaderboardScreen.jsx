@@ -8,9 +8,9 @@ import UserHeader from '../../components/user/UserHeader';
 import { selectLeaderboardState } from '../../store/slices/leaderboardSlice';
 import { colors, fonts, radius, type } from '../../theme';
 
-const timingLabel = (row) => row.averageTimingMinutes >= 0
-  ? `${row.averageTimingMinutes} min from plan`
-  : 'No timed meal yet';
+const reachedLabel = (row) => row.score > 0 && row.percentageReachedAt
+  ? `Reached ${row.score}% at ${new Date(row.percentageReachedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  : 'No progress logged yet';
 
 export default function LeaderboardScreen({ navigation }) {
   const leaderboard = useSelector(selectLeaderboardState);
@@ -20,15 +20,15 @@ export default function LeaderboardScreen({ navigation }) {
     <View style={styles.heading}>
       <View style={styles.liveLine}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE TODAY</Text></View>
       <Text style={styles.title}>Consistency, as it happens.</Text>
-      <Text style={styles.subtitle}>Meals, tasks, water and movement shape the score. When scores match, the check-in closest to its scheduled time ranks first.</Text>
+      <Text style={styles.subtitle}>Assigned items, to-dos, water and movement shape the percentage. When percentages match, whoever reached it first ranks higher.</Text>
     </View>
     <View style={styles.rule} />
     {rows.map((member) => <View key={member.memberId} style={[styles.row, member.viewer && styles.viewerRow]}>
       <View style={[styles.rank, member.rank <= 3 && styles.topRank]}><Text style={[styles.rankText, member.rank <= 3 && styles.topRankText]}>{member.rank}</Text></View>
       <View style={styles.copy}>
         <View style={styles.nameLine}><Text numberOfLines={1} style={styles.name}>{member.name}{member.viewer ? ' · You' : ''}</Text><Text style={styles.score}>{member.score}%</Text></View>
-        <Text style={styles.timing}>{timingLabel(member)}</Text>
-        <Text style={styles.metrics}>{member.mealsCompleted}/{member.mealsPlanned} meals · {member.tasksCompleted}/{member.tasksPlanned} tasks · {member.hydrationMl}/{member.hydrationGoalMl} ml · {member.activityMinutes} min</Text>
+        <Text style={styles.timing}>{reachedLabel(member)}</Text>
+        <Text style={styles.metrics}>{member.tasksCompleted}/{member.tasksPlanned} to-do · {member.hydrationMl}/{member.hydrationGoalMl} ml water · {member.activityMinutes} min movement</Text>
       </View>
     </View>)}
     {!rows.length && leaderboard.status !== 'loading' ? <View style={styles.empty}><Ionicons name="trophy-outline" size={30} color={colors.tealMid} /><Text style={styles.emptyTitle}>No members ranked yet</Text><Text style={styles.emptyText}>Today’s standings appear as soon as members start logging.</Text></View> : null}

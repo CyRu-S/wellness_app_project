@@ -23,13 +23,14 @@ test('healthy habits have one dedicated add path and no category selector', asyn
   assert.match(editor, /Add one daily wellbeing action with its reminder time/);
 });
 
-test('coach exercises have a dedicated assignment path', async () => {
+test('coach exercise is removed from the diet editor and available in Move', async () => {
   const [editor, activity] = await Promise.all([
     source('../src/screens/admin/UserDetailsScreen.jsx'),
     source('../src/screens/user/ActivityTimerScreen.jsx'),
   ]);
-  assert.match(editor, /addItem\('ACTIVITY'\)/);
-  assert.match(editor, /Add coach exercise/);
+  assert.doesNotMatch(editor, /addItem\('ACTIVITY'\)/);
+  assert.doesNotMatch(editor, /Add coach exercise/);
+  assert.match(activity, /Exercise with coach/);
   assert.match(activity, /coachExercises/);
   assert.match(activity, /completeHealthyHabit\(selected\.planItemId\)/);
 });

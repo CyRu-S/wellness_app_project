@@ -37,7 +37,7 @@ public class DashboardService {
         while (dates.contains(cursor)) { streak++; cursor = cursor.minusDays(1); }
         var lastMeal = snapshot.meals().stream().filter(meal -> meal.postedAt() != null)
                 .max(java.util.Comparator.comparing(com.wellnessapp.dto.access.SharedMemberTodayResponse.MealEntry::postedAt)).orElse(null);
-        return new DashboardResponse(user.getFullName(), summary.plannedMeals() == 0 ? 0 : Math.min(100, summary.completedMeals() * 100 / summary.plannedMeals()),
+        return new DashboardResponse(user.getFullName(), summary.completionPercentage(),
                 summary.calories(), summary.proteinGrams(), summary.activityMinutes(), sessions.stream().mapToInt(ActivityService.Session::calories).sum(),
                 summary.hydrationMl() / GLASS_SIZE_ML, waterGoalMl / GLASS_SIZE_ML, waterGoalMl, streak, "",
                 sessions.isEmpty() ? null : sessions.getLast(), lastMeal);

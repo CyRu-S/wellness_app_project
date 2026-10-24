@@ -57,14 +57,17 @@ export default function MealCaptureScreen({ navigation, route }) {
     if (analysis) Animated.spring(sheet, { toValue: 1, speed: 15, bounciness: 4, useNativeDriver: true }).start();
   }, [analysis, sheet]);
 
-  const processPhoto = async (uri) => {
+  const processPhoto = async (source) => {
+    const selectedPhoto = typeof source === 'string' ? { uri: source } : source;
+    const uri = selectedPhoto?.uri;
+    if (!uri) return;
     clientRequestId.current = `${userId || 'member'}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     setPhoto(uri);
     setAnalysis(null);
     setAnalyzing(true);
     sheet.setValue(0);
     try {
-      const prepared = await preparePhotoUpload({ uri });
+      const prepared = await preparePhotoUpload(selectedPhoto);
       setPhoto(prepared.uri);
       const result = await analyzeCapturedMeal({ uri: prepared.uri, meal: targetMeal, category: analysisCategory, token });
       setAnalysis(result);
@@ -82,7 +85,7 @@ export default function MealCaptureScreen({ navigation, route }) {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const result = await camera.current.takePictureAsync({ quality: 0.76, skipProcessing: false });
-      await processPhoto(result.uri);
+      await processPhoto(result);
     } catch (error) {
       Alert.alert('Camera unavailable', error.message || 'Please try again.');
     }
@@ -92,7 +95,7 @@ export default function MealCaptureScreen({ navigation, route }) {
     if (analyzing || posting) return;
     try {
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.78 });
-      if (!result.canceled && result.assets?.[0]?.uri) await processPhoto(result.assets[0].uri);
+      if (!result.canceled && result.assets?.[0]?.uri) await processPhoto(result.assets[0]);
     } catch (error) { Alert.alert('Photo unavailable', error.message || 'Choose another image.'); }
   };
 

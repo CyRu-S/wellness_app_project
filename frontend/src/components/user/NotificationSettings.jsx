@@ -11,10 +11,8 @@ export default function NotificationSettings() {
   const { t } = useLanguage();
   const dispatch = useDispatch();
   const n = useSelector((state) => state.notifications);
-  const admin = useSelector((state) => state.auth.user?.role === 'ADMIN');
   const save = (key, value) => dispatch(saveNotificationPreferences({ ...notificationPreferences(n), [key]: value }));
   const options = [['notificationsEnabled', t('appNotifications'), n.notificationsEnabled, t('appNotificationsDetail')],
-    ...(admin ? [['dailyDigest', t('morningDigest'), n.dailyDigest]] : []),
     ['customSound', t('themeRingtone'), n.customSound, t('themeRingtoneDetail')]];
   const retry = () => dispatch(n.failedPreferences ? saveNotificationPreferences(n.failedPreferences) : loadNotificationPreferences());
   return <View style={styles.card}>

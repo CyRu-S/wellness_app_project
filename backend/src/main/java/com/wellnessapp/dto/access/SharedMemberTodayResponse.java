@@ -9,6 +9,7 @@ public record SharedMemberTodayResponse(
         LocalDate date,
         String timeZone,
         Summary summary,
+        boolean nudgedToday,
         List<MealEntry> meals,
         List<TaskEntry> tasks,
         List<WaterEntry> waterLogs,
@@ -23,7 +24,12 @@ public record SharedMemberTodayResponse(
             int calories,
             int proteinGrams,
             int hydrationMl,
-            int activityMinutes
+            int hydrationGoalMl,
+            int activityMinutes,
+            int activityGoalMinutes,
+            int plannedTasks,
+            int completedTasks,
+            int completionPercentage
     ) {}
 
     public record Nutrition(BigDecimal calories, BigDecimal proteinGrams, BigDecimal carbsGrams, BigDecimal fatGrams) {}

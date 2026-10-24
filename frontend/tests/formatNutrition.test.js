@@ -14,3 +14,9 @@ test('member overdue and nudge notifications open the meal timeline', () => {
     assert.deepEqual(notificationDestination('USER', kind), { name: 'Log', params: { screen: 'TodayTimeline' } });
   }
 });
+
+test('a scheduled meal reminder opens that meal posting page', () => {
+  assert.deepEqual(notificationDestination('USER', 'MEAL', { targetId: '42' }), {
+    name: 'Log', params: { screen: 'MealCapture', params: { category: 'meal', targetMealId: 42 } },
+  });
+});

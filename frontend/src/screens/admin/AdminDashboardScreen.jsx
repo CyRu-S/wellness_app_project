@@ -348,7 +348,7 @@ export default function AdminDashboardScreen({ navigation }) {
         <View style={[styles.signalMosaic, stackedMosaic && styles.signalMosaicStacked]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Meals, ${summary.mealLogsToday}. Up ${summary.mealComparison} percent today`}
+            accessibilityLabel={`Assigned logs, ${summary.mealLogsToday}. Up ${summary.mealComparison} percent today`}
             onPress={() => openRoute('Reports')}
             style={({ pressed }) => [styles.mealFeatureShell, pressed && styles.pressed]}
           >
@@ -366,7 +366,7 @@ export default function AdminDashboardScreen({ navigation }) {
                   <Ionicons name="arrow-up-outline" size={18} color={adminColors.white} style={styles.diagonalArrow} />
                 </View>
               </View>
-              <Text style={styles.mealFeatureLabel}>MEALS LOGGED</Text>
+              <Text style={styles.mealFeatureLabel}>ASSIGNED LOGGED</Text>
               <Text style={styles.mealFeatureValue}>{summary.mealLogsToday}</Text>
               <View style={styles.mealFeatureBottom}>
                 <Text style={styles.mealFeatureMeta}>↑ {summary.mealComparison}% from yesterday</Text>
@@ -441,7 +441,7 @@ export default function AdminDashboardScreen({ navigation }) {
               <View style={styles.rhythmStatDivider} />
               <View style={styles.rhythmStat}>
                 <Text style={styles.rhythmStatValue}>{summary.mealLogsToday}</Text>
-                <Text style={styles.rhythmStatLabel}>total logs today</Text>
+                <Text style={styles.rhythmStatLabel}>assigned logs today</Text>
               </View>
               <View style={styles.rhythmAction}>
                 <Ionicons name="arrow-forward" size={19} color={adminColors.white} />

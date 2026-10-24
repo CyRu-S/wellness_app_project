@@ -63,6 +63,19 @@ test('web meal photos are resized and encoded as JPEG before upload', async () =
   assert.equal(photo.uri, 'data:image/jpeg;base64,prepared');
 });
 
+test('supported iPhone photos bypass canvas conversion to prevent black PWA uploads', async () => {
+  let imageCreated = false;
+  class Image { constructor() { imageCreated = true; } }
+  const { preparePhotoUpload } = loadModule('../src/utils/preparePhotoUpload.web.js', {}, { Image });
+  const photo = await preparePhotoUpload({
+    uri: 'blob:iphone-camera-photo', mimeType: 'image/jpeg', fileName: 'IMG_1001.JPG', fileSize: 4_200_000,
+  });
+  assert.equal(photo.uri, 'blob:iphone-camera-photo');
+  assert.equal(photo.persistentUri, 'blob:iphone-camera-photo');
+  assert.equal(photo.mimeType, 'image/jpeg');
+  assert.equal(imageCreated, false);
+});
+
 test('an undecodable iPhone photo gives a recoverable error before upload', async () => {
   class Image { set src(_) { this.onerror(); } }
   const { preparePhotoUpload } = loadModule('../src/utils/preparePhotoUpload.web.js', {}, { Image });

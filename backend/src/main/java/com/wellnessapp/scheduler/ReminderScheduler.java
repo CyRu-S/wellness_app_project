@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
     @Scheduled(cron = "0 * * * * *") public void queueDueReminders() {
         notifications.removeExpiredAdminNotifications();
         reminders.refresh();
-        notices.morningDigest();
+        notices.adminCareReminder();
     }
 }
 

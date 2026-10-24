@@ -9,6 +9,7 @@ import { loadPlan } from '../store/slices/planSlice';
 import { refreshDashboard } from '../store/slices/dashboardSlice';
 import { loadAdminAttention, loadAdminMembers } from '../store/slices/adminSlice';
 import { isInstalled } from '../services/pwa/registration';
+import { notificationDestination } from '../utils/notificationDestination';
 
 export default function usePushNotifications(navigationRef) {
   const dispatch = useDispatch();
@@ -22,9 +23,10 @@ export default function usePushNotifications(navigationRef) {
   const seenTap = useRef(null);
   const flushTap = useCallback(() => {
     if (['USER', 'ADMIN'].includes(role) && pendingTap.current && navigationRef.isReady()) {
+      const data = pendingTap.current;
       pendingTap.current = null;
-      if (role === 'ADMIN') navigationRef.navigate('AdminNotifications');
-      else navigationRef.navigate('Today', { screen: 'Notifications' });
+      const destination = notificationDestination(role, data.kind, data);
+      navigationRef.navigate(destination.name, destination.params);
     }
   }, [navigationRef, role]);
 
@@ -61,7 +63,7 @@ export default function usePushNotifications(navigationRef) {
         const id = response.notification.request.identifier;
         if (seenTap.current === id) return;
         seenTap.current = id;
-        pendingTap.current = id;
+        pendingTap.current = response.notification.request.content.data;
         receive(response.notification); flushTap();
         Notifications.clearLastNotificationResponse();
       };

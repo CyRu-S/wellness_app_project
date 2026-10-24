@@ -29,19 +29,18 @@ const hydrationLabel = (value) => {
 
 function MemberCard({ member, onPress }) {
   const summary = summaryFor(member);
-  const planned = asNumber(summary.plannedMeals ?? summary.mealTotal);
-  const completed = asNumber(summary.completedMeals ?? summary.mealsCompleted);
-  const mealPosts = asNumber(summary.mealPosts ?? summary.postsCount ?? completed);
+  const plannedTasks = asNumber(summary.plannedTasks);
+  const completedTasks = asNumber(summary.completedTasks);
   const hydration = summary.hydrationMl ?? summary.hydrationTotalMl ?? 0;
   const activity = asNumber(summary.activityMinutes ?? summary.activeMinutes);
-  const progress = planned > 0 ? Math.min(100, Math.round((completed / planned) * 100)) : 0;
+  const progress = Math.min(100, asNumber(summary.completionPercentage));
   const name = member.name || member.memberName || 'Member';
   const initial = name.trim().slice(0, 1).toUpperCase() || 'M';
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${name}. ${completed} of ${planned} meals complete, ${hydrationLabel(hydration)} hydration, ${activity} activity minutes. Open today's details.`}
+      accessibilityLabel={`${name}. ${progress} percent complete, ${completedTasks} of ${plannedTasks} to-dos complete, ${hydrationLabel(hydration)} hydration, ${activity} activity minutes. Open today's details.`}
       onPress={onPress}
       style={({ pressed }) => [styles.memberCard, pressed && styles.pressed]}
     >
@@ -60,8 +59,8 @@ function MemberCard({ member, onPress }) {
       </View>
 
       <View style={styles.progressRow}>
-        <Text style={styles.progressLabel}>MEAL RHYTHM</Text>
-        <Text style={styles.progressValue}>{planned ? `${completed}/${planned} complete` : `${mealPosts} posts`}</Text>
+        <Text style={styles.progressLabel}>DAILY COMPLETION</Text>
+        <Text style={styles.progressValue}>{progress}% complete</Text>
       </View>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${progress}%` }]} />
@@ -69,8 +68,8 @@ function MemberCard({ member, onPress }) {
 
       <View style={styles.memberSignals}>
         <View style={styles.signal}>
-          <Ionicons name="restaurant-outline" size={17} color={colors.tealMid} />
-          <View><Text style={styles.signalValue}>{mealPosts}</Text><Text style={styles.signalLabel}>POSTS</Text></View>
+          <Ionicons name="checkbox-outline" size={17} color={colors.tealMid} />
+          <View><Text style={styles.signalValue}>{completedTasks}/{plannedTasks}</Text><Text style={styles.signalLabel}>TO-DO</Text></View>
         </View>
         <View style={styles.signalRule} />
         <View style={styles.signal}>

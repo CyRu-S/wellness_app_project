@@ -12,13 +12,11 @@ export default function NotificationSettings() {
   const { t } = useLanguage();
   const dispatch = useDispatch();
   const n = useSelector((state) => state.notifications);
-  const admin = useSelector((state) => state.auth.user?.role === 'ADMIN');
   const save = (key, value) => {
     if (key === 'customSound' && value) previewThemeSound();
     dispatch(saveNotificationPreferences({ ...notificationPreferences(n), [key]: value }));
   };
   const options = [['notificationsEnabled', t('appNotifications'), n.notificationsEnabled, t('appNotificationsDetail')],
-    ...(admin ? [['dailyDigest', t('morningDigest'), n.dailyDigest]] : []),
     ['customSound', t('themeRingtone'), n.customSound, t('themeRingtoneDetail')]];
   const enable = () => { requestPushPermission().then(() => dispatch(retryPushRegistration()))
     .catch((error) => dispatch(setPushState({ status: 'error', message: error.message || 'Could not request notification permission. Try again.' }))); };

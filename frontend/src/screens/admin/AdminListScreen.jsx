@@ -25,7 +25,7 @@ export default function AdminListScreen({ kind = 'users', navigation }) {
   const loading = useSelector((state) => kind === 'plans' ? state.admin.membersStatus === 'loading' : !!state.admin.pageReads.products);
   const page = kind === 'plans'
     ? { eyebrow: 'PROGRAMS', title: 'Diet plans', items: Object.values(plans).filter((p) => p.items.length).map((p) => ({
-      id: p.memberId, title: p.planName, meta: `${p.items.length} daily meals`, memberId: p.memberId,
+      id: p.memberId, title: p.planName, meta: `${p.items.length} assigned daily`, memberId: p.memberId,
     })) }
     : { eyebrow: 'CATALOGUE', title: 'Products', items: products.map((p) => ({
       id: p.id, title: p.name, meta: `${p.sku} · ₹${p.price} · ${p.stockQuantity} in stock`,

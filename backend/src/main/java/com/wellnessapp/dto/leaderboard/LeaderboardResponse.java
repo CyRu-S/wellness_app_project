@@ -23,5 +23,6 @@ public record LeaderboardResponse(LocalDate date, Instant generatedAt, Long view
             int hydrationMl,
             int hydrationGoalMl,
             int activityMinutes,
+            Instant percentageReachedAt,
             boolean viewer) {}
 }

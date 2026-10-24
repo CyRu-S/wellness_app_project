@@ -49,9 +49,9 @@ export function syncPushRegistration(s, askPermission = false, devicePushToken) 
     if (unsupported) return { status: 'unsupported', message: unsupported };
     const Notifications = await notificationModule();
     for (const [id, name] of [['meal-reminders', 'Meal reminders'], ['coach-nudges', 'Coach nudges']]) {
-      // Android channel sound is immutable, so keep separate custom-sound and silent channels.
-      await Notifications.setNotificationChannelAsync(`${id}-silent-v1`, {
-        name: `${name} · Silent`, importance: Notifications.AndroidImportance.HIGH, sound: null,
+      // Android channel sound is immutable, so keep separate theme and device-default channels.
+      await Notifications.setNotificationChannelAsync(`${id}-default-v1`, {
+        name: `${name} · Device default`, importance: Notifications.AndroidImportance.HIGH, sound: 'default',
       });
       await Notifications.setNotificationChannelAsync(`${id}-theme-v2`, {
         name: `${name} · Main Theme Alert`,

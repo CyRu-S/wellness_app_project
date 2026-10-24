@@ -19,8 +19,7 @@ public class PushQueueService {
     public boolean allowed(Long userId, PushDelivery.Kind kind) {
         var preference = preferences.findById(userId).orElse(null);
         if (preference != null && !preference.isNotificationsEnabled()) return false;
-        if (kind != PushDelivery.Kind.DIGEST) return true;
-        return preference != null && preference.isDailyDigest();
+        return true;
     }
 
     public boolean customSound(Long userId) {

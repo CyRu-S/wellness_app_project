@@ -113,7 +113,7 @@ const notification = (data, title, body) => ({ request: { identifier: String(dat
 const fromUrl = () => {
   const params = new URL(window.location.href).searchParams;
   if (params.get('webPush') !== '1') return null;
-  return { notification: notification(Object.fromEntries(['notificationId', 'userId', 'registrationId', 'kind'].map((key) => [key, params.get(key)]))) };
+  return { notification: notification(Object.fromEntries(['notificationId', 'userId', 'registrationId', 'kind', 'targetId'].map((key) => [key, params.get(key)]))) };
 };
 const listener = (type, callback) => {
   const receive = (event) => {
@@ -142,7 +142,7 @@ export async function notificationModule() {
       lastResponse = null;
       if (data) clearPushTap(data).catch(() => {});
       const url = new URL(window.location.href);
-      ['webPush', 'notificationId', 'userId', 'registrationId', 'kind'].forEach((key) => url.searchParams.delete(key));
+      ['webPush', 'notificationId', 'userId', 'registrationId', 'kind', 'targetId'].forEach((key) => url.searchParams.delete(key));
       window.history.replaceState(window.history.state, '', url);
     },
   };

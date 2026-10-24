@@ -20,8 +20,7 @@ const hydrationLabel = (value) => {
 };
 
 function SummaryHero({ name, title, date, summary }) {
-  const planned = numeric(summary.plannedMeals);
-  const completed = numeric(summary.completedMeals);
+  const completion = numeric(summary.completionPercentage);
   return (
     <View style={styles.hero}>
       <PrimaryTealCardBackground />
@@ -29,7 +28,7 @@ function SummaryHero({ name, title, date, summary }) {
       <Text numberOfLines={2} style={styles.heroName}>{title || name}</Text>
       <Text style={styles.heroDate}>{formatJournalDate(date)}</Text>
       <View style={styles.heroMetrics}>
-        <View style={styles.heroMetric}><Text style={styles.heroValue}>{completed}/{planned}</Text><Text style={styles.heroMetricLabel}>MEALS</Text></View>
+        <View style={styles.heroMetric}><Text style={styles.heroValue}>{completion}%</Text><Text style={styles.heroMetricLabel}>COMPLETE</Text></View>
         <View style={styles.heroDivider} />
         <View style={styles.heroMetric}><Text style={styles.heroValue}>{numeric(summary.calories)}</Text><Text style={styles.heroMetricLabel}>KCAL</Text></View>
         <View style={styles.heroDivider} />
@@ -44,7 +43,7 @@ function MealTimeline({ meals, token, onOpenPhoto }) {
     <View style={styles.section}>
       <View style={styles.sectionHeading}>
         <View><Text style={styles.eyebrow}>MEAL CHECK-INS</Text><Text style={styles.sectionTitle}>Today’s intake</Text></View>
-        <Text style={styles.sectionCount}>{meals.filter((meal) => meal.postId || meal.completed).length}/{meals.length}</Text>
+        <Text style={styles.sectionCount}>{meals.length} assigned</Text>
       </View>
       {meals.length ? (
         <View style={styles.timeline}>

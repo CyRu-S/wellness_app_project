@@ -276,7 +276,7 @@ class PersistentWorkflowIntegrationTests {
         for (int i = 0; i < 2; i++) mvc.perform(multipart("/api/meal-posts").file(metadata).file(new MockMultipartFile("image", "meal.png", "image/png", png)).header("Authorization", token(user))).andExpect(status().isCreated());
         assertThat(posts.count()).isEqualTo(1);
         assertThat(notifications.findAll().stream().filter(n -> n.getKind() == PushDelivery.Kind.MEAL_POST).toList())
-                .hasSize(1).allMatch(n -> n.getUser().getRole() == User.Role.ADMIN);
+                .isEmpty();
         mvc.perform(post("/api/water").header("Authorization", token(user)).contentType(MediaType.APPLICATION_JSON).content("{\"amountMl\":250}")).andExpect(status().isCreated());
         mvc.perform(post("/api/activities").header("Authorization", token(user)).contentType(MediaType.APPLICATION_JSON).content("{\"activity\":\"Walk\",\"durationSeconds\":120}"))
                 .andExpect(status().isCreated());
@@ -284,7 +284,8 @@ class PersistentWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.today.summary.calories").value(450)).andExpect(jsonPath("$.today.summary.proteinGrams").value(25))
                 .andExpect(jsonPath("$.today.summary.hydrationMl").value(250)).andExpect(jsonPath("$.today.activities[0].durationMinutes").value(2))
                 .andExpect(jsonPath("$.today.meals[0].imageUrl").isNotEmpty());
-        mvc.perform(get("/api/dashboard").header("Authorization", token(user))).andExpect(jsonPath("$.calories").value(450)).andExpect(jsonPath("$.completion").value(100));
+        mvc.perform(get("/api/dashboard").header("Authorization", token(user))).andExpect(jsonPath("$.calories").value(450))
+                .andExpect(jsonPath("$.completion", org.hamcrest.Matchers.allOf(org.hamcrest.Matchers.greaterThan(0), org.hamcrest.Matchers.lessThan(100))));
         mvc.perform(get("/api/admin/workspace").header("Authorization", admin())).andExpect(status().isOk()).andExpect(jsonPath("$.summary.mealLogsToday").value(1));
         plan(user);
         assertThat(posts.count()).isEqualTo(1);
@@ -310,7 +311,7 @@ class PersistentWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.mealInsights.ranges['30D'].series.length()").value(30));
     }
 
-    @Test void liveLeaderboardRanksExactTimingAndDropsAfterMealWaterAndActivityDeletion() throws Exception {
+    @Test void liveLeaderboardRanksEqualPercentagesByWhoReachedThemFirstAndDropsAfterDeletion() throws Exception {
         var timelyMember = approve("timely@example.com");
         var lateMember = approve("late@example.com");
         var day = LocalDate.of(2026, 9, 5);
@@ -323,11 +324,12 @@ class PersistentWorkflowIntegrationTests {
 
         mvc.perform(get("/api/leaderboard").header("Authorization", token(timelyMember)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.rows[0].memberId").value(timelyMember.getId()))
-                .andExpect(jsonPath("$.rows[0].viewer").value(true))
-                .andExpect(jsonPath("$.rows[0].averageTimingMinutes").value(2))
-                .andExpect(jsonPath("$.rows[1].memberId").value(lateMember.getId()))
-                .andExpect(jsonPath("$.rows[1].averageTimingMinutes").value(3));
+                .andExpect(jsonPath("$.rows[0].memberId").value(lateMember.getId()))
+                .andExpect(jsonPath("$.rows[0].viewer").value(false))
+                .andExpect(jsonPath("$.rows[0].averageTimingMinutes").value(3))
+                .andExpect(jsonPath("$.rows[1].memberId").value(timelyMember.getId()))
+                .andExpect(jsonPath("$.rows[1].viewer").value(true))
+                .andExpect(jsonPath("$.rows[1].averageTimingMinutes").value(2));
 
         mvc.perform(post("/api/water").header("Authorization", token(timelyMember)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"amountMl\":250}")).andExpect(status().isCreated());
@@ -378,7 +380,7 @@ class PersistentWorkflowIntegrationTests {
         var meal = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
         meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); assertThat(reminders.attention()).isEmpty();
     }
-    @Test void scheduledMealDeadlineNotifiesAdminOnlyOnce() throws Exception {
+    @Test void scheduledMealDeadlineAppearsInAttentionWithoutImmediateAdminPush() throws Exception {
         var user = approve("deadline@example.com"); plan(user);
         setTime("2026-09-05T02:30:00Z");
         reminders.refresh(); assertThat(reminders.attention()).isEmpty();
@@ -390,8 +392,7 @@ class PersistentWorkflowIntegrationTests {
         reminders.refresh();
         assertThat(notifications.findAll().stream().filter(event -> event.getUser().getRole() == User.Role.ADMIN
                 && event.getKind() == PushDelivery.Kind.DEADLINE).toList())
-                .hasSize(1).allMatch(event -> event.getTitle().contains("Breakfast")
-                        && event.getBody().equals("Review the scheduled meal check-in in Attention."));
+                .isEmpty();
     }
 
     @Test void hydrationDeadlineUsesLocalDayGoalAndResolvesWhenGoalIsMet() throws Exception {
@@ -405,7 +406,7 @@ class PersistentWorkflowIntegrationTests {
         reminders.refresh(); reminders.refresh();
         assertThat(reminders.attention()).hasSize(1).allMatch(event -> event.get("category").equals("Hydration"));
         assertThat(notifications.findAll().stream().filter(event -> event.getUser().getRole() == User.Role.ADMIN
-                && event.getKind() == PushDelivery.Kind.DEADLINE).toList()).hasSize(1);
+                && event.getKind() == PushDelivery.Kind.DEADLINE).toList()).isEmpty();
         water.save(WaterLog.builder().user(user).amountMl(2500).loggedAt(clock.instant()).build());
         reminders.refresh(); assertThat(reminders.attention()).isEmpty();
     }

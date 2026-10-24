@@ -3,7 +3,7 @@
     "name": "Mr_Care",
     "slug": "mr-care",
     "scheme": "mrcare",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "icon": "./assets/images/arjun-nutrition-logo.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",

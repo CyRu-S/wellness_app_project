@@ -196,7 +196,7 @@ class PushNotificationIntegrationTests {
                 .andExpect(jsonPath("$.customSound").value(false));
         assertThat(deliveries.count()).isZero();
     }
-    @Test void registrationNotifiesAdminAndApprovalCancelsStalePush() {
+    @Test void registrationStaysInTheAdminWorkspaceWithoutAnImmediatePush() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
         authentication.register(new com.wellnessapp.dto.auth.RegisterRequest("Applicant", "applicant@example.com", "test-password", 25, 170, 65.0, "", ""));
         var applicant = users.findByEmailIgnoreCase("applicant@example.com").orElseThrow();
@@ -206,37 +206,35 @@ class PushNotificationIntegrationTests {
         verify(mail).sendVerificationOtp(eq(applicant.getEmail()), eq(applicant.getFullName()), code.capture(), anyLong());
         // The persisted service performs verification; the captured code never reaches logs.
         emailVerification.verify(new com.wellnessapp.dto.auth.VerifyEmailRequest(applicant.getEmail(), code.getValue()));
-        assertThat(count(PushDelivery.Kind.SIGNUP, admin)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.SIGNUP, admin)).isZero();
         workspace.decide(applicant.getId(), "APPROVE");
         assertThat(count(PushDelivery.Kind.APPROVAL, applicant)).isEqualTo(1);
         worker.sendPending();
-        assertThat(deliveries.findAll()).hasSize(1).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
+        assertThat(deliveries.findAll()).isEmpty();
         verifyNoInteractions(expo);
     }
-    @Test void overdueMealNotifiesAdminOnceAndResolutionCancelsDelivery() {
+    @Test void overdueMealAppearsInAttentionWithoutAnImmediateAdminPush() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
         accounts.register(member.getEmail(), "ExponentPushToken[member-device]", UUID.randomUUID().toString());
         var meal = meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
                 .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
         reminders.refresh(); reminders.refresh();
-        assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isZero();
         assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
-        assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(admin.getId()).getFirst().getTitle())
-                .isEqualTo("Push Test · Breakfast");
+        assertThat(missed.findByResolvedFalseOrderByMissedAtDesc()).hasSize(1);
         meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); worker.sendPending();
-        assertThat(deliveries.findAll()).hasSize(1).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
+        assertThat(deliveries.findAll()).isEmpty();
         verifyNoInteractions(expo);
     }
-    @Test void adminPushNamesTheMemberAndTheSpecificIssue() throws Exception {
+    @Test void twoHourlyAdminCarePushUsesDefaultSoundWhenThemeIsOff() throws Exception {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
-        meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
-                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
+        accounts.savePreferences(admin.getEmail(), true, true, true, true, false, true, true, false, true);
         when(expo.send(anyList())).thenAnswer(call -> {
             String payload = json.writeValueAsString(call.getArgument(0));
-            assertThat(payload).contains("Push Test · Breakfast", "Review the scheduled meal check-in in Attention.");
+            assertThat(payload).contains("Check member care", "send reminders", "\"sound\":\"default\"", "coach-nudges-default-v1");
             return json.readTree("[{\"status\":\"ok\",\"id\":\"specific-admin-alert\"}]");
         });
-        reminders.refresh();
+        advance(1800); notices.adminCareReminder();
         worker.sendPending();
         verify(expo).send(anyList());
     }
@@ -271,16 +269,15 @@ class PushNotificationIntegrationTests {
         meals.saveAndFlush(Meal.builder().user(member).type("Dinner").name("Rice")
                 .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(23, 0)).build());
         reminders.refresh();
-        assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isZero();
         assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
     }
-    @Test void dailyDigestIsOptInAndOnlyOnceInTheMorningWindow() {
+    @Test void adminCareReminderIsIdempotentAndRunsEveryTwoHours() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
-        advance(1800); notices.morningDigest(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isZero();
-        accounts.savePreferences(admin.getEmail(), true, true, true, true, true, true, true);
-        notices.morningDigest(); notices.morningDigest(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(1);
-        advance(3600); notices.morningDigest(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(1);
-        advance(23 * 3600); notices.morningDigest(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(2);
+        advance(1800); notices.adminCareReminder(); notices.adminCareReminder();
+        assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(1);
+        advance(3600); notices.adminCareReminder(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(1);
+        advance(3600); notices.adminCareReminder(); assertThat(count(PushDelivery.Kind.DIGEST, admin)).isEqualTo(2);
     }
     @Test void planAccessAndMovementCreateRecipientScopedNotices() {
         var admin = admin(); accounts.register(member.getEmail(), pushToken, registration);
@@ -296,17 +293,17 @@ class PushNotificationIntegrationTests {
         access.replaceAssignments(admin.getEmail(), member.getId(), new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of()));
         assertThat(count(PushDelivery.Kind.ACCESS, member)).isEqualTo(2);
         activity.create(member.getEmail(), new com.wellnessapp.dto.activity.ActivityRequest("walk", 600, null));
-        assertThat(count(PushDelivery.Kind.ACTIVITY, admin)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.ACTIVITY, admin)).isZero();
         assertThat(count(PushDelivery.Kind.ACTIVITY, member)).isZero();
     }
-    @Test void requiredCategoriesQueuePushEvenWhenLegacyPreferencesRequestMute() {
+    @Test void operationalAdminEventsAreConsolidatedIntoCareReminders() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
         accounts.savePreferences(admin.getEmail(), true, true, false, false, false, false, true);
         for (var kind : List.of(PushDelivery.Kind.SIGNUP, PushDelivery.Kind.DEADLINE, PushDelivery.Kind.ACTIVITY, PushDelivery.Kind.MEAL_POST)) {
             notices.admins(kind, "muted-" + kind, "Test", "Details");
-            assertThat(count(kind, admin)).isEqualTo(1);
+            assertThat(count(kind, admin)).isZero();
         }
-        assertThat(deliveries.count()).isEqualTo(4);
+        assertThat(deliveries.count()).isZero();
     }
     @Test void masterSwitchStopsNewAndAlreadyQueuedPushes() throws Exception {
         var row = queuedTest();

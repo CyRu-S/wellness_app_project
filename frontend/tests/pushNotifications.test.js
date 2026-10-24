@@ -20,19 +20,19 @@ test('Expo Go explains the development build requirement and never calls push re
   assert.equal(result.status, 'unsupported'); assert.match(result.message, /installed Mr_Care APK/);
   assert.equal(await push.notificationModule(), null);
 });
-test('Android creates separate silent and theme ringtone channels', async () => {
+test('Android creates separate default and theme ringtone channels', async () => {
   const channels = [];
   const push = createPush({ native: { setNotificationChannelAsync: async (id, options) => {
     channels.push([id, options.sound]);
     if (id.endsWith('-theme-v2')) assert.equal(options.sound, 'main_theme_alert.wav');
-    else assert.equal(options.sound, null);
+    else assert.equal(options.sound, 'default');
     assert.equal(options.importance, 4);
   } } });
   const result = await push.syncPushRegistration(push.beginPushSession('auth', 1));
   assert.equal(result.status, 'enabled');
   assert.deepEqual(channels, [
-    ['meal-reminders-silent-v1', null], ['meal-reminders-theme-v2', 'main_theme_alert.wav'],
-    ['coach-nudges-silent-v1', null], ['coach-nudges-theme-v2', 'main_theme_alert.wav'],
+    ['meal-reminders-default-v1', 'default'], ['meal-reminders-theme-v2', 'main_theme_alert.wav'],
+    ['coach-nudges-default-v1', 'default'], ['coach-nudges-theme-v2', 'main_theme_alert.wav'],
   ]);
 });
 test('permission is requested only on explicit enable and token is bound to authenticated session', async () => {

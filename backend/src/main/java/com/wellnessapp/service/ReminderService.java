@@ -61,19 +61,14 @@ public class ReminderService {
                 if (!clock.instant().isBefore(reminderAt) && clock.instant().isBefore(reminderAt.plusSeconds(60))
                         && !notifications.existsBySourceKey(notificationKey)) {
                     var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(notificationKey)
-                            .title(firstName(user) + " · " + meal.getType())
-                            .body("Take your scheduled meal in 5 minutes.")
+                            .title(firstName(user) + " · " + meal.getName())
+                            .body("Log " + meal.getName() + " in 5 minutes.")
                             .scheduledAt(reminderAt).build());
                     push.enqueue(notification, PushDelivery.Kind.MEAL, due);
                 }
                 if (clock.instant().isAfter(due)) {
                     var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user).sourceKey(key)
                             .itemType("Meals").itemTitle(meal.getType() + " check-in is overdue").missedAt(due).build()));
-                    if (!attention.isResolved()) {
-                        notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(),
-                                user.getFullName() + " · " + meal.getType(),
-                                "Review the scheduled meal check-in in Attention.");
-                    }
                 }
             }
             for (var habit : plans.scheduledTasks(user.getId())) {
@@ -97,9 +92,6 @@ public class ReminderService {
                     var attention = missed.findBySourceKey(dayKey).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
                             .sourceKey(dayKey).itemType(habit.getDetail()).itemTitle(habit.getTitle() + " is overdue")
                             .missedAt(due).build()));
-                    if (!attention.isResolved()) notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(),
-                            user.getFullName() + " · " + habit.getTitle(),
-                            "Review this daily task in Attention.");
                 }
             }
             if (user.getFollowUpAt() != null && !clock.instant().isBefore(user.getFollowUpAt())) {
@@ -108,8 +100,6 @@ public class ReminderService {
                 var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
                         .sourceKey(key).itemType("Follow-up").itemTitle("Scheduled member follow-up")
                         .missedAt(due).build()));
-                notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), user.getFullName() + " · Follow-up",
-                        "Review this member in Attention.");
                 user.setFollowUpAt(null);
                 users.save(user);
             }
@@ -133,10 +123,6 @@ public class ReminderService {
                 var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
                         .sourceKey(key).itemType("Hydration").itemTitle("Daily hydration goal is overdue")
                         .missedAt(deadline).build()));
-                if (!attention.isResolved()) {
-                    notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), user.getFullName() + " · Hydration",
-                            "Review " + logged + " of " + goal + " ml in Attention.");
-                }
             }
     }
 

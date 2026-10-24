@@ -199,7 +199,7 @@ class ApiEndToEndTests {
         // A replay after a lost response must not duplicate the meal.
         assertThat(upload("POST", "/meal-posts", member, post, 201).path("id").asLong()).isEqualTo(posted.path("id").asLong());
         assertThat(call("GET", "/meal-posts", null, member, 200).size()).isEqualTo(1);
-        assertThat(call("GET", "/dashboard", null, member, 200).path("completion").asInt()).isEqualTo(100);
+        assertThat(call("GET", "/dashboard", null, member, 200).path("completion").asInt()).isBetween(1, 99);
         reminders.refresh();
         assertThat(call("GET", "/admin/attention", null, admin, 200).size()).isZero();
         assertThat(call("GET", "/admin/users/" + memberId + "/journal", null, admin, 200)

@@ -56,7 +56,6 @@ function Stat({ value, label, last }) {
 function Overview({ member, plan, snapshot }) {
   const series = member.adherenceSeries || [];
   const completedItems = plan.items.filter((item) => item.consumed);
-  const completed = snapshot?.summary?.completedMeals ?? completedItems.length;
   const calories = snapshot?.summary?.calories ?? completedItems.reduce((sum, item) => sum + (item.detectedCalories ?? item.calories ?? 0), 0);
   const protein = snapshot?.summary?.proteinGrams ?? completedItems.reduce((sum, item) => sum + (item.detectedProtein ?? item.protein ?? 0), 0);
   const hydrationMl = snapshot?.summary?.hydrationMl;
@@ -72,7 +71,7 @@ function Overview({ member, plan, snapshot }) {
     <>
       <LinearGradient colors={['#F1FBF9', '#D7F1EC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statsCard}>
         <View style={styles.statsRow}>
-          <Stat value={`${completed}/${plan.items.length}`} label="meals today" />
+          <Stat value={plan.items.length} label="assigned today" />
           <Stat value={hydration} label="water intake" />
           <Stat value={member.streak} label="day streak" last />
         </View>
@@ -124,11 +123,10 @@ function Overview({ member, plan, snapshot }) {
 
 function Today({ plan, snapshot, token, onOpenPhoto }) {
   if (snapshot) return <MemberTodaySnapshot snapshot={snapshot} token={token} onOpenPhoto={onOpenPhoto} showHero={false} />;
-  const completed = plan.items.filter((item) => item.consumed).length;
   return (
     <>
       <View style={styles.todayHeader}>
-        <View><Text style={styles.cardEyebrow}>TODAY’S CHECK-INS</Text><Text style={styles.todayTitle}>{completed} of {plan.items.length} meals complete</Text></View>
+        <View><Text style={styles.cardEyebrow}>TODAY’S CHECK-INS</Text><Text style={styles.todayTitle}>{plan.items.length} assigned today</Text></View>
         <Text style={styles.todayDate}>{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</Text>
       </View>
       <View style={styles.todayList}>
@@ -338,8 +336,9 @@ function WaterGoalEditor({ visible, member, currentGoal, saving, onClose, onSave
 
 function PlanEditor({ visible, member, plan, onClose, onSave }) {
   const [planName, setPlanName] = useState(plan.planName);
-  const [items, setItems] = useState([...(plan.items || []), ...(plan.habits || []), ...(plan.exercises || [])]
+  const [items, setItems] = useState([...(plan.items || []), ...(plan.habits || [])]
     .map((item) => ({ kind: item.kind || 'MEAL', ...item })));
+  const [coachExercises] = useState(plan.exercises || []);
   const [saving, setSaving] = useState(false);
   const [timePickerIndex, setTimePickerIndex] = useState(null);
 
@@ -388,14 +387,14 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
     setSaving(true);
     try { await onSave({
       planName: planName.trim(),
-      items: items.map((item) => ({
+      items: [...items.map((item) => ({
         ...item,
         name: item.name.trim(),
         category: item.kind === 'MEAL' ? item.category : (item.category || item.type),
         time: item.time.trim().toUpperCase(),
         hour: timeToHour(item.time, item.hour),
         ingredients: (item.ingredients || []).map((ingredient) => ingredient.trim()).filter(Boolean),
-      })),
+      })), ...coachExercises],
     }); } finally { setSaving(false); }
   };
 
@@ -408,7 +407,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
             <View style={styles.editorHeaderCopy}><Text style={styles.editorEyebrow}>RECURRING DAILY PLAN</Text><Text style={styles.editorTitle}>Plan {member.name}’s day</Text></View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close plan editor" onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={21} color={adminColors.ink} /></Pressable>
           </View>
-          <Text style={styles.editorIntro}>Meals, healthy habits, and coach exercises repeat daily until you change them.</Text>
+          <Text style={styles.editorIntro}>Meals and healthy habits repeat daily until you change them. Exercise is tracked in Move.</Text>
           <View style={styles.preferenceBanner}><Ionicons name="nutrition-outline" size={18} color={adminColors.deepTeal} /><View style={styles.preferenceCopy}><Text style={styles.inputLabel}>MEMBER HEALTH PREFERENCES</Text><Text style={styles.preferenceText}>{member.dietaryPreferences || 'No preferences provided'}</Text></View></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.editorScroll}>
             <Text style={styles.inputLabel}>PLAN NAME</Text>
@@ -456,10 +455,6 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
             <Pressable accessibilityRole="button" onPress={() => addItem('HEALTHY_HABIT')} style={({ pressed }) => [styles.addMealButton, styles.addHabitButton, pressed && styles.pressed]}>
               <View style={styles.addMealIcon}><Ionicons name="leaf-outline" size={20} color={adminColors.deepTeal} /></View>
               <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add healthy habit</Text><Text style={styles.addMealDetail}>Add one daily wellbeing action with its reminder time.</Text></View>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => addItem('ACTIVITY')} style={({ pressed }) => [styles.addMealButton, styles.addHabitButton, pressed && styles.pressed]}>
-              <View style={styles.addMealIcon}><Ionicons name="barbell-outline" size={20} color={adminColors.deepTeal} /></View>
-              <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add coach exercise</Text><Text style={styles.addMealDetail}>Assign one exercise that appears in the member’s Move section.</Text></View>
             </Pressable>
           </ScrollView>
           {timePickerIndex != null && items[timePickerIndex] ? <MealTimePicker key={`${timePickerIndex}-${items[timePickerIndex].id}`}

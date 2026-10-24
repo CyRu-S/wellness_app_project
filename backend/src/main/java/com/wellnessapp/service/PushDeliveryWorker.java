@@ -91,14 +91,32 @@ public class PushDeliveryWorker {
         };
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("to", d.getDevice().getExpoToken()); message.put("title", title); message.put("body", body);
-        if (customSound) message.put("sound", "main_theme_alert.wav");
+        message.put("sound", customSound ? "main_theme_alert.wav" : "default");
         message.put("priority", "high"); message.put("badge", 1);
-        message.put("channelId", customSound ? channel + "-theme-v2" : channel + "-silent-v1");
+        message.put("channelId", customSound ? channel + "-theme-v2" : channel + "-default-v1");
         message.put("ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()));
-        message.put("data", Map.of("notificationId", d.getNotification().getId().toString(),
-                "userId", d.getNotification().getUser().getId().toString(), "kind", d.getKind().name(),
-                "customSound", customSound));
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("notificationId", d.getNotification().getId().toString());
+        data.put("userId", d.getNotification().getUser().getId().toString());
+        data.put("kind", d.getKind().name());
+        data.put("customSound", customSound);
+        notificationTarget(d).ifPresent(target -> data.put("targetId", target));
+        message.put("data", data);
         return message;
+    }
+
+    private Optional<String> notificationTarget(PushDelivery delivery) {
+        String key = delivery.getNotification().getSourceKey();
+        if (key == null) return Optional.empty();
+        try {
+            if (delivery.getKind() == PushDelivery.Kind.MEAL && key.startsWith("meal-")) {
+                return Optional.of(key.substring(5).split("-")[0]);
+            }
+            if (delivery.getKind() == PushDelivery.Kind.HABIT && key.startsWith("habit-reminder-")) {
+                return Optional.of(key.substring("habit-reminder-".length()).split("-")[0]);
+            }
+        } catch (RuntimeException ignored) { }
+        return Optional.empty();
     }
     private void fail(PushDelivery d, String code, boolean retryable) {
         // Only persist known error codes, never raw provider bodies (which may contain tokens).

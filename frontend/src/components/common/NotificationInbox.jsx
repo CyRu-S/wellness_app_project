@@ -20,7 +20,7 @@ export default function NotificationInbox({ navigation, workflowsOnly = false })
     {items.length === 0 ? <Text style={styles.body}>No notifications yet.</Text> : null}
     {items.map(item => <Pressable key={item.id} accessibilityRole="button" style={styles.item} onPress={() => {
       dispatch(markNotificationRead(item.id));
-      const destination = notificationDestination(role, item.kind);
+      const destination = notificationDestination(role, item.kind, item);
       navigation.navigate(destination.name, destination.params);
     }}>
       <Text style={[styles.title, !item.read && styles.unread]}>{!item.read ? '• ' : ''}{item.title}</Text>

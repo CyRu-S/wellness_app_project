@@ -19,6 +19,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class MemberAccessService {
+    private static final int DEFAULT_WATER_GOAL_ML = 2000;
+    private static final int DAILY_ACTIVITY_GOAL_MINUTES = 30;
+    private static final int DAILY_ACTIVITY_GOAL_SECONDS = DAILY_ACTIVITY_GOAL_MINUTES * 60;
+
     private final UserRepository users;
     private final MemberAccessGrantRepository grants;
     private final MealRepository meals;
@@ -26,6 +30,8 @@ public class MemberAccessService {
     private final WaterLogRepository waterLogs;
     private final ActivitySessionRepository activities;
     private final PlanItemCompletionRepository completions;
+    private final UserProfileRepository profiles;
+    private final NotificationRepository notifications;
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final PlanService plans;
@@ -171,15 +177,25 @@ public class MemberAccessService {
                 .map(SharedMemberTodayResponse.Nutrition::proteinGrams)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(0, RoundingMode.HALF_UP).intValueExact();
         int hydration = water.stream().mapToInt(WaterLog::getAmountMl).sum();
-        int activityMinutes = activity.stream().mapToInt(item -> item.getDurationSeconds() / 60).sum();
+        int activitySeconds = activity.stream().mapToInt(ActivitySession::getDurationSeconds).sum();
+        int activityMinutes = activitySeconds / 60;
+        int hydrationGoal = profiles.findByUserId(subject.getId())
+                .map(UserProfile::getWaterGoalMl)
+                .filter(goal -> goal > 0)
+                .orElse(DEFAULT_WATER_GOAL_ML);
+        int completedTasks = (int) tasks.stream().filter(SharedMemberTodayResponse.TaskEntry::completed).count();
+        int completionPercentage = dailyCompletion(planned.size(), completed, tasks.size(), completedTasks,
+                hydration, hydrationGoal, activitySeconds);
 
         SharedMemberTodayResponse.Summary summary = new SharedMemberTodayResponse.Summary(
-                planned.size(), completed, posts.size(), calories, protein, hydration, activityMinutes);
+                planned.size(), completed, posts.size(), calories, protein, hydration, hydrationGoal,
+                activityMinutes, DAILY_ACTIVITY_GOAL_MINUTES, tasks.size(), completedTasks, completionPercentage);
         return new SharedMemberTodayResponse(
                 new SharedMemberTodayResponse.Member(subject.getId(), subject.getFullName()),
                 date,
                 applicationZoneId.getId(),
                 summary,
+                notifications.existsBySourceKey("care-nudge-" + date + "-to-" + subject.getId()),
                 List.copyOf(mealEntries),
                 tasks,
                 water.stream().map(item -> new SharedMemberTodayResponse.WaterEntry(item.getId(), item.getAmountMl(), item.getLoggedAt())).toList(),
@@ -213,7 +229,18 @@ public class MemberAccessService {
         SharedMemberTodayResponse.Summary summary = response.summary();
         return new SharedMembersResponse.SharedMemberSummary(
                 response.member().id(), response.member().name(), summary.plannedMeals(), summary.completedMeals(),
-                summary.mealPosts(), summary.calories(), summary.proteinGrams(), summary.hydrationMl(), summary.activityMinutes());
+                summary.mealPosts(), summary.calories(), summary.proteinGrams(), summary.hydrationMl(),
+                summary.hydrationGoalMl(), summary.activityMinutes(), summary.activityGoalMinutes(),
+                summary.plannedTasks(), summary.completedTasks(), summary.completionPercentage());
+    }
+
+    private int dailyCompletion(int plannedMeals, int completedMeals, int plannedTasks, int completedTasks,
+                                int hydrationMl, int hydrationGoalMl, int activitySeconds) {
+        double expected = plannedMeals + plannedTasks + 2.0;
+        double earned = completedMeals + completedTasks
+                + Math.min(1.0, hydrationMl * 1.0 / hydrationGoalMl)
+                + Math.min(1.0, activitySeconds * 1.0 / DAILY_ACTIVITY_GOAL_SECONDS);
+        return (int) Math.min(100, Math.round(earned * 100.0 / expected));
     }
 
     private AdminMemberAccessResponse.ViewerAccess viewerResponse(User viewer, List<MemberAccessGrant> assigned) {

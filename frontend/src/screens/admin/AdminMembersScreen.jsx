@@ -76,7 +76,7 @@ function MemberCard({ member, onPress, token, now }) {
         <View style={styles.memberFooter}>
           <View style={styles.footerMetric}>
             <Ionicons name="restaurant-outline" size={16} color={adminColors.deepTeal} />
-            <Text style={styles.footerMetricText}>{member.meals} meals today</Text>
+            <Text style={styles.footerMetricText}>{member.meals} assigned logged</Text>
           </View>
           <View style={styles.footerMetric}>
             <Ionicons name="water-outline" size={16} color={adminColors.deepTeal} />

@@ -11,7 +11,6 @@ import java.time.*;
 public class WorkflowNotificationService {
     private final UserRepository users;
     private final NotificationRepository events;
-    private final MissedEventRepository missed;
     private final PushQueueService push;
     private final Clock clock;
     private final ZoneId applicationZoneId;
@@ -25,18 +24,17 @@ public class WorkflowNotificationService {
         push.enqueue(event, kind, clock.instant().plusSeconds(kind == PushDelivery.Kind.DIGEST ? 14400 : 86400));
     }
     @Transactional public void admins(PushDelivery.Kind kind, String source, String title, String body) {
-        for (var admin : users.findByRoleAndStatusOrderByFullName(User.Role.ADMIN, User.Status.ACTIVE)) notify(admin, kind, source, title, body);
+        // Admin push is intentionally centralized into the two-hour care reminder below.
     }
-    /** No historical catch-up: one optional summary during today's 08:00–09:00 application-time window. */
-    @Transactional public void morningDigest() {
+    /** One idempotent care prompt every two hours for active administrators. */
+    @Transactional public void adminCareReminder() {
         var local = clock.instant().atZone(applicationZoneId);
-        if (local.getHour() != 8) return;
-        String body = users.countByStatus(User.Status.PENDING) + " signup requests awaiting review; "
-                + missed.countByResolvedFalse() + " unresolved attention items.";
+        if (local.getMinute() != 0 || local.getHour() % 2 != 0) return;
+        String slot = local.toLocalDate() + "-" + String.format("%02d", local.getHour());
         for (var admin : users.findByRoleAndStatusOrderByFullName(User.Role.ADMIN, User.Status.ACTIVE)) {
             users.lockById(admin.getId()).orElseThrow();
-            if (push.allowed(admin.getId(), PushDelivery.Kind.DIGEST)) notify(admin, PushDelivery.Kind.DIGEST,
-                    "digest-" + local.toLocalDate(), "Morning club summary", body);
+            notify(admin, PushDelivery.Kind.DIGEST, "admin-care-" + slot,
+                    "Check member care", "Review Attention and send reminders to members who need support.");
         }
     }
 }
