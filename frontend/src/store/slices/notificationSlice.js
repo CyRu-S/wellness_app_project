@@ -10,7 +10,7 @@ const isToday = (value) => {
     && date.getMonth() === today.getMonth()
     && date.getDate() === today.getDate();
 };
-const extraPreferenceDefaults = { signupAlerts: true, deadlineAlerts: true, dailyDigest: false, memberUpdates: false, accountUpdates: true, customSound: true };
+const extraPreferenceDefaults = { notificationsEnabled: true, signupAlerts: true, deadlineAlerts: true, dailyDigest: false, memberUpdates: false, accountUpdates: true, customSound: true };
 export const notificationPreferences = (n) => ({ mealReminders: n.timelineRemindersEnabled, coachNudges: n.coachNudgesEnabled,
   ...Object.fromEntries(Object.entries(extraPreferenceDefaults).map(([key, fallback]) => [key, n[key] ?? fallback])) });
 export const markNotificationRead = createAsyncThunk('notifications/read', async (id, { getState }) => {

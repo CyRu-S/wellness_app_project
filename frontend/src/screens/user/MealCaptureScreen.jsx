@@ -143,6 +143,15 @@ export default function MealCaptureScreen({ navigation, route }) {
   };
 
   if (!targetMeal) return <SafeAreaView style={styles.permission}><Text style={styles.permissionTitle}>No meal assigned</Text><Text style={styles.permissionCopy}>Your admin must assign a diet plan before you can post a meal.</Text><Pressable onPress={() => navigation.goBack()}><Text style={styles.libraryLink}>Go back</Text></Pressable></SafeAreaView>;
+  if (Platform.OS === 'web' && !photo) return <SafeAreaView style={styles.webPicker} edges={['top', 'left', 'right', 'bottom']}>
+    <View style={styles.webPickerTop}><Pressable accessibilityRole="button" accessibilityLabel="Close photo upload" onPress={() => navigation.goBack()} style={styles.webClose}><Ionicons name="close" size={21} color={colors.ink} /></Pressable><Text style={styles.webPickerLabel}>{targetMeal.type}</Text><View style={styles.webClosePlaceholder} /></View>
+    <View style={styles.webPickerBody}>
+      <View style={styles.webPhotoIcon}><Ionicons name="image-outline" size={34} color={colors.tealDark} /></View>
+      <Text style={styles.webPickerTitle}>Add a meal photo</Text>
+      <Text style={styles.webPickerCopy}>Choose or take a photo without leaving the PWA. The selected image stays visible while it is prepared.</Text>
+      <Pressable accessibilityRole="button" disabled={analyzing || posting} onPress={choosePhoto} style={({ pressed }) => [styles.webChoose, pressed && styles.disabled]}><Ionicons name="camera-outline" size={19} color={colors.white} /><Text style={styles.webChooseText}>Choose or take photo</Text></Pressable>
+    </View>
+  </SafeAreaView>;
   if (!permission && !photo) return <View style={styles.loading} />;
   if (!permission?.granted && !photo) {
     return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Take a meal photo and enter the nutrition for your serving.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
@@ -221,6 +230,17 @@ const styles = StyleSheet.create({
   referenceFields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }, referenceField: { width: '48%' },
   editReference: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 12, paddingVertical: 8 },
   loading: { flex: 1, backgroundColor: colors.ink }, page: { flex: 1, backgroundColor: colors.ink }, visual: { flex: 1, minHeight: 160, overflow: 'hidden' }, scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,30,34,0.37)' },
+  webPicker: { flex: 1, backgroundColor: colors.paper, paddingHorizontal: 20 },
+  webPickerTop: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  webClose: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  webClosePlaceholder: { width: 44 },
+  webPickerLabel: { ...type.label, color: colors.tealMid, fontSize: 11 },
+  webPickerBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 60 },
+  webPhotoIcon: { width: 76, height: 76, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
+  webPickerTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 27, marginTop: 20 },
+  webPickerCopy: { maxWidth: 360, color: colors.muted, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 8 },
+  webChoose: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.pill, backgroundColor: colors.tealMid, paddingHorizontal: 22, marginTop: 24 },
+  webChooseText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 14 },
   topbar: { position: 'absolute', top: 15, left: 18, right: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, roundButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,46,54,0.72)', alignItems: 'center', justifyContent: 'center' }, category: { borderRadius: radius.pill, backgroundColor: 'rgba(0,46,54,0.8)', paddingVertical: 9, paddingHorizontal: 14 }, categoryText: { ...type.label, color: colors.white, fontSize: 11 },
   instruction: { position: 'absolute', top: 80, left: 25, right: 25, alignItems: 'center' }, instructionTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 16 }, instructionCopy: { color: '#B8D2D3', fontFamily: fonts.regular, fontSize: 11, marginTop: 4, textAlign: 'center' },
   frame: { position: 'absolute', left: 38, right: 38, top: 175, height: 240, overflow: 'hidden' }, corner: { position: 'absolute', width: 25, height: 25, borderColor: colors.accent }, tl: { left: 0, top: 0, borderLeftWidth: 2, borderTopWidth: 2, borderTopLeftRadius: 9 }, tr: { right: 0, top: 0, borderRightWidth: 2, borderTopWidth: 2, borderTopRightRadius: 9 }, bl: { left: 0, bottom: 0, borderLeftWidth: 2, borderBottomWidth: 2, borderBottomLeftRadius: 9 }, br: { right: 0, bottom: 0, borderRightWidth: 2, borderBottomWidth: 2, borderBottomRightRadius: 9 }, centerTarget: { position: 'absolute', alignSelf: 'center', top: 92, width: 58, height: 58, borderRadius: 18, backgroundColor: 'rgba(0,46,54,0.42)', borderWidth: 1, borderColor: 'rgba(17,184,191,0.45)', alignItems: 'center', justifyContent: 'center' }, scan: { position: 'absolute', left: 4, right: 4, top: 5, height: 2, backgroundColor: colors.accent, shadowColor: colors.accent, shadowOpacity: 0.8, shadowRadius: 8 },

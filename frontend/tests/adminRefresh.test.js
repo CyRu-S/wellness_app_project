@@ -22,6 +22,7 @@ function harness(request) {
     '../store/slices/dashboardSlice': {}, '../store/slices/mealSlice': {}, '../store/slices/planSlice': {},
     '../store/slices/activitySlice': {}, '../store/slices/profileSlice': {}, '../store/slices/notificationSlice': {},
     '../store/slices/memberAccessSlice': {}, '../store/slices/adminMemberJournalSlice': {},
+    '../store/slices/leaderboardSlice': { loadLeaderboard: () => ({ type: 'test/leaderboard' }) },
   }, { Date: { now: () => { now += 1000; return now; } }, setTimeout: (callback) => { callback(); } });
   return { admin, store, refresh: module.default().onRefresh, alerts, invalidated };
 }
@@ -79,6 +80,7 @@ test('opening admin home reads immediately and polls for cross-device PWA update
     '../store/slices/dashboardSlice': {}, '../store/slices/mealSlice': {}, '../store/slices/planSlice': {},
     '../store/slices/activitySlice': {}, '../store/slices/profileSlice': {}, '../store/slices/notificationSlice': {},
     '../store/slices/memberAccessSlice': {}, '../store/slices/adminMemberJournalSlice': {},
+    '../store/slices/leaderboardSlice': { loadLeaderboard: () => ({ type: 'test/leaderboard' }) },
   }, { setInterval: (callback, delay) => { assert.equal(delay, 30000); poll = callback; return 1; }, clearInterval: () => {} });
   module.default(); focus();
   await new Promise((resolve) => setImmediate(resolve));

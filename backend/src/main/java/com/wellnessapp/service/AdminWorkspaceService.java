@@ -23,6 +23,7 @@ public class AdminWorkspaceService {
     private final ZoneId applicationZoneId;
     private final ReminderService reminders;
     private final ProductRepository products;
+    private final LeaderboardService leaderboards;
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> members() {
@@ -164,7 +165,7 @@ public class AdminWorkspaceService {
         }).toList();
         var missing = attention.stream().map(a -> Map.of("memberId", a.get("memberId"), "name", a.get("memberName"), "initials", a.get("initials"), "detail", a.get("title"), "severity", a.get("severity"))).toList();
         return Map.of("summary", summary, "members", members, "approvals", approvals, "attention", attention, "memberMealPlans", memberPlans,
-                "leaderboard", leaderboard(active, date.minusDays(1), recent),
+                "leaderboard", leaderboards.rows(null),
                 "mealInsights", Map.of("selectedRange", "TODAY", "ranges", ranges, "mealTypes", mealTypes, "missingMembers", missing));
     }
 

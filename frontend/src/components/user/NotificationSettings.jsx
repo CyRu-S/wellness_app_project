@@ -13,22 +13,24 @@ export default function NotificationSettings() {
   const n = useSelector((state) => state.notifications);
   const admin = useSelector((state) => state.auth.user?.role === 'ADMIN');
   const save = (key, value) => dispatch(saveNotificationPreferences({ ...notificationPreferences(n), [key]: value }));
-  const options = [...(admin ? [['dailyDigest', t('morningDigest'), n.dailyDigest]] : []),
+  const options = [['notificationsEnabled', t('appNotifications'), n.notificationsEnabled, t('appNotificationsDetail')],
+    ...(admin ? [['dailyDigest', t('morningDigest'), n.dailyDigest]] : []),
     ['customSound', t('themeRingtone'), n.customSound, t('themeRingtoneDetail')]];
   const retry = () => dispatch(n.failedPreferences ? saveNotificationPreferences(n.failedPreferences) : loadNotificationPreferences());
   return <View style={styles.card}>
     <Text style={styles.title}>{t('remindersNotifications')}</Text>
-    <Text style={styles.required}>Notifications are required for scheduled reminders and coach updates. You can keep them silent.</Text>
+    <Text style={styles.required}>Choose whether this account receives push notifications. Sound is a separate option.</Text>
     {options.map(([key, label, value, detail]) =>
       <View key={key} style={styles.row}><View style={styles.copy}><Text style={styles.label}>{label}</Text>{detail ? <Text style={styles.detail}>{detail}</Text> : null}</View><Switch accessibilityLabel={label} value={value}
-        disabled={!n.preferencesLoaded || n.savingPreferences} onValueChange={(next) => save(key, next)}
+        disabled={!n.preferencesLoaded || n.savingPreferences || (key !== 'notificationsEnabled' && !n.notificationsEnabled)} onValueChange={(next) => save(key, next)}
         trackColor={{ false: colors.line, true: colors.accent }} thumbColor={colors.white} /></View>)}
     {!n.preferencesLoaded && !n.preferencesError ? <ActivityIndicator accessibilityLabel={t('loadingNotificationPreferences')} color={colors.tealMid} /> : null}
     <SyncFeedback pending={n.savingPreferences} error={n.preferencesError} label={t('notificationPreferences')} onRetry={retry} />
-    {n.push.status === 'enabled' && n.pushAvailable ? <Text style={styles.note}>{t('phoneNotificationsOn')}</Text> : null}
+    {!n.notificationsEnabled ? <Text style={styles.note}>{t('appNotificationsOff')}</Text> : null}
+    {n.notificationsEnabled && n.push.status === 'enabled' && n.pushAvailable ? <Text style={styles.note}>{t('phoneNotificationsOn')}</Text> : null}
     {n.preferencesLoaded && !n.pushAvailable ? <Text style={styles.note}>{t('phoneDeliveryUnavailable')}</Text> : null}
     {['unsupported', 'denied', 'error'].includes(n.push.status) && n.push.message ? <Text style={styles.note}>{n.push.message}</Text> : null}
-    {!['unsupported', 'enabled', 'registering'].includes(n.push.status) ? <Pressable style={styles.button} accessibilityRole="button"
+    {n.notificationsEnabled && !['unsupported', 'enabled', 'registering'].includes(n.push.status) ? <Pressable style={styles.button} accessibilityRole="button"
       onPress={() => n.push.status === 'denied' ? Linking.openSettings().catch(() => dispatch(retryPushRegistration())) : dispatch(retryPushRegistration())}>
       <Text style={styles.buttonText}>{n.push.status === 'denied' ? t('openAndroidSettings') : t('enablePhoneNotifications')}</Text></Pressable> : null}
     {n.push.status === 'registering' ? <ActivityIndicator accessibilityLabel={t('connectingPhoneNotifications')} color={colors.tealMid} /> : null}

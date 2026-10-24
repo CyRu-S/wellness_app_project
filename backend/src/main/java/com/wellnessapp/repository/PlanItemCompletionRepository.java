@@ -9,4 +9,5 @@ public interface PlanItemCompletionRepository extends JpaRepository<PlanItemComp
     boolean existsByPlanItemIdAndUserIdAndCompletedDate(Long planItemId, Long userId, LocalDate completedDate);
     Optional<PlanItemCompletion> findByPlanItemIdAndUserIdAndCompletedDate(Long planItemId, Long userId, LocalDate completedDate);
     List<PlanItemCompletion> findByUserIdAndCompletedDate(Long userId, LocalDate completedDate);
+    List<PlanItemCompletion> findByUserIdInAndCompletedDate(Collection<Long> userIds, LocalDate completedDate);
 }

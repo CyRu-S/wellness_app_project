@@ -15,7 +15,7 @@ async function snapshotKey(token) {
 }
 
 function snapshotData(state) {
-  const { dashboard, meals, activity, plan, notifications, admin, profile, memberAccess, adminMemberJournal } = state;
+  const { dashboard, meals, activity, plan, notifications, admin, profile, memberAccess, adminMemberJournal, leaderboard } = state;
   return {
     dashboard: { completion: dashboard.completion, waterGlasses: dashboard.waterGlasses, waterTarget: dashboard.waterTarget,
       waterGoalMl: dashboard.waterGoalMl, streak: dashboard.streak, calories: dashboard.calories, protein: dashboard.protein,
@@ -28,7 +28,7 @@ function snapshotData(state) {
       coachNudgesEnabled: notifications.coachNudgesEnabled, preferencesLoaded: notifications.preferencesLoaded,
       pushAvailable: notifications.pushAvailable, signupAlerts: notifications.signupAlerts, deadlineAlerts: notifications.deadlineAlerts,
       dailyDigest: notifications.dailyDigest, memberUpdates: notifications.memberUpdates, accountUpdates: notifications.accountUpdates,
-      customSound: notifications.customSound },
+      customSound: notifications.customSound, notificationsEnabled: notifications.notificationsEnabled },
     admin: { summary: admin.summary, members: admin.members, approvals: admin.approvals, attention: admin.attention,
       products: admin.products,
       memberMealPlans: admin.memberMealPlans, memberMealPostHistory: admin.memberMealPostHistory, mealInsights: admin.mealInsights,
@@ -40,6 +40,8 @@ function snapshotData(state) {
     memberAccess: { overview: memberAccess.overview, shared: memberAccess.shared, sharedMembers: memberAccess.sharedMembers,
       todayByMemberId: memberAccess.todayByMemberId, source: memberAccess.source },
     adminMemberJournal: { byMemberId: adminMemberJournal.byMemberId },
+    leaderboard: { date: leaderboard?.date || null, generatedAt: leaderboard?.generatedAt || null, viewerId: leaderboard?.viewerId || null,
+      rows: leaderboard?.rows || [], status: leaderboard?.rows?.length ? 'succeeded' : 'idle' },
   };
 }
 

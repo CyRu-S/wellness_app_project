@@ -88,10 +88,12 @@ class PushNotificationIntegrationTests {
         mvc.perform(put("/api/notifications/devices").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent());
         assertThat(devices.count()).isEqualTo(1);
         mvc.perform(put("/api/notifications/preferences").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"mealReminders\":false,\"coachNudges\":true,\"customSound\":false}")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.mealReminders").value(true)).andExpect(jsonPath("$.customSound").value(false));
+                .content("{\"mealReminders\":false,\"coachNudges\":true,\"customSound\":false,\"notificationsEnabled\":false}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.mealReminders").value(true)).andExpect(jsonPath("$.customSound").value(false))
+                .andExpect(jsonPath("$.notificationsEnabled").value(false));
         mvc.perform(get("/api/notifications/preferences").header("Authorization", auth(member))).andExpect(jsonPath("$.mealReminders").value(true))
-                .andExpect(jsonPath("$.coachNudges").value(true)).andExpect(jsonPath("$.customSound").value(false));
+                .andExpect(jsonPath("$.coachNudges").value(true)).andExpect(jsonPath("$.customSound").value(false))
+                .andExpect(jsonPath("$.notificationsEnabled").value(false));
     }
     @Test void pendingAccountCannotRegister() throws Exception {
         member.setStatus(User.Status.PENDING); users.saveAndFlush(member);
@@ -220,7 +222,7 @@ class PushNotificationIntegrationTests {
         assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isEqualTo(1);
         assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
         assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(admin.getId()).getFirst().getTitle())
-                .isEqualTo("Push Test: Breakfast check-in overdue");
+                .isEqualTo("Push Test · Breakfast");
         meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); worker.sendPending();
         assertThat(deliveries.findAll()).hasSize(1).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
         verifyNoInteractions(expo);
@@ -231,7 +233,7 @@ class PushNotificationIntegrationTests {
                 .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
         when(expo.send(anyList())).thenAnswer(call -> {
             String payload = json.writeValueAsString(call.getArgument(0));
-            assertThat(payload).contains("Push Test", "Breakfast check-in overdue", "Oats");
+            assertThat(payload).contains("Push Test · Breakfast", "Review the scheduled meal check-in in Attention.");
             return json.readTree("[{\"status\":\"ok\",\"id\":\"specific-admin-alert\"}]");
         });
         reminders.refresh();
@@ -246,7 +248,7 @@ class PushNotificationIntegrationTests {
         assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(1);
         assertThat(count(PushDelivery.Kind.NUDGE, second)).isEqualTo(1);
         assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).getFirst().getTitle())
-                .isEqualTo("Hydration check-in");
+                .isEqualTo("Push · Hydration");
     }
     @Test void overdueMealNudgeReachesMemberAndIsIdempotent() {
         var admin = admin();
@@ -305,6 +307,17 @@ class PushNotificationIntegrationTests {
             assertThat(count(kind, admin)).isEqualTo(1);
         }
         assertThat(deliveries.count()).isEqualTo(4);
+    }
+    @Test void masterSwitchStopsNewAndAlreadyQueuedPushes() throws Exception {
+        var row = queuedTest();
+        mvc.perform(put("/api/notifications/preferences").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"mealReminders\":true,\"coachNudges\":true,\"notificationsEnabled\":false}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.notificationsEnabled").value(false));
+        worker.sendPending();
+        assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
+        notices.notify(member, PushDelivery.Kind.NUDGE, "disabled-push", "Push · Reminder", "Complete today's task.");
+        assertThat(deliveries.count()).isEqualTo(1);
+        verifyNoInteractions(expo);
     }
     @Test void inboxAndReadEndpointCannotAccessAnotherAccountsNotifications() throws Exception {
         var admin = admin(); notices.notify(admin, PushDelivery.Kind.TEST, "owner", "Admin only", "Private inbox detail");

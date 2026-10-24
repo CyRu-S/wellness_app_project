@@ -84,8 +84,8 @@ public class MealPostService {
                 meals.saveAndFlush(plannedMeal);
             }
             notices.admins(PushDelivery.Kind.MEAL_POST, "meal-post-" + post.getId(),
-                    user.getFullName() + ": " + post.getMealType() + " logged",
-                    user.getFullName() + " posted " + post.getMealName() + ". Review it in their member profile.");
+                    user.getFullName() + " · " + post.getMealType(),
+                    "Review " + post.getMealName() + " in the member profile.");
             return response(post);
         } catch (RuntimeException exception) {
             mediaStorage.deleteQuietly(stored.key());

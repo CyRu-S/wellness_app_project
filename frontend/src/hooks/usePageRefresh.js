@@ -13,8 +13,9 @@ import { loadProfile } from '../store/slices/profileSlice';
 import { loadNotifications, loadNotificationPreferences } from '../store/slices/notificationSlice';
 import { loadSharedMembers, loadSharedMemberToday, loadAdminMemberAccess } from '../store/slices/memberAccessSlice';
 import { loadAdminMemberJournal } from '../store/slices/adminMemberJournalSlice';
+import { loadLeaderboard } from '../store/slices/leaderboardSlice';
 
-const LIVE_SYNC_PAGES = new Set(['AdminDashboard', 'Reports', 'Dashboard', 'TodayTimeline', 'UserDetails', 'SharedMemberToday']);
+const LIVE_SYNC_PAGES = new Set(['AdminDashboard', 'Reports', 'Dashboard', 'TodayTimeline', 'UserDetails', 'SharedMemberToday', 'Leaderboard']);
 
 export default function usePageRefresh() {
   const route = useRoute();
@@ -26,12 +27,13 @@ export default function usePageRefresh() {
   const memberId = route.params?.memberId ?? route.params?.id;
   const config = useCallback((force = false) => {
     if (['AdminDashboard', 'Reports', 'DietPlans'].includes(name))
-      return { paths: ['/admin/workspace', '/admin/members', '/admin/approvals'], actions: [loadAdminMembers({ force })] };
+      return { paths: ['/admin/workspace', '/admin/members', '/admin/approvals', '/leaderboard'], actions: [loadAdminMembers({ force }), loadLeaderboard({ force })] };
     if (name === 'Products') return { paths: ['/admin/products'], actions: [loadAdminProducts()] };
     if (name === 'Alerts') return { paths: ['/admin/attention'], actions: [loadAdminAttention()] };
     if (name === 'UserList') return { paths: ['/admin/members'], actions: [loadAdminDirectory()] };
     if (name === 'UserRequests') return { paths: ['/admin/approvals'], actions: [loadAdminApprovals()] };
-    if (name === 'Dashboard') return { paths: ['/dashboard', '/meals/today', '/plans/today', '/meal-posts'], actions: [refreshDashboard(), loadMeals(), loadPlan()] };
+    if (name === 'Dashboard') return { paths: ['/dashboard', '/meals/today', '/plans/today', '/meal-posts', '/leaderboard'], actions: [refreshDashboard(), loadMeals(), loadPlan(), loadLeaderboard({ force })] };
+    if (name === 'Leaderboard') return { paths: ['/leaderboard'], actions: [loadLeaderboard({ force })] };
     if (['TodayTimeline', 'MealDetails'].includes(name)) return { paths: ['/meals/today', '/plans/today', '/meal-posts'], actions: [loadMeals()] };
     if (name === 'ActivityTimer' || name === 'Move') return { paths: ['/activities'], actions: [loadActivities()] };
     if (name === 'DailyPlan') return { paths: ['/plans/today'], actions: [loadPlan()] };
@@ -76,7 +78,7 @@ export default function usePageRefresh() {
     if (!LIVE_SYNC_PAGES.has(name)) return undefined;
     // Keep installed PWAs and the Android app consistent when another device
     // posts a meal, completes a task, or logs water while this page stays open.
-    const timer = setInterval(() => load(), 30000);
+    const timer = setInterval(() => load(), name === 'Leaderboard' ? 15000 : 30000);
     return () => clearInterval(timer);
   }, [load, name]));
   return { refreshing, onRefresh: useCallback(() => load(true), [load]), enabled: !!token && !!config() };

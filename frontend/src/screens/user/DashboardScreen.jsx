@@ -19,6 +19,7 @@ import { completeHealthyHabit } from '../../store/slices/planSlice';
 import { confirmRetry } from '../../utils/confirmRetry';
 import Alert from '../../utils/appAlert';
 import { colors, fonts, radius, shadows, type } from '../../theme';
+import { selectLeaderboard } from '../../store/slices/leaderboardSlice';
 
 const greeting = () => {
   const hour = new Date().getHours();
@@ -31,6 +32,7 @@ export default function DashboardScreen({ navigation }) {
   const activity = useSelector((state) => state.activity);
   const meals = useSelector((state) => state.meals);
   const plan = useSelector((state) => state.plan);
+  const leaderboard = useSelector(selectLeaderboard);
   const dispatch = useDispatch();
   const [waterComplete, setWaterComplete] = useState(false);
   const previousWater = useRef(null);
@@ -86,6 +88,14 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.quickStat}><Text style={styles.quickValue}>{dashboard.streak}</Text><Text style={styles.quickLabel}>DAY STREAK</Text></View>
       </StaggeredView>
 
+      <StaggeredView delay={195}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open today's live leaderboard" onPress={() => navigation.navigate('Leaderboard')} style={({ pressed }) => [styles.leaderboard, pressed && styles.pressed]}>
+          <View style={styles.leaderboardHead}><View><Text style={styles.eyebrow}>LIVE TODAY</Text><Text style={styles.leaderboardTitle}>Community leaderboard</Text></View><Ionicons name="arrow-forward" size={19} color={colors.tealDark} /></View>
+          {leaderboard.slice(0, 3).map((member) => <View key={member.memberId} style={styles.leaderboardRow}><Text style={styles.leaderboardRank}>{String(member.rank).padStart(2, '0')}</Text><Text numberOfLines={1} style={styles.leaderboardName}>{member.name}{member.viewer ? ' · You' : ''}</Text><Text style={styles.leaderboardScore}>{member.score}%</Text></View>)}
+          {!leaderboard.length ? <Text style={styles.leaderboardEmpty}>Standings update as today’s check-ins are logged.</Text> : null}
+        </Pressable>
+      </StaggeredView>
+
       {overdue.length ? <StaggeredView delay={210} style={styles.alert}><Ionicons name="alert-circle" size={20} color={colors.danger} /><View style={styles.alertCopy}><Text style={styles.alertTitle}>{overdue.length} timeline check-in{overdue.length > 1 ? 's' : ''} overdue</Text><Text style={styles.alertMeta}>Open Log when you are ready to add the photo.</Text></View></StaggeredView> : null}
 
       <StaggeredView delay={240} style={styles.section}>
@@ -122,6 +132,14 @@ const styles = StyleSheet.create({
   alert: { flexDirection: 'row', alignItems: 'center', gap: 10, borderLeftWidth: 3, borderLeftColor: colors.danger, backgroundColor: '#FFF4F2', borderRadius: radius.sm, padding: 13, marginTop: 14 }, alertCopy: { flex: 1 }, alertTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 13 }, alertMeta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 2 },
   section: { marginTop: 32 }, sectionHead: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }, sectionTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 21, marginTop: 5 }, sectionMeta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 4 }, allLink: { color: colors.tealMid, fontFamily: fonts.semibold, fontSize: 12 },
   activitySummary: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 15, paddingVertical: 18, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }, activityIcon: { width: 50, height: 50, borderRadius: 17, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }, activityCopy: { flex: 1 }, activityName: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16 }, activityMeta: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, marginTop: 4 }, activityValue: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 22, textAlign: 'right' }, activityLabel: { ...type.label, color: colors.muted, fontSize: 10, textAlign: 'right' },
+  leaderboard: { marginTop: 26, paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
+  leaderboardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  leaderboardTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 20, marginTop: 4 },
+  leaderboardRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  leaderboardRank: { width: 35, color: colors.tealMid, fontFamily: fonts.semibold, fontSize: 11 },
+  leaderboardName: { flex: 1, color: colors.ink, fontFamily: fonts.medium, fontSize: 13 },
+  leaderboardScore: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 14 },
+  leaderboardEmpty: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, paddingVertical: 8 },
   habitList: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   habitRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   habitCheck: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },

@@ -16,8 +16,8 @@ import {
   selectAdminMealInsights,
   selectAdminSummary,
   nudgeClubHydration,
-  selectAdminLeaderboard,
 } from '../../store/slices/adminSlice';
+import { selectLeaderboard } from '../../store/slices/leaderboardSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 import { selectUnreadNotificationCount } from '../../store/slices/notificationSlice';
 import Alert from '../../utils/appAlert';
@@ -135,7 +135,7 @@ export default function AdminDashboardScreen({ navigation }) {
   const approvals = useSelector(selectAdminApprovals);
   const attention = useSelector(selectAdminAttention);
   const insights = useSelector(selectAdminMealInsights);
-  const leaderboard = useSelector(selectAdminLeaderboard);
+  const leaderboard = useSelector(selectLeaderboard);
   const hydrationNudge = useSelector((state) => state.admin.hydrationNudge);
   const admin = useSelector((state) => state.auth.user);
   const reduceMotion = useReducedMotion();
@@ -452,9 +452,9 @@ export default function AdminDashboardScreen({ navigation }) {
       </Reveal>
 
       <Reveal delay={215} reduceMotion={reduceMotion}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open yesterday’s diet-plan leaderboard" onPress={() => openRoute('Leaderboard')} style={({ pressed }) => [styles.leaderboard, pressed && styles.panelPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open today's live leaderboard" onPress={() => openRoute('Leaderboard')} style={({ pressed }) => [styles.leaderboard, pressed && styles.panelPressed]}>
           <View style={styles.leaderboardHead}>
-            <View><Text style={styles.sectionEyebrow}>YESTERDAY</Text><Text style={styles.leaderboardTitle}>Diet-plan leaderboard</Text></View>
+            <View><Text style={styles.sectionEyebrow}>LIVE TODAY</Text><Text style={styles.leaderboardTitle}>Wellness leaderboard</Text></View>
             <View style={styles.leaderboardArrow}><Ionicons name="arrow-forward" size={18} color={adminColors.white} /></View>
           </View>
           {leaderboard.slice(0, 3).map((member) => (
@@ -464,7 +464,7 @@ export default function AdminDashboardScreen({ navigation }) {
               <Text style={styles.leaderboardScore}>{member.score}%</Text>
             </View>
           ))}
-          {!leaderboard.length ? <Text style={styles.leaderboardEmpty}>Yesterday’s results will appear after members begin following their meal plans.</Text> : null}
+          {!leaderboard.length ? <Text style={styles.leaderboardEmpty}>Today’s standings update as members log meals, water and movement.</Text> : null}
         </Pressable>
       </Reveal>
 

@@ -17,11 +17,12 @@ public class PushNotificationController {
             @NotBlank @Pattern(regexp = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}") String registrationId) {}
     public record PreferencesRequest(@NotNull Boolean mealReminders, @NotNull Boolean coachNudges,
             Boolean signupAlerts, Boolean deadlineAlerts, Boolean dailyDigest, Boolean memberUpdates, Boolean accountUpdates,
-            Boolean customSound) {}
+            Boolean customSound, Boolean notificationsEnabled) {}
     @GetMapping("/preferences") public PushAccountService.Preferences preferences(Authentication auth) { return accounts.preferences(auth.getName()); }
     @PutMapping("/preferences") public PushAccountService.Preferences save(Authentication auth, @Valid @RequestBody PreferencesRequest body) {
         return accounts.savePreferences(auth.getName(), body.mealReminders(), body.coachNudges(),
-                body.signupAlerts(), body.deadlineAlerts(), body.dailyDigest(), body.memberUpdates(), body.accountUpdates(), body.customSound());
+                body.signupAlerts(), body.deadlineAlerts(), body.dailyDigest(), body.memberUpdates(), body.accountUpdates(),
+                body.customSound(), body.notificationsEnabled());
     }
     @PutMapping("/devices") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void register(Authentication auth, @Valid @RequestBody DeviceRequest body) { accounts.register(auth.getName(), body.token(), body.registrationId()); }

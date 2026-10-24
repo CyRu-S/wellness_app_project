@@ -17,10 +17,10 @@ public class PushQueueService {
     private final Clock clock;
 
     public boolean allowed(Long userId, PushDelivery.Kind kind) {
-        // Operational notifications are required. Only the optional morning digest
-        // can be disabled; sound remains a separate user choice.
+        var preference = preferences.findById(userId).orElse(null);
+        if (preference != null && !preference.isNotificationsEnabled()) return false;
         if (kind != PushDelivery.Kind.DIGEST) return true;
-        return preferences.findById(userId).map(NotificationPreferences::isDailyDigest).orElse(false);
+        return preference != null && preference.isDailyDigest();
     }
 
     public boolean customSound(Long userId) {

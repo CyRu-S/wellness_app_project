@@ -39,6 +39,7 @@ class PersistentWorkflowIntegrationTests {
     @Autowired MissedEventRepository missed;
     @Autowired NotificationRepository notifications;
     @Autowired WaterLogRepository water;
+    @Autowired ActivitySessionRepository activities;
     @Autowired jakarta.persistence.EntityManager entityManager;
     @Autowired NotificationService notificationService;
     @Autowired JwtTokenProvider tokens;
@@ -309,29 +310,58 @@ class PersistentWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.mealInsights.ranges['30D'].series.length()").value(30));
     }
 
-    @Test void leaderboardRewardsDietPlanCompletionAndTimelyMealPosts() throws Exception {
+    @Test void liveLeaderboardRanksExactTimingAndDropsAfterMealWaterAndActivityDeletion() throws Exception {
         var timelyMember = approve("timely@example.com");
         var lateMember = approve("late@example.com");
-        var day = LocalDate.of(2026, 9, 4);
+        var day = LocalDate.of(2026, 9, 5);
         var timelyMeal = meals.saveAndFlush(Meal.builder().user(timelyMember).type("Breakfast").name("Oats")
                 .mealDate(day).mealTime(LocalTime.of(8, 0)).calories(400).proteinGrams(20).consumed(true).build());
         var lateMeal = meals.saveAndFlush(Meal.builder().user(lateMember).type("Breakfast").name("Oats")
                 .mealDate(day).mealTime(LocalTime.of(8, 0)).calories(400).proteinGrams(20).consumed(true).build());
-        posts.saveAndFlush(mealPost(timelyMember, timelyMeal, Instant.parse("2026-09-04T02:40:00Z"), "timely-post"));
-        posts.saveAndFlush(mealPost(lateMember, lateMeal, Instant.parse("2026-09-04T04:00:00Z"), "late-post"));
+        var timelyPost = posts.saveAndFlush(mealPost(timelyMember, timelyMeal, Instant.parse("2026-09-05T02:28:00Z"), "timely-post"));
+        posts.saveAndFlush(mealPost(lateMember, lateMeal, Instant.parse("2026-09-05T02:27:00Z"), "late-post"));
 
-        mvc.perform(get("/api/admin/workspace").header("Authorization", admin()))
+        mvc.perform(get("/api/leaderboard").header("Authorization", token(timelyMember)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.leaderboard[0].memberId").value(timelyMember.getId()))
-                .andExpect(jsonPath("$.leaderboard[0].score").value(100))
-                .andExpect(jsonPath("$.leaderboard[0].adherenceScore").value(100))
-                .andExpect(jsonPath("$.leaderboard[0].timingScore").value(100))
-                .andExpect(jsonPath("$.leaderboard[0].onTimePosts").value(1))
-                .andExpect(jsonPath("$.leaderboard[0].averageTimingMinutes").value(10))
-                .andExpect(jsonPath("$.leaderboard[1].memberId").value(lateMember.getId()))
-                .andExpect(jsonPath("$.leaderboard[1].score").value(65))
-                .andExpect(jsonPath("$.leaderboard[1].onTimePosts").value(0))
-                .andExpect(jsonPath("$.leaderboard[1].averageTimingMinutes").value(90));
+                .andExpect(jsonPath("$.rows[0].memberId").value(timelyMember.getId()))
+                .andExpect(jsonPath("$.rows[0].viewer").value(true))
+                .andExpect(jsonPath("$.rows[0].averageTimingMinutes").value(2))
+                .andExpect(jsonPath("$.rows[1].memberId").value(lateMember.getId()))
+                .andExpect(jsonPath("$.rows[1].averageTimingMinutes").value(3));
+
+        mvc.perform(post("/api/water").header("Authorization", token(timelyMember)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amountMl\":250}")).andExpect(status().isCreated());
+        mvc.perform(post("/api/activities").header("Authorization", token(timelyMember)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"activity\":\"Walk\",\"durationSeconds\":1800,\"distanceKm\":2.0}"))
+                .andExpect(status().isCreated());
+        var fullRows = json.readTree(mvc.perform(get("/api/leaderboard").header("Authorization", token(timelyMember)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("rows");
+        int fullScore = leaderboardScore(fullRows, timelyMember.getId());
+
+        mvc.perform(delete("/api/activities").header("Authorization", token(timelyMember))).andExpect(status().isNoContent());
+        var afterActivity = json.readTree(mvc.perform(get("/api/leaderboard").header("Authorization", admin()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("rows");
+        int withoutActivity = leaderboardScore(afterActivity, timelyMember.getId());
+        assertThat(withoutActivity).isLessThan(fullScore);
+
+        mvc.perform(delete("/api/water").header("Authorization", token(timelyMember))).andExpect(status().isNoContent());
+        var afterWater = json.readTree(mvc.perform(get("/api/leaderboard").header("Authorization", token(timelyMember)))
+                .andReturn().getResponse().getContentAsString()).path("rows");
+        int withoutWater = leaderboardScore(afterWater, timelyMember.getId());
+        assertThat(withoutWater).isLessThan(withoutActivity);
+
+        mvc.perform(delete("/api/meal-posts/{id}", timelyPost.getId()).header("Authorization", token(timelyMember)))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/leaderboard").header("Authorization", token(lateMember)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rows[0].memberId").value(lateMember.getId()))
+                .andExpect(jsonPath("$.rows[1].memberId").value(timelyMember.getId()))
+                .andExpect(jsonPath("$.rows[1].score").value(0));
+    }
+
+    private int leaderboardScore(com.fasterxml.jackson.databind.JsonNode rows, Long memberId) {
+        return java.util.stream.StreamSupport.stream(rows.spliterator(), false)
+                .filter(row -> row.path("memberId").asLong() == memberId).findFirst().orElseThrow().path("score").asInt();
     }
 
     private MealPost mealPost(User user, Meal meal, Instant postedAt, String requestId) {
@@ -360,7 +390,8 @@ class PersistentWorkflowIntegrationTests {
         reminders.refresh();
         assertThat(notifications.findAll().stream().filter(event -> event.getUser().getRole() == User.Role.ADMIN
                 && event.getKind() == PushDelivery.Kind.DEADLINE).toList())
-                .hasSize(1).allMatch(event -> event.getBody().contains("Oats") && event.getBody().contains("08:00"));
+                .hasSize(1).allMatch(event -> event.getTitle().contains("Breakfast")
+                        && event.getBody().equals("Review the scheduled meal check-in in Attention."));
     }
 
     @Test void hydrationDeadlineUsesLocalDayGoalAndResolvesWhenGoalIsMet() throws Exception {

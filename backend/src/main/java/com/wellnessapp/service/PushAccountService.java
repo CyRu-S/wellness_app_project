@@ -18,11 +18,11 @@ public class PushAccountService {
     private final Clock clock;
     @Value("${app.push.enabled:false}") private boolean enabled;
     @Value("${app.schedulers.enabled:true}") private boolean schedulersEnabled;
-    public record Preferences(boolean mealReminders, boolean coachNudges, boolean pushAvailable,
+    public record Preferences(boolean notificationsEnabled, boolean mealReminders, boolean coachNudges, boolean pushAvailable,
             boolean signupAlerts, boolean deadlineAlerts, boolean dailyDigest, boolean memberUpdates, boolean accountUpdates,
             boolean customSound) {}
     private Preferences response(NotificationPreferences p) {
-        return new Preferences(true, true, enabled && schedulersEnabled,
+        return new Preferences(p.isNotificationsEnabled(), true, true, enabled && schedulersEnabled,
                 true, true, p.isDailyDigest(), true, true, p.isCustomSound());
     }
 
@@ -31,14 +31,15 @@ public class PushAccountService {
         return response(preferences.findById(user(email).getId()).orElseGet(NotificationPreferences::new));
     }
     @Transactional public Preferences savePreferences(String email, boolean meals, boolean nudges) {
-        return savePreferences(email, meals, nudges, null, null, null, null, null);
+        return savePreferences(email, meals, nudges, null, null, null, null, null, null, null);
     }
     @Transactional public Preferences savePreferences(String email, boolean meals, boolean nudges,
             Boolean signup, Boolean deadline, Boolean digest, Boolean updates, Boolean account) {
-        return savePreferences(email, meals, nudges, signup, deadline, digest, updates, account, null);
+        return savePreferences(email, meals, nudges, signup, deadline, digest, updates, account, null, null);
     }
     @Transactional public Preferences savePreferences(String email, boolean meals, boolean nudges,
-            Boolean signup, Boolean deadline, Boolean digest, Boolean updates, Boolean account, Boolean customSound) {
+            Boolean signup, Boolean deadline, Boolean digest, Boolean updates, Boolean account, Boolean customSound,
+            Boolean notificationsEnabled) {
         var user = user(email); users.lockById(user.getId()).orElseThrow();
         var row = preferences.findById(user.getId()).orElseGet(() -> { var p = new NotificationPreferences(); p.setUser(user); return p; });
         row.setMealReminders(true); row.setCoachNudges(true);
@@ -48,6 +49,7 @@ public class PushAccountService {
         row.setMemberUpdates(true);
         row.setAccountUpdates(true);
         if (customSound != null) row.setCustomSound(customSound);
+        if (notificationsEnabled != null) row.setNotificationsEnabled(notificationsEnabled);
         preferences.save(row);
         return response(row);
     }

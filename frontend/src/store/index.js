@@ -10,10 +10,11 @@ import profile from './slices/profileSlice';
 import memberAccess from './slices/memberAccessSlice';
 import adminMemberJournal from './slices/adminMemberJournalSlice';
 import toast, { showToast } from './slices/toastSlice';
+import leaderboard, { loadLeaderboard } from './slices/leaderboardSlice';
 import { schedulePersistedState } from '../services/storage/persistedState';
 import { writeSession } from '../services/storage/sessionStorage';
 
-const combined = combineReducers({ auth, dashboard, plan, meals, activity, notifications, admin, profile, memberAccess, adminMemberJournal, toast });
+const combined = combineReducers({ auth, dashboard, plan, meals, activity, notifications, admin, profile, memberAccess, adminMemberJournal, leaderboard, toast });
 const reducer = (state, action) => {
   if (action.type === 'app/hydrateCachedState' && state?.auth?.token && String(state.auth.user?.id) === String(action.payload?.userId)) {
     const defaults = combined(undefined, { type: '@@INIT' });
@@ -42,6 +43,7 @@ const sessionGuard = (store) => {
 };
 const completionToasts = createListenerMiddleware();
 const persistAccountDetails = createListenerMiddleware();
+const refreshLiveLeaderboard = createListenerMiddleware();
 persistAccountDetails.startListening({
   matcher: (action) => ['profile/saveDetails/fulfilled', 'profile/savePhoto/fulfilled'].includes(action.type),
   effect: async (_, api) => {
@@ -66,5 +68,15 @@ completionToasts.startListening({
     api.dispatch(showToast({ kind: 'meal', title: 'Congratulations! Meal check-in complete', message: `${action.payload.mealName || action.meta.arg.mealName} is now part of today’s progress. Well done!` }));
   },
 });
-export const store = configureStore({ reducer, middleware: (getDefault) => getDefault().concat(sessionGuard, completionToasts.middleware, persistAccountDetails.middleware) });
+refreshLiveLeaderboard.startListening({
+  matcher: (action) => [
+    'dashboard/drinkWater/fulfilled', 'dashboard/clearWater/fulfilled',
+    'activity/complete/fulfilled', 'activity/clear/fulfilled',
+    'meals/post/fulfilled', 'meals/deletePost/fulfilled', 'plan/completeHabit/fulfilled',
+  ].includes(action.type),
+  effect: (_, api) => {
+    if (api.getState().auth.token) api.dispatch(loadLeaderboard({ force: true }));
+  },
+});
+export const store = configureStore({ reducer, middleware: (getDefault) => getDefault().concat(sessionGuard, completionToasts.middleware, persistAccountDetails.middleware, refreshLiveLeaderboard.middleware) });
 store.subscribe(() => schedulePersistedState(store.getState()));

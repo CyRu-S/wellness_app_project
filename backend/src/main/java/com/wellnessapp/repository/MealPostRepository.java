@@ -11,6 +11,7 @@ public interface MealPostRepository extends JpaRepository<MealPost, Long> {
     @org.springframework.data.jpa.repository.Query("select p.user.id, count(p) from MealPost p where p.postedAt >= :start and p.postedAt < :end group by p.user.id")
     List<Object[]> countsBetween(Instant start, Instant end);
     List<MealPost> findByPostedAtGreaterThanEqual(Instant start);
+    List<MealPost> findByPostedAtGreaterThanEqualAndPostedAtLessThan(Instant start, Instant end);
     Optional<MealPost> findByUserIdAndClientRequestId(Long userId, String clientRequestId);
     Optional<MealPost> findByPlannedMealId(Long plannedMealId);
     List<MealPost> findByUserIdAndPostedAtGreaterThanEqualAndPostedAtLessThanOrderByPostedAt(

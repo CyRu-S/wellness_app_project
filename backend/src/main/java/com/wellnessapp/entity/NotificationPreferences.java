@@ -8,6 +8,7 @@ import lombok.*;
 public class NotificationPreferences {
     @Id @Column(name = "user_id") private Long userId;
     @OneToOne @MapsId @JoinColumn(name = "user_id") private User user;
+    @Column(nullable = false) private boolean notificationsEnabled = true;
     @Column(nullable = false) private boolean mealReminders = true;
     @Column(nullable = false) private boolean coachNudges = true;
     @Column(nullable = false) private boolean signupAlerts = true;

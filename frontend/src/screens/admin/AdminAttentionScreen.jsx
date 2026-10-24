@@ -81,12 +81,14 @@ function AttentionCard({ item, token, onMember, onNudge, onResolve }) {
         <View style={styles.actions}>
           {!hydration ? <Pressable
             accessibilityRole="button"
+            accessibilityState={{ disabled: nudged }}
             accessibilityLabel={`Nudge ${item.memberName}`}
+            disabled={nudged}
             onPress={onNudge}
             style={({ pressed }) => [styles.nudge, nudged && styles.nudged, pressed && styles.pressed]}
           >
             <Ionicons name="notifications-outline" size={17} color={nudged ? adminColors.deepTeal : adminColors.white} />
-            <Text style={[styles.nudgeText, nudged && styles.nudgedText]}>{nudged ? 'Send again' : 'Send nudge'}</Text>
+            <Text style={[styles.nudgeText, nudged && styles.nudgedText]}>{nudged ? 'Nudge sent' : 'Send nudge'}</Text>
           </Pressable> : <View style={styles.centralNudgeNote}><Ionicons name="people-outline" size={16} color={adminColors.deepTeal} /><Text style={styles.centralNudgeText}>Use the club hydration reminder on Home</Text></View>}
           <Pressable
             accessibilityRole="button"

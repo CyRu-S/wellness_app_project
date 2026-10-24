@@ -6,6 +6,7 @@ import java.util.List;
 public interface ActivitySessionRepository extends JpaRepository<ActivitySession, Long> {
     List<ActivitySession> findByUserIdAndStartedAtAfter(Long userId, Instant after);
     List<ActivitySession> findByUserIdAndStartedAtGreaterThanEqualAndStartedAtLessThanOrderByStartedAt(Long userId, Instant start, Instant end);
+    List<ActivitySession> findByStartedAtGreaterThanEqualAndStartedAtLessThan(Instant start, Instant end);
     long deleteByUserId(Long userId);
 }
 
