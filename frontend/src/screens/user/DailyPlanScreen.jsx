@@ -35,7 +35,7 @@ export default function DailyPlanScreen({ navigation }) {
       <StaggeredView delay={220}>
         <Text {...fittedText} style={styles.sectionLabel}>TODAY’S RITUALS</Text>
         {plan.tasks.map((task, index) => (
-          <Pressable key={task.id} disabled={task.done || plan.completingId === task.id} onPress={() => task.type === 'HEALTHY_HABIT' ? dispatch(completeHealthyHabit(task.id)) : navigation.getParent()?.navigate('Log')} style={({ pressed }) => [styles.task, compactLayout && styles.taskCompact, pressed && styles.pressed]}>
+          <Pressable key={task.id} disabled={task.done || plan.completingId === task.id} onPress={() => task.type === 'HEALTHY_HABIT' ? dispatch(completeHealthyHabit(task.id)) : task.type === 'ACTIVITY' ? navigation.getParent()?.navigate('Move', { coachExerciseId: task.id }) : navigation.getParent()?.navigate('Log')} style={({ pressed }) => [styles.task, compactLayout && styles.taskCompact, pressed && styles.pressed]}>
             <View style={[styles.check, task.done && styles.checkDone]}>{task.done && <Ionicons name="checkmark" size={17} color={colors.white} />}</View>
             <View style={styles.copy}><Text {...fittedText} style={[styles.taskTitle, compactLayout && styles.taskTitleCompact, task.done && styles.done]}>{task.title}</Text><Text {...fittedText} style={[styles.detail, compactLayout && styles.detailCompact]}>{task.detail}</Text></View>
             <Text {...fittedText} style={styles.number}>0{index + 1}</Text>

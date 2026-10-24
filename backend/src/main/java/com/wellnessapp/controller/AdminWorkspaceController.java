@@ -21,4 +21,9 @@ public class AdminWorkspaceController {
     void resolve(@PathVariable Long id) { reminders.resolve(id); }
     @PostMapping("/attention/{id}/nudge") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     void nudge(@PathVariable Long id) { reminders.nudge(id); }
+    @PostMapping("/hydration/nudge-all")
+    Map<String, Object> nudgeHydrationForAll() {
+        int notified = reminders.nudgeHydrationForAll();
+        return Map.of("notified", notified);
+    }
 }

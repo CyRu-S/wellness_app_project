@@ -70,7 +70,8 @@ public class EmailVerificationService {
         code.setConsumedAt(now);
         user.setEmailVerifiedAt(now);
         notices.admins(PushDelivery.Kind.SIGNUP, "signup-" + user.getId(),
-                "New signup request", user.getFullName() + " has verified their email and requested membership.");
+                user.getFullName() + ": membership request",
+                user.getFullName() + " has verified their email and requested membership.");
         return new MessageResponse("Email verified. Your account is now awaiting admin approval.");
     }
 

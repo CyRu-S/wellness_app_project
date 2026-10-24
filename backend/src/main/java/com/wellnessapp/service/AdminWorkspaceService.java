@@ -108,32 +108,50 @@ public class AdminWorkspaceService {
         var approvals = pendingApprovals();
         var attention = reminders.attention();
         LocalDate date = LocalDate.now(clock.withZone(applicationZoneId));
-        var recent = posts.findByPostedAtGreaterThanEqual(date.minusDays(29).atStartOfDay(applicationZoneId).toInstant());
+        var recent = posts.findByPostedAtGreaterThanEqual(date.minusDays(59).atStartOfDay(applicationZoneId).toInstant());
         var todayPosts = recent.stream().filter(p -> p.getPostedAt().atZone(applicationZoneId).toLocalDate().equals(date)).toList();
+        var yesterdayPosts = recent.stream().filter(p -> p.getPostedAt().atZone(applicationZoneId).toLocalDate().equals(date.minusDays(1))).toList();
         var todayMeals = meals.findByMealDateOrderByMealTime(date);
         var history = meals.findByMealDateBetween(date.minusDays(59), date);
+        long todayLogged = loggedCount(todayMeals, todayPosts);
+        var yesterdayMeals = history.stream().filter(m -> m.getMealDate().equals(date.minusDays(1))).toList();
         int rate = todayMeals.isEmpty() ? 0 : (int) (todayMeals.stream().filter(Meal::isConsumed).count() * 100 / todayMeals.size());
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("pendingApprovals", approvals.size()); summary.put("totalMembers", members.size());
         summary.put("activeUsers", active.stream().filter(u -> u.getLastSeenAt() != null && u.getLastSeenAt().isAfter(clock.instant().minusSeconds(120))).count());
-        summary.put("mealLogsToday", todayPosts.size()); summary.put("mealComparison", comparison(todayPosts.size(), history.stream().filter(m -> m.isConsumed() && m.getMealDate().equals(date.minusDays(1))).count())); summary.put("missedItems", attention.size());
+        summary.put("mealLogsToday", todayLogged);
+        summary.put("membersWithMealLogsToday", loggedMemberIds(todayMeals, todayPosts).size());
+        summary.put("mealComparison", comparison(todayLogged, loggedCount(yesterdayMeals, yesterdayPosts))); summary.put("missedItems", attention.size());
         summary.put("averageAdherence", rate); summary.put("onTrackPercentage", rate);
         summary.put("activePlans", memberPlans.values().stream().filter(p -> !((Map<?, ?>) p).get("planName").equals("")).count()); summary.put("products", products.countByActiveTrue());
         Map<String, Object> ranges = new LinkedHashMap<>();
         for (int days : new int[]{1, 7, 30}) {
             var selected = recent.stream().filter(p -> !p.getPostedAt().atZone(applicationZoneId).toLocalDate().isBefore(date.minusDays(days - 1))).toList();
             var rangeMeals = history.stream().filter(m -> !m.getMealDate().isBefore(date.minusDays(days - 1))).toList();
-            long logged = rangeMeals.stream().filter(Meal::isConsumed).count();
-            long previousLogged = history.stream().filter(m -> m.isConsumed() && m.getMealDate().isBefore(date.minusDays(days - 1)) && !m.getMealDate().isBefore(date.minusDays(days * 2 - 1))).count();
-            int rangeRate = rangeMeals.isEmpty() ? 0 : (int) (logged * 100 / rangeMeals.size());
+            long logged = loggedCount(rangeMeals, selected);
+            var previousMeals = history.stream().filter(m -> m.getMealDate().isBefore(date.minusDays(days - 1)) && !m.getMealDate().isBefore(date.minusDays(days * 2 - 1))).toList();
+            var previousPosts = recent.stream().filter(p -> {
+                var postedDate = p.getPostedAt().atZone(applicationZoneId).toLocalDate();
+                return postedDate.isBefore(date.minusDays(days - 1)) && !postedDate.isBefore(date.minusDays(days * 2 - 1));
+            }).toList();
+            long previousLogged = loggedCount(previousMeals, previousPosts);
+            int rangeRate = rangeMeals.isEmpty() ? 0 : (int) (rangeMeals.stream().filter(Meal::isConsumed).count() * 100 / rangeMeals.size());
             List<Map<String, Object>> series = new ArrayList<>();
             if (logged > 0) {
                 int buckets = days == 1 ? 8 : days;
                 for (int i = 0; i < buckets; i++) {
                     final int bucket = i;
-                    long count = days == 1
-                            ? selected.stream().filter(p -> p.getPostedAt().atZone(applicationZoneId).getHour() / 3 == bucket).map(p -> p.getUser().getId()).distinct().count()
-                            : rangeMeals.stream().filter(m -> m.isConsumed() && m.getMealDate().equals(date.minusDays(days - 1 - bucket))).map(m -> m.getUser().getId()).distinct().count();
+                    Set<Long> memberIds = new HashSet<>();
+                    if (days == 1) {
+                        int cutoffHour = (bucket + 1) * 3;
+                        todayMeals.stream().filter(Meal::isConsumed).filter(m -> m.getMealTime().getHour() < cutoffHour).map(m -> m.getUser().getId()).forEach(memberIds::add);
+                        selected.stream().filter(p -> p.getPlannedMeal() == null && p.getPostedAt().atZone(applicationZoneId).getHour() < cutoffHour).map(p -> p.getUser().getId()).forEach(memberIds::add);
+                    } else {
+                        var bucketDate = date.minusDays(days - 1 - bucket);
+                        rangeMeals.stream().filter(Meal::isConsumed).filter(m -> m.getMealDate().equals(bucketDate)).map(m -> m.getUser().getId()).forEach(memberIds::add);
+                        selected.stream().filter(p -> p.getPlannedMeal() == null && p.getPostedAt().atZone(applicationZoneId).toLocalDate().equals(bucketDate)).map(p -> p.getUser().getId()).forEach(memberIds::add);
+                    }
+                    long count = memberIds.size();
                     series.add(Map.of("label", days == 1 ? String.format("%02d:00", i * 3) : date.minusDays(days - 1 - i).format(DateTimeFormatter.ofPattern("d MMM")),
                             "value", members.isEmpty() ? 0 : count * 100.0 / members.size()));
                 }
@@ -146,7 +164,79 @@ public class AdminWorkspaceService {
         }).toList();
         var missing = attention.stream().map(a -> Map.of("memberId", a.get("memberId"), "name", a.get("memberName"), "initials", a.get("initials"), "detail", a.get("title"), "severity", a.get("severity"))).toList();
         return Map.of("summary", summary, "members", members, "approvals", approvals, "attention", attention, "memberMealPlans", memberPlans,
+                "leaderboard", leaderboard(active, date.minusDays(1), recent),
                 "mealInsights", Map.of("selectedRange", "TODAY", "ranges", ranges, "mealTypes", mealTypes, "missingMembers", missing));
+    }
+
+    private long loggedCount(List<Meal> plannedMeals, List<com.wellnessapp.entity.MealPost> mealPosts) {
+        return plannedMeals.stream().filter(Meal::isConsumed).count()
+                + mealPosts.stream().filter(post -> post.getPlannedMeal() == null).count();
+    }
+
+    private Set<Long> loggedMemberIds(List<Meal> plannedMeals, List<com.wellnessapp.entity.MealPost> mealPosts) {
+        Set<Long> ids = plannedMeals.stream().filter(Meal::isConsumed).map(meal -> meal.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        mealPosts.stream().filter(post -> post.getPlannedMeal() == null).map(post -> post.getUser().getId()).forEach(ids::add);
+        return ids;
+    }
+
+    private List<Map<String, Object>> leaderboard(List<User> active, LocalDate day, List<MealPost> recentPosts) {
+        if (active.isEmpty()) return List.of();
+        var dayMeals = meals.findByMealDateOrderByMealTime(day).stream()
+                .collect(java.util.stream.Collectors.groupingBy(m -> m.getUser().getId()));
+        var postByMeal = recentPosts.stream()
+                .filter(post -> post.getPlannedMeal() != null && post.getPlannedMeal().getMealDate().equals(day))
+                .collect(java.util.stream.Collectors.toMap(post -> post.getPlannedMeal().getId(), post -> post));
+        var profileByUser = profiles.findByUserIdIn(active.stream().map(User::getId).toList()).stream()
+                .collect(java.util.stream.Collectors.toMap(p -> p.getUser().getId(), p -> p));
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (var user : active) {
+            var memberMeals = dayMeals.getOrDefault(user.getId(), List.of());
+            long completed = memberMeals.stream().filter(meal -> meal.isConsumed() || postByMeal.containsKey(meal.getId())).count();
+            var linkedPosts = memberMeals.stream().map(meal -> postByMeal.get(meal.getId())).filter(Objects::nonNull).toList();
+            int adherenceScore = memberMeals.isEmpty() ? 0 : (int) Math.round(completed * 100.0 / memberMeals.size());
+            int timingScore = memberMeals.isEmpty() ? 0 : (int) Math.round(memberMeals.stream()
+                    .mapToInt(meal -> punctualityScore(meal, postByMeal.get(meal.getId()))).sum() * 1.0 / memberMeals.size());
+            int score = (int) Math.round((adherenceScore + timingScore) / 2.0);
+            int averageTimingMinutes = linkedPosts.isEmpty() ? -1 : (int) Math.round(memberMeals.stream()
+                    .filter(meal -> postByMeal.containsKey(meal.getId()))
+                    .mapToLong(meal -> timingDifferenceMinutes(meal, postByMeal.get(meal.getId())))
+                    .average().orElse(0));
+            long onTimePosts = memberMeals.stream().filter(meal -> postByMeal.containsKey(meal.getId()))
+                    .filter(meal -> timingDifferenceMinutes(meal, postByMeal.get(meal.getId())) <= 15).count();
+            var profile = profileByUser.get(user.getId());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("memberId", user.getId()); row.put("name", user.getFullName());
+            row.put("initials", initials(user.getFullName()));
+            row.put("score", score); row.put("adherenceScore", adherenceScore); row.put("timingScore", timingScore);
+            row.put("mealsCompleted", completed); row.put("mealsPlanned", memberMeals.size());
+            row.put("postedMeals", linkedPosts.size()); row.put("onTimePosts", onTimePosts);
+            row.put("averageTimingMinutes", averageTimingMinutes);
+            row.put("profileImageUrl", profile == null || profile.getPhotoMediaKey() == null ? null
+                    : "/api/admin/users/" + user.getId() + "/profile-photo?v=" + profile.getPhotoMediaKey());
+            rows.add(row);
+        }
+        rows.sort(Comparator.<Map<String, Object>, Integer>comparing(row -> ((Number) row.get("score")).intValue()).reversed()
+                .thenComparingInt(row -> {
+                    int average = ((Number) row.get("averageTimingMinutes")).intValue();
+                    return average < 0 ? Integer.MAX_VALUE : average;
+                })
+                .thenComparing(row -> (String) row.get("name")));
+        for (int i = 0; i < rows.size(); i++) rows.get(i).put("rank", i + 1);
+        return List.copyOf(rows);
+    }
+
+    private int punctualityScore(Meal meal, MealPost post) {
+        if (post == null) return 0;
+        long difference = timingDifferenceMinutes(meal, post);
+        if (difference <= 15) return 100;
+        if (difference >= 120) return 0;
+        return (int) Math.round((120 - difference) * 100.0 / 105);
+    }
+
+    private long timingDifferenceMinutes(Meal meal, MealPost post) {
+        Instant scheduledAt = ZonedDateTime.of(meal.getMealDate(), meal.getMealTime(), applicationZoneId).toInstant();
+        return Math.abs(Duration.between(scheduledAt, post.getPostedAt()).toMinutes());
     }
 
     @Transactional public void decide(Long id, String decision, Integer followUpDays) {

@@ -14,6 +14,8 @@ import { loadNotifications, loadNotificationPreferences } from '../store/slices/
 import { loadSharedMembers, loadSharedMemberToday, loadAdminMemberAccess } from '../store/slices/memberAccessSlice';
 import { loadAdminMemberJournal } from '../store/slices/adminMemberJournalSlice';
 
+const LIVE_SYNC_PAGES = new Set(['AdminDashboard', 'Reports', 'Dashboard', 'TodayTimeline', 'UserDetails', 'SharedMemberToday']);
+
 export default function usePageRefresh() {
   const route = useRoute();
   const dispatch = useDispatch();
@@ -38,7 +40,7 @@ export default function usePageRefresh() {
     if (['ProfileHome', 'AdminProfile', 'EditProfile', 'BodyDetails', 'PrivacyData'].includes(name)) return { paths: ['/profile'], actions: [loadProfile(token)] };
     if (['MemberAccess', 'ManageMemberAccess'].includes(name)) return { paths: ['/admin/member-access'], actions: [loadAdminMemberAccess()] };
     if (name === 'SharedMembers') return { paths: ['/shared-members'], actions: [loadSharedMembers()] };
-    if (name === 'SharedMemberToday') return { paths: [`/shared-members/${memberId}/today`], actions: [loadSharedMemberToday(memberId)] };
+    if (name === 'SharedMemberToday') return { paths: [`/shared-members/${memberId}/today`, `/shared-members/${memberId}/journal`], actions: [loadSharedMemberToday(memberId)] };
     if (name === 'UserDetails') return { paths: [`/admin/users/${memberId}/journal`, `/admin/plans/members/${memberId}`, '/admin/members'], actions: [loadAdminMemberJournal({ memberId }), loadAdminMemberPlan(memberId), loadAdminDirectory()] };
     return null;
   }, [name, memberId, token]);
@@ -71,6 +73,11 @@ export default function usePageRefresh() {
   }, [token, config, dispatch]);
   useFocusEffect(useCallback(() => {
     load();
-  }, [load]));
+    if (!LIVE_SYNC_PAGES.has(name)) return undefined;
+    // Keep installed PWAs and the Android app consistent when another device
+    // posts a meal, completes a task, or logs water while this page stays open.
+    const timer = setInterval(() => load(), 30000);
+    return () => clearInterval(timer);
+  }, [load, name]));
   return { refreshing, onRefresh: useCallback(() => load(true), [load]), enabled: !!token && !!config() };
 }

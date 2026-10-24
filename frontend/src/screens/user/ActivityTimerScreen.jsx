@@ -1,5 +1,5 @@
 import { LocalizedText as Text } from '../../components/common/LocalizedText';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -13,6 +13,7 @@ import SyncFeedback from '../../components/common/SyncFeedback';
 import { confirmRetry } from '../../utils/confirmRetry';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import Alert from '../../utils/appAlert';
+import { completeHealthyHabit } from '../../store/slices/planSlice';
 
 const activities = [
   { key: 'walk', label: 'Walk', icon: 'walk-outline', rate: 4.5 },
@@ -26,6 +27,11 @@ export default function ActivityTimerScreen({ navigation }) {
   const activityState = useSelector((state) => state.activity);
   const history = activityState.history;
   const dispatch = useDispatch();
+  const coachExercises = useSelector((state) => state.plan.tasks).filter((task) => task.type === 'ACTIVITY' && !task.done);
+  const availableActivities = useMemo(() => [
+    ...coachExercises.map((task) => ({ key: `coach-${task.id}`, label: task.title, icon: 'school-outline', rate: 6, planItemId: task.id })),
+    ...activities,
+  ], [coachExercises]);
   const [selected, setSelected] = useState(activities[0]);
   const [running, setRunning] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -68,7 +74,13 @@ export default function ActivityTimerScreen({ navigation }) {
     setRunning(false);
     setCompleted(session); setSeconds(0); elapsed.current = { base: 0, startedAt: null };
     dispatch(completeActivity(session)).then((result) => {
-      if (completeActivity.fulfilled.match(result)) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      if (completeActivity.fulfilled.match(result)) {
+        if (selected.planItemId) {
+          dispatch(completeHealthyHabit(selected.planItemId));
+          setSelected(activities[0]);
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
       else setCompleted(null);
     });
   };
@@ -77,9 +89,9 @@ export default function ActivityTimerScreen({ navigation }) {
     <Screen contentStyle={styles.page}>
       <UserHeader navigation={navigation} title="Move" />
       <SyncFeedback label="Activity" pending={saving} error={activityState.error} onRetry={() => activityState.failedSession ? confirmRetry('Activity', () => dispatch(completeActivity(activityState.failedSession))) : dispatch(loadActivities())} />
-      <StaggeredView delay={35} style={styles.head}><Text style={styles.kicker}>ACTIVITY TIMER</Text><Text style={styles.title}>Track movement</Text><Text style={styles.body}>Choose an activity and let the timer update today’s movement totals.</Text></StaggeredView>
+      <StaggeredView delay={35} style={styles.head}><Text style={styles.kicker}>ACTIVITY TIMER</Text><Text style={styles.title}>Track movement</Text><Text style={styles.body}>{coachExercises.length ? 'Your coach exercise is ready first, followed by your usual activities.' : 'Choose an activity and let the timer update today’s movement totals.'}</Text></StaggeredView>
 
-      <StaggeredView delay={90}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activityTabs}>{activities.map((activity) => <Pressable key={activity.key} onPress={() => { if (!running && !saving) setSelected(activity); }} style={[styles.activityTab, selected.key === activity.key && styles.activityTabActive]}><Ionicons name={activity.icon} size={19} color={selected.key === activity.key ? colors.white : colors.tealDark} /><Text style={[styles.activityTabText, selected.key === activity.key && styles.activityTabTextActive]}>{activity.label}</Text></Pressable>)}</ScrollView></StaggeredView>
+      <StaggeredView delay={90}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activityTabs}>{availableActivities.map((activity) => <Pressable key={activity.key} onPress={() => { if (!running && !saving) setSelected(activity); }} style={[styles.activityTab, selected.key === activity.key && styles.activityTabActive]}><Ionicons name={activity.icon} size={19} color={selected.key === activity.key ? colors.white : colors.tealDark} /><Text numberOfLines={1} style={[styles.activityTabText, selected.key === activity.key && styles.activityTabTextActive]}>{activity.label}</Text></Pressable>)}</ScrollView></StaggeredView>
 
       <StaggeredView delay={150} style={styles.timerPanel}>
         <AmbientBackground light />

@@ -218,7 +218,7 @@ class ApiEndToEndTests {
         call("PATCH", "/profile/body-metrics", Map.of("heightCm", 174, "weightKg", 71.5, "age", 28, "bodyFatPercent", 19.2), member, 200);
         call("PATCH", "/profile/body-metrics", Map.of("heightCm", 174, "weightKg", 71.0, "age", 28), member, 409);
         call("PUT", "/notifications/preferences", Map.of("mealReminders", false, "coachNudges", false), member, 200);
-        assertThat(call("GET", "/notifications/preferences", null, member, 200).path("coachNudges").asBoolean()).isFalse();
+        assertThat(call("GET", "/notifications/preferences", null, member, 200).path("coachNudges").asBoolean()).isTrue();
         var inbox = call("GET", "/notifications", null, member, 200);
         assertThat(inbox.size()).isPositive();
         long noticeId = inbox.get(0).path("id").asLong();

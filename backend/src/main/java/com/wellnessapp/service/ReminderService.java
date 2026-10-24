@@ -21,6 +21,7 @@ public class ReminderService {
     private final PlanService plans;
     private final UserProfileRepository profiles;
     private final WaterLogRepository water;
+    private final MemberAccessService memberAccess;
     @org.springframework.beans.factory.annotation.Value("${app.hydration.deadline:20:00}")
     private String hydrationDeadline;
     private final Clock clock;
@@ -56,25 +57,30 @@ public class ReminderService {
                     missed.findBySourceKey(key).ifPresent(event -> { event.setResolved(true); missed.save(event); });
                     continue;
                 }
-                if (!clock.instant().isBefore(due.minusSeconds(300)) && !clock.instant().isAfter(due.plusSeconds(3600)) && !notifications.existsBySourceKey(notificationKey)) {
+                Instant reminderAt = due.minusSeconds(300);
+                if (!clock.instant().isBefore(reminderAt) && clock.instant().isBefore(reminderAt.plusSeconds(60))
+                        && !notifications.existsBySourceKey(notificationKey)) {
                     var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(notificationKey)
                             .title(meal.getName() + " in 5 minutes")
                             .body("Your " + meal.getType().toLowerCase(Locale.ROOT) + " is scheduled for "
                                     + meal.getMealTime().format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")) + ".")
-                            .scheduledAt(due.minusSeconds(300)).build());
-                    push.enqueue(notification, PushDelivery.Kind.MEAL, due.plusSeconds(3600));
+                            .scheduledAt(reminderAt).build());
+                    push.enqueue(notification, PushDelivery.Kind.MEAL, due);
                 }
                 if (clock.instant().isAfter(due)) {
                     var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user).sourceKey(key)
                             .itemType("Meals").itemTitle(meal.getType() + " check-in is overdue").missedAt(due).build()));
                     if (!attention.isResolved()) {
-                        notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "A member may need support", user.getFullName() + " missed posting " + meal.getName() + " (" + meal.getType() + ") by " + meal.getMealTime() + ". Open Attention to review it.");
-                        notices.notify(user, PushDelivery.Kind.DEADLINE, "member-deadline-" + attention.getId(),
-                                "Your meal check-in is overdue", "Open your timeline to review your missed meal check-in.");
+                        notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(),
+                                user.getFullName() + ": " + meal.getType() + " check-in overdue",
+                                user.getFullName() + " missed posting " + meal.getName() + " by "
+                                        + meal.getMealTime().format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+                                        + " (" + meal.getMealTime() + ")"
+                                        + ". Open Attention to review it.");
                     }
                 }
             }
-            for (var habit : plans.healthyHabits(user.getId())) {
+            for (var habit : plans.scheduledTasks(user.getId())) {
                 var due = today.atTime(habit.getScheduledTime()).atZone(applicationZoneId).toInstant();
                 String dayKey = "habit-" + habit.getId() + "-" + today;
                 String reminderKey = "habit-reminder-" + habit.getId() + "-" + today;
@@ -82,20 +88,22 @@ public class ReminderService {
                     missed.findBySourceKey(dayKey).ifPresent(event -> { event.setResolved(true); missed.save(event); });
                     continue;
                 }
-                if (!clock.instant().isBefore(due.minusSeconds(300)) && !clock.instant().isAfter(due.plusSeconds(3600))
+                Instant reminderAt = due.minusSeconds(300);
+                if (!clock.instant().isBefore(reminderAt) && clock.instant().isBefore(reminderAt.plusSeconds(60))
                         && !notifications.existsBySourceKey(reminderKey)) {
                     var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(reminderKey)
                             .title(habit.getTitle() + " in 5 minutes").body("Your daily plan reminder is scheduled for "
                                     + habit.getScheduledTime().format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")) + ".")
-                            .scheduledAt(due.minusSeconds(300)).build());
-                    push.enqueue(notification, PushDelivery.Kind.HABIT, due.plusSeconds(3600));
+                            .scheduledAt(reminderAt).build());
+                    push.enqueue(notification, PushDelivery.Kind.HABIT, due);
                 }
                 if (clock.instant().isAfter(due)) {
                     var attention = missed.findBySourceKey(dayKey).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
                             .sourceKey(dayKey).itemType(habit.getDetail()).itemTitle(habit.getTitle() + " is overdue")
                             .missedAt(due).build()));
                     if (!attention.isResolved()) notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(),
-                            "A healthy habit needs attention", user.getFullName() + " missed " + habit.getTitle() + ". Open Attention to review it.");
+                            user.getFullName() + ": " + habit.getTitle() + " overdue",
+                            user.getFullName() + " missed " + habit.getTitle() + ". Open Attention to review it.");
                 }
             }
             if (user.getFollowUpAt() != null && !clock.instant().isBefore(user.getFollowUpAt())) {
@@ -104,7 +112,7 @@ public class ReminderService {
                 var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
                         .sourceKey(key).itemType("Follow-up").itemTitle("Scheduled member follow-up")
                         .missedAt(due).build()));
-                notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "Member follow-up is due",
+                notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), user.getFullName() + ": follow-up due",
                         "Follow up with " + user.getFullName() + ". Open Attention to review their progress.");
                 user.setFollowUpAt(null);
                 users.save(user);
@@ -130,10 +138,8 @@ public class ReminderService {
                         .sourceKey(key).itemType("Hydration").itemTitle("Daily hydration goal is overdue")
                         .missedAt(deadline).build()));
                 if (!attention.isResolved()) {
-                    notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), "A member missed their hydration goal",
+                    notices.admins(PushDelivery.Kind.DEADLINE, "deadline-" + attention.getId(), user.getFullName() + ": hydration goal missed",
                             user.getFullName() + " logged " + logged + " of " + goal + " ml for " + day + ". Open Attention to review it.");
-                    notices.notify(user, PushDelivery.Kind.DEADLINE, "member-deadline-" + attention.getId(),
-                            "Your hydration goal needs a check-in", "You logged " + logged + " of " + goal + " ml for " + day + ".");
                 }
             }
     }
@@ -168,11 +174,42 @@ public class ReminderService {
     }
     @Transactional public void nudge(Long id) {
         var event = missed.findById(id).orElseThrow(() -> new NotFoundException("Attention item not found"));
+        if ("Hydration".equalsIgnoreCase(event.getItemType())) {
+            throw new com.wellnessapp.exception.BadRequestException("Use the club hydration reminder from the dashboard");
+        }
         users.lockById(event.getUser().getId()).orElseThrow();
         String sourceKey = "nudge-" + id;
         if (event.isResolved() || notifications.existsBySourceKey(sourceKey)) return;
         var notification = notifications.save(NotificationEvent.builder().user(event.getUser()).sourceKey(sourceKey).title("A reminder from your coach")
                 .body(event.getItemTitle()).scheduledAt(clock.instant()).build());
         push.enqueue(notification, PushDelivery.Kind.NUDGE, clock.instant().plusSeconds(14400));
+    }
+
+    @Transactional public int nudgeHydrationForAll() {
+        var today = LocalDate.now(clock.withZone(applicationZoneId));
+        int notified = 0;
+        for (var user : users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE)) {
+            String source = "hydration-club-" + today;
+            boolean existed = notifications.existsBySourceKey(source + "-to-" + user.getId());
+            notices.notify(user, PushDelivery.Kind.NUDGE, source, "Hydration check-in",
+                    "A reminder from your club: take a water break and log your hydration.");
+            if (!existed) notified++;
+        }
+        return notified;
+    }
+
+    @Transactional public boolean nudgeSharedMember(String viewerEmail, Long memberId) {
+        User viewer = users.findByEmailIgnoreCase(viewerEmail)
+                .orElseThrow(() -> new NotFoundException("Shared member not found"));
+        if (!memberAccess.canReadMember(viewer, memberId) || viewer.getRole() == User.Role.ADMIN) {
+            throw new NotFoundException("Shared member not found");
+        }
+        User member = users.findById(memberId).orElseThrow(() -> new NotFoundException("Shared member not found"));
+        String source = "coach-nudge-" + viewer.getId() + "-" + LocalDate.now(clock.withZone(applicationZoneId));
+        String key = source + "-to-" + memberId;
+        boolean existed = notifications.existsBySourceKey(key);
+        notices.notify(member, PushDelivery.Kind.NUDGE, source, "A reminder from your coach",
+                viewer.getFullName() + " asked you to review today's meals, exercise, and healthy habits.");
+        return !existed;
     }
 }

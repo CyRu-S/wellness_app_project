@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
     private final PlanService plans;
     @GetMapping("/today") PlanResponse today(Authentication authentication) { return plans.today(authentication.getName()); }
     @PostMapping("/items/{itemId}/complete") PlanResponse completeHabit(Authentication authentication, @PathVariable Long itemId) {
-        return plans.completeHabit(authentication.getName(), itemId);
+        return plans.completeTask(authentication.getName(), itemId);
     }
 }
 

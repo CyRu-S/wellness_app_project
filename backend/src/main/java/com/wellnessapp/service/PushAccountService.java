@@ -22,8 +22,8 @@ public class PushAccountService {
             boolean signupAlerts, boolean deadlineAlerts, boolean dailyDigest, boolean memberUpdates, boolean accountUpdates,
             boolean customSound) {}
     private Preferences response(NotificationPreferences p) {
-        return new Preferences(p.isMealReminders(), p.isCoachNudges(), enabled && schedulersEnabled,
-                p.isSignupAlerts(), p.isDeadlineAlerts(), p.isDailyDigest(), p.isMemberUpdates(), p.isAccountUpdates(), p.isCustomSound());
+        return new Preferences(true, true, enabled && schedulersEnabled,
+                true, true, p.isDailyDigest(), true, true, p.isCustomSound());
     }
 
     private User user(String email) { return users.findByEmailIgnoreCase(email).orElseThrow(); }
@@ -41,12 +41,12 @@ public class PushAccountService {
             Boolean signup, Boolean deadline, Boolean digest, Boolean updates, Boolean account, Boolean customSound) {
         var user = user(email); users.lockById(user.getId()).orElseThrow();
         var row = preferences.findById(user.getId()).orElseGet(() -> { var p = new NotificationPreferences(); p.setUser(user); return p; });
-        row.setMealReminders(meals); row.setCoachNudges(nudges);
-        if (signup != null) row.setSignupAlerts(signup);
-        if (deadline != null) row.setDeadlineAlerts(deadline);
+        row.setMealReminders(true); row.setCoachNudges(true);
+        row.setSignupAlerts(true);
+        row.setDeadlineAlerts(true);
         if (digest != null) row.setDailyDigest(digest);
-        if (updates != null) row.setMemberUpdates(updates);
-        if (account != null) row.setAccountUpdates(account);
+        row.setMemberUpdates(true);
+        row.setAccountUpdates(true);
         if (customSound != null) row.setCustomSound(customSound);
         preferences.save(row);
         return response(row);

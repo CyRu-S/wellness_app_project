@@ -2,6 +2,8 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   getAdminMemberAccess,
   getSharedMemberToday,
+  getSharedMemberJournal,
+  nudgeSharedMember as nudgeSharedMemberApi,
   getSharedMembers,
   replaceAdminMemberAccess,
 } from '../../services/api/memberAccessApi';
@@ -18,8 +20,10 @@ export const memberAccessInitialState = {
   sharedMembersError: null,
   todayByMemberId: {},
   sharedToday: null,
+  sharedJournal: null,
   sharedTodayStatus: 'idle',
   sharedTodayError: null,
+  sharedNudge: { status: 'idle', sent: false, error: null },
   errorStatus: null,
   overviewRequest: { ...idleRequest },
   saveRequest: { ...idleRequest },
@@ -49,6 +53,12 @@ export const loadAdminMemberAccess = createAsyncThunk(
     return { source: 'api', data: await getAdminMemberAccess(context.token) };
   },
 );
+
+export const nudgeSharedMember = createAsyncThunk('memberAccess/nudgeSharedMember', async (memberId, { getState }) => {
+  const token = getState().auth?.token;
+  requireApiToken(token);
+  return nudgeSharedMemberApi(token, memberId);
+});
 
 export const replaceMemberAccessAssignments = createAsyncThunk(
   'memberAccess/replaceAssignments',
@@ -84,7 +94,10 @@ export const loadSharedMemberToday = createAsyncThunk(
     try {
       requireApiToken(context.token);
       const data = await getSharedMemberToday(context.token, memberId);
-      return { source: context.source, memberId: Number(memberId), data };
+      let journal = null;
+      try { journal = await getSharedMemberJournal(context.token, memberId); }
+      catch { /* Today remains available if the extended journal cannot be loaded. */ }
+      return { source: context.source, memberId: Number(memberId), data, journal };
     } catch (error) {
       return rejectWithValue({
         memberId: Number(memberId),
@@ -109,6 +122,7 @@ const memberAccessSlice = createSlice({
       if (action.payload == null) state.todayByMemberId = {};
       else delete state.todayByMemberId[action.payload];
       state.sharedToday = null;
+      state.sharedJournal = null;
       state.sharedTodayStatus = 'idle';
       state.sharedTodayError = null;
       state.errorStatus = null;
@@ -185,6 +199,7 @@ const memberAccessSlice = createSlice({
         state.source = action.payload.source;
         state.todayByMemberId[action.payload.memberId] = action.payload.data;
         state.sharedToday = action.payload.data;
+        state.sharedJournal = action.payload.journal;
         state.sharedTodayStatus = 'succeeded';
         state.sharedTodayError = null;
         state.errorStatus = null;
@@ -206,8 +221,12 @@ const memberAccessSlice = createSlice({
         if (payload.status === 404) {
           delete state.todayByMemberId[payload.memberId];
           state.sharedToday = null;
+          state.sharedJournal = null;
         }
-      });
+      })
+      .addCase(nudgeSharedMember.pending, (state) => { state.sharedNudge = { status: 'loading', sent: false, error: null }; })
+      .addCase(nudgeSharedMember.fulfilled, (state, action) => { state.sharedNudge = { status: 'succeeded', sent: !!action.payload?.sent, error: null }; })
+      .addCase(nudgeSharedMember.rejected, (state, action) => { state.sharedNudge = { status: 'failed', sent: false, error: action.error?.message || 'Nudge could not be sent.' }; });
   },
 });
 

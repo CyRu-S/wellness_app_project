@@ -60,8 +60,8 @@ test('admin refresh keeps the save guard and explains a busy sync without intern
   saving.resolve({ items: [] }); await write;
 });
 
-test('opening admin home reads once without starting a timer or foreground refresh', async () => {
-  let focus, requests = 0;
+test('opening admin home reads immediately and polls for cross-device PWA updates', async () => {
+  let focus, poll, requests = 0;
   const invalidated = [];
   const admin = loadModule('../src/store/slices/adminSlice.js', {
     '@reduxjs/toolkit': toolkit, '../../services/api/client': { request: async () => { requests++; return {}; } },
@@ -79,10 +79,12 @@ test('opening admin home reads once without starting a timer or foreground refre
     '../store/slices/dashboardSlice': {}, '../store/slices/mealSlice': {}, '../store/slices/planSlice': {},
     '../store/slices/activitySlice': {}, '../store/slices/profileSlice': {}, '../store/slices/notificationSlice': {},
     '../store/slices/memberAccessSlice': {}, '../store/slices/adminMemberJournalSlice': {},
-  }, { setInterval: () => { throw new Error('Page data must not poll'); } });
+  }, { setInterval: (callback, delay) => { assert.equal(delay, 30000); poll = callback; return 1; }, clearInterval: () => {} });
   module.default(); focus();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(requests, 1); assert.equal(invalidated.length, 1);
+  poll(); await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(requests, 2); assert.equal(invalidated.length, 2);
 });
 
 test('approving a member updates local home and member totals without a second GET', async () => {

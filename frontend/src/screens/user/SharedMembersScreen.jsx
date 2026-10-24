@@ -52,7 +52,7 @@ function MemberCard({ member, onPress }) {
         </View>
         <View style={styles.memberIdentity}>
           <Text numberOfLines={1} style={styles.memberName}>{name}</Text>
-          <Text style={styles.memberMeta}>Today only · Read only</Text>
+          <Text style={styles.memberMeta}>History & reports · Read only</Text>
         </View>
         <View style={styles.openButton}>
           <Ionicons name="arrow-forward" size={18} color={colors.tealDark} />
@@ -92,7 +92,7 @@ function EmptyState() {
     <View style={styles.emptyState}>
       <View style={styles.emptyIcon}><Ionicons name="people-outline" size={30} color={colors.tealDark} /></View>
       <Text style={styles.emptyTitle}>No shared members yet</Text>
-      <Text style={styles.emptyCopy}>When your club admin gives you access, that member’s today-only check-ins will appear here.</Text>
+      <Text style={styles.emptyCopy}>When your club admin gives you access, that member’s check-ins and reports will appear here.</Text>
     </View>
   );
 }
@@ -130,7 +130,7 @@ export default function SharedMembersScreen({ navigation }) {
       <StaggeredView delay={35} style={styles.intro}>
         <Text style={styles.eyebrow}>SHARED WITH YOU</Text>
         <Text style={styles.title}>Your circle</Text>
-        <Text style={styles.introCopy}>You are the coach for the members shown here. Their today-only activity is read-only.</Text>
+        <Text style={styles.introCopy}>You are the coach for the members shown here. Their activity history and health reports are read-only.</Text>
       </StaggeredView>
 
       <StaggeredView delay={95} style={styles.hero}>
@@ -139,7 +139,7 @@ export default function SharedMembersScreen({ navigation }) {
           <Text style={styles.heroLabel}>TODAY’S SHARED VIEW</Text>
           <Text style={styles.heroCount}>{String(total).padStart(2, '0')}</Text>
           <Text style={styles.heroTitle}>{total === 1 ? 'member in your care' : 'members in your care'}</Text>
-          <Text style={styles.heroText}>Access is read-only and refreshes with today’s activity.</Text>
+          <Text style={styles.heroText}>Access is read-only and includes today, meal history, and saved health reports.</Text>
         </View>
         <View style={styles.heroMark}>
           <Ionicons name="shield-checkmark" size={28} color={colors.accent} />
@@ -174,7 +174,7 @@ export default function SharedMembersScreen({ navigation }) {
         renderItem={({ item }) => <MemberCard member={item} onPress={() => openMember(item)} />}
         ListHeaderComponent={header}
         ListEmptyComponent={loading ? <View style={styles.loadingState}><ActivityIndicator color={colors.tealMid} /><Text style={styles.loadingText}>Loading your shared circle…</Text></View> : errorState || <EmptyState />}
-        ListFooterComponent={members.length ? <View style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={16} color={colors.tealDark} /><Text style={styles.privacyText}>You can only view today’s wellness activity. Access is managed by your club admin.</Text></View> : null}
+        ListFooterComponent={members.length ? <View style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={16} color={colors.tealDark} /><Text style={styles.privacyText}>You can view assigned members’ activity history and reports. Access is managed by your club admin.</Text></View> : null}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={Platform.OS !== 'web' ? <RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} /> : undefined}

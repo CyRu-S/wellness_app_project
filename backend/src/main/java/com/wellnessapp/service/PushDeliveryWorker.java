@@ -16,6 +16,7 @@ public class PushDeliveryWorker {
     private final MealRepository meals;
     private final MissedEventRepository missed;
     private final PlanItemCompletionRepository completions;
+    private final PlanItemRepository planItems;
     private final UserRepository users;
     private final PushQueueService queue;
     private final ExpoPushClient expo;
@@ -32,17 +33,26 @@ public class PushDeliveryWorker {
         try {
             if (d.getKind() == PushDelivery.Kind.MEAL) {
                 return key != null && key.startsWith("meal-") && meals.findById(Long.parseLong(key.split("-")[1]))
-                        .map(m -> !m.isConsumed() && event.getScheduledAt().equals(m.getMealDate().atTime(m.getMealTime())
-                                .atZone(applicationZoneId).toInstant().minusSeconds(300))).orElse(false);
+                        .map(m -> {
+                            Instant due = m.getMealDate().atTime(m.getMealTime()).atZone(applicationZoneId).toInstant();
+                            return !m.isConsumed() && clock.instant().isBefore(due)
+                                    && event.getScheduledAt().equals(due.minusSeconds(300));
+                        }).orElse(false);
             }
             if (d.getKind() == PushDelivery.Kind.HABIT) {
                 if (key == null || !key.startsWith("habit-reminder-")) return false;
                 String[] parts = key.substring("habit-reminder-".length()).split("-");
                 Long itemId = Long.parseLong(parts[0]);
                 LocalDate date = LocalDate.parse(String.join("-", Arrays.copyOfRange(parts, 1, 4)));
-                return !completions.existsByPlanItemIdAndUserIdAndCompletedDate(itemId, event.getUser().getId(), date);
+                return planItems.findById(itemId).map(item -> {
+                    Instant due = date.atTime(item.getScheduledTime()).atZone(applicationZoneId).toInstant();
+                    return clock.instant().isBefore(due)
+                            && event.getScheduledAt().equals(due.minusSeconds(300))
+                            && !completions.existsByPlanItemIdAndUserIdAndCompletedDate(itemId, event.getUser().getId(), date);
+                }).orElse(false);
             }
             if (d.getKind() == PushDelivery.Kind.NUDGE) {
+                if (key != null && key.startsWith("hydration-club-")) return true;
                 return key != null && key.startsWith("nudge-") && missed.findById(Long.parseLong(key.substring(6).split("-")[0]))
                         .map(m -> !m.isResolved()).orElse(false);
             }
@@ -66,24 +76,29 @@ public class PushDeliveryWorker {
         String channel = Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind())
                 ? "meal-reminders" : "coach-nudges";
         boolean personalisedReminder = Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT, PushDelivery.Kind.NUDGE).contains(d.getKind());
-        String title = personalisedReminder ? event.getTitle() : "Mr_Care";
-        String body = personalisedReminder ? event.getBody() : switch (d.getKind()) {
+        boolean adminOperationalAlert = event.getUser().getRole() == User.Role.ADMIN
+                && Set.of(PushDelivery.Kind.SIGNUP, PushDelivery.Kind.DEADLINE, PushDelivery.Kind.DIGEST,
+                        PushDelivery.Kind.MEAL_POST, PushDelivery.Kind.ACTIVITY).contains(d.getKind());
+        String title = personalisedReminder || adminOperationalAlert ? event.getTitle() : "Mr_Care";
+        String body = personalisedReminder || adminOperationalAlert ? event.getBody() : switch (d.getKind()) {
             case TEST -> "Phone notifications are connected.";
             case SIGNUP -> "A new membership request is ready to review.";
-            case DEADLINE -> event.getUser().getRole() == User.Role.ADMIN
-                    ? "A member may need support. Open Attention to review."
-                    : "Your scheduled check-in is overdue. Open your timeline to review.";
+            case DEADLINE -> "Your scheduled check-in is overdue. Open your timeline to review.";
             case DIGEST -> "Your morning club summary is ready.";
             case MEAL_POST, ACTIVITY -> "A member has a new check-in. Open your admin inbox.";
             case PLAN, ACCESS, APPROVAL -> "Your account has an update from your coach. Open Mr_Care to review.";
             default -> "You have a reminder. Open Mr_Care to review it.";
         };
-        return Map.of("to", d.getDevice().getExpoToken(), "title", title,
-                "body", body, "sound", customSound ? "main_theme_alert.wav" : "default", "priority", "high", "badge", 1,
-                "channelId", customSound ? channel + "-theme-v2" : channel,
-                "ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()),
-                "data", Map.of("notificationId", d.getNotification().getId().toString(), "userId", d.getNotification().getUser().getId().toString(),
-                        "kind", d.getKind().name(), "customSound", customSound));
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("to", d.getDevice().getExpoToken()); message.put("title", title); message.put("body", body);
+        if (customSound) message.put("sound", "main_theme_alert.wav");
+        message.put("priority", "high"); message.put("badge", 1);
+        message.put("channelId", customSound ? channel + "-theme-v2" : channel + "-silent-v1");
+        message.put("ttl", Math.max(1, Duration.between(clock.instant(), d.getExpiresAt()).getSeconds()));
+        message.put("data", Map.of("notificationId", d.getNotification().getId().toString(),
+                "userId", d.getNotification().getUser().getId().toString(), "kind", d.getKind().name(),
+                "customSound", customSound));
+        return message;
     }
     private void fail(PushDelivery d, String code, boolean retryable) {
         // Only persist known error codes, never raw provider bodies (which may contain tokens).

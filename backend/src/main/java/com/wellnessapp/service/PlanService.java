@@ -34,13 +34,13 @@ public class PlanService {
         Plan plan = current(user.getId());
         if (plan == null) return null;
         var todayMeals = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), today());
-        var completedHabitIds = completions.findByUserIdAndCompletedDate(user.getId(), today()).stream()
+        var completedTaskIds = completions.findByUserIdAndCompletedDate(user.getId(), today()).stream()
                 .map(value -> value.getPlanItem().getId()).collect(java.util.stream.Collectors.toSet());
         var dailyItems = new ArrayList<>(items.findByPlanIdOrderBySortOrder(plan.getId()).stream().map(item -> new PlanResponse.Item(
                 item.getId(), item.getType().name(), item.getTitle(), item.getDetail(), item.getScheduledTime(),
-                item.getType() == PlanItem.Type.HEALTHY_HABIT ? completedHabitIds.contains(item.getId())
+                isDailyTask(item) ? completedTaskIds.contains(item.getId())
                         : todayMeals.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId()) && meal.isConsumed()),
-                item.getSortOrder(), item.getType() == PlanItem.Type.HEALTHY_HABIT ? item.getDetail() : "Meals")).toList());
+                item.getSortOrder(), isDailyTask(item) ? item.getDetail() : "Meals")).toList());
         // Removed templates do not recur, but a completed daily entry remains visible until midnight.
         for (Meal meal : todayMeals) {
             if (meal.getPlanItem() == null && meal.isConsumed()) dailyItems.add(new PlanResponse.Item(
@@ -53,11 +53,12 @@ public class PlanService {
     @Transactional(readOnly = true)
     public Map<String, Object> memberPlan(Long memberId) {
         Plan plan = current(memberId);
-        if (plan == null) return Map.of("memberId", memberId, "planName", "", "items", List.of(), "habits", List.of());
+        if (plan == null) return emptyMemberPlan(memberId);
         var planItems = items.findByPlanIdOrderBySortOrder(plan.getId());
         return Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", coachName(), "updatedAt", plan.getStartDate(),
                 "items", planItems.stream().filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null).map(this::mealMap).toList(),
-                "habits", planItems.stream().filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).map(this::habitMap).toList());
+                "habits", planItems.stream().filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).map(this::taskMap).toList(),
+                "exercises", planItems.stream().filter(item -> item.getType() == PlanItem.Type.ACTIVITY).map(this::taskMap).toList());
     }
 
     @Transactional(readOnly = true)
@@ -76,14 +77,15 @@ public class PlanService {
         for (var memberId : memberIds) {
             var plan = currentPlans.get(memberId);
             if (plan == null) {
-                result.put(memberId, Map.of("memberId", memberId, "planName", "", "items", List.of(), "habits", List.of()));
+                result.put(memberId, emptyMemberPlan(memberId));
                 continue;
             }
             var planItems = groupedItems.getOrDefault(plan.getId(), List.of());
             result.put(memberId, Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", coach,
                     "updatedAt", plan.getStartDate(), "items", planItems.stream()
                     .filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null).map(this::mealMap).toList(),
-                    "habits", planItems.stream().filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).map(this::habitMap).toList()));
+                    "habits", planItems.stream().filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).map(this::taskMap).toList(),
+                    "exercises", planItems.stream().filter(item -> item.getType() == PlanItem.Type.ACTIVITY).map(this::taskMap).toList()));
         }
         return result;
     }
@@ -139,7 +141,11 @@ public class PlanService {
                     ? PlanItem.builder().plan(plan).type(PlanItem.Type.MEAL).build()
                     : existingItems.get(item.id());
             boolean wasMeal = savedItem.getId() != null && savedItem.getType() == PlanItem.Type.MEAL;
-            PlanItem.Type kind = "HEALTHY_HABIT".equalsIgnoreCase(item.kind()) ? PlanItem.Type.HEALTHY_HABIT : PlanItem.Type.MEAL;
+            PlanItem.Type kind = switch (item.kind() == null ? "MEAL" : item.kind().toUpperCase(Locale.ROOT)) {
+                case "HEALTHY_HABIT" -> PlanItem.Type.HEALTHY_HABIT;
+                case "ACTIVITY" -> PlanItem.Type.ACTIVITY;
+                default -> PlanItem.Type.MEAL;
+            };
             if (wasMeal && kind != PlanItem.Type.MEAL) {
                 Long changingItemId = savedItem.getId();
                 todayMeals.stream().filter(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(changingItemId))
@@ -151,7 +157,7 @@ public class PlanService {
             savedItem.setType(kind);
             savedItem.setTitle(item.name().trim());
             String category = item.category() == null ? "" : item.category().trim();
-            savedItem.setDetail(kind == PlanItem.Type.HEALTHY_HABIT ? category : item.type());
+            savedItem.setDetail(kind != PlanItem.Type.MEAL ? category : item.type());
             savedItem.setMealType(kind == PlanItem.Type.MEAL ? item.type() : null);
             savedItem.setScheduledTime(item.time());
             savedItem.setCalories(kind == PlanItem.Type.MEAL ? item.calories() : 0);
@@ -206,10 +212,10 @@ public class PlanService {
     }
 
     @Transactional(readOnly = true)
-    public List<PlanItem> healthyHabits(Long memberId) {
+    public List<PlanItem> scheduledTasks(Long memberId) {
         Plan plan = current(memberId);
         return plan == null ? List.of() : items.findByPlanIdOrderBySortOrder(plan.getId()).stream()
-                .filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).toList();
+                .filter(this::isDailyTask).toList();
     }
 
     @Transactional(readOnly = true)
@@ -218,10 +224,10 @@ public class PlanService {
     }
 
     @Transactional
-    public PlanResponse completeHabit(String email, Long itemId) {
+    public PlanResponse completeTask(String email, Long itemId) {
         User user = users.findByEmailIgnoreCase(email).orElseThrow(() -> new NotFoundException("Member not found"));
         PlanItem item = items.findById(itemId).filter(value -> value.getPlan().getUser().getId().equals(user.getId())
-                && value.getType() == PlanItem.Type.HEALTHY_HABIT).orElseThrow(() -> new NotFoundException("Healthy habit not found"));
+                && isDailyTask(value)).orElseThrow(() -> new NotFoundException("Daily task not found"));
         LocalDate date = today();
         completions.findByPlanItemIdAndUserIdAndCompletedDate(itemId, user.getId(), date).orElseGet(() ->
                 completions.save(PlanItemCompletion.builder().planItem(item).user(user).completedDate(date).completedAt(clock.instant()).build()));
@@ -258,9 +264,16 @@ public class PlanService {
                 "time", item.getScheduledTime(), "calories", item.getCalories(), "protein", item.getProteinGrams(),
                 "ingredients", split(item.getIngredients()));
     }
-    private Map<String, Object> habitMap(PlanItem item) {
-        return Map.of("id", item.getId(), "kind", "HEALTHY_HABIT", "type", "Healthy habit", "category", item.getDetail(),
+    private Map<String, Object> taskMap(PlanItem item) {
+        String kind = item.getType().name();
+        return Map.of("id", item.getId(), "kind", kind, "type", kind.equals("ACTIVITY") ? "Coach exercise" : "Healthy habit", "category", item.getDetail(),
                 "name", item.getTitle(), "time", item.getScheduledTime(), "calories", 0, "protein", 0, "ingredients", List.of());
+    }
+    private Map<String, Object> emptyMemberPlan(Long memberId) {
+        return Map.of("memberId", memberId, "planName", "", "items", List.of(), "habits", List.of(), "exercises", List.of());
+    }
+    private boolean isDailyTask(PlanItem item) {
+        return item.getType() == PlanItem.Type.HEALTHY_HABIT || item.getType() == PlanItem.Type.ACTIVITY;
     }
     private List<String> split(String value) { return value == null || value.isBlank() ? List.of() : Arrays.asList(value.split("\n")); }
 }

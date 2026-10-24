@@ -47,7 +47,6 @@ import java.time.Instant;
                 : request.dietaryPreferences().trim());
         users.save(user);
         profile = profiles.save(profile);
-        recordHistory(user, profile);
         return response(user, profile);
     }
 
@@ -67,7 +66,6 @@ import java.time.Instant;
             profile.setPhotoContentType(stored.contentType());
             profile.setPhotoSize(stored.size());
             profile = profiles.saveAndFlush(profile);
-            recordHistory(user, profile);
             ProfileResponse response = response(user, profile);
             if (previousKey != null && !previousKey.equals(stored.key())) mediaStorage.deleteQuietly(previousKey);
             return response;

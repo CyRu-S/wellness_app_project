@@ -16,6 +16,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
 import static org.assertj.core.api.Assertions.*;
@@ -306,6 +307,39 @@ class PersistentWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.mealInsights.ranges['7D'].completionRate").value(50))
                 .andExpect(jsonPath("$.mealInsights.ranges['7D'].series.length()").value(7))
                 .andExpect(jsonPath("$.mealInsights.ranges['30D'].series.length()").value(30));
+    }
+
+    @Test void leaderboardRewardsDietPlanCompletionAndTimelyMealPosts() throws Exception {
+        var timelyMember = approve("timely@example.com");
+        var lateMember = approve("late@example.com");
+        var day = LocalDate.of(2026, 9, 4);
+        var timelyMeal = meals.saveAndFlush(Meal.builder().user(timelyMember).type("Breakfast").name("Oats")
+                .mealDate(day).mealTime(LocalTime.of(8, 0)).calories(400).proteinGrams(20).consumed(true).build());
+        var lateMeal = meals.saveAndFlush(Meal.builder().user(lateMember).type("Breakfast").name("Oats")
+                .mealDate(day).mealTime(LocalTime.of(8, 0)).calories(400).proteinGrams(20).consumed(true).build());
+        posts.saveAndFlush(mealPost(timelyMember, timelyMeal, Instant.parse("2026-09-04T02:40:00Z"), "timely-post"));
+        posts.saveAndFlush(mealPost(lateMember, lateMeal, Instant.parse("2026-09-04T04:00:00Z"), "late-post"));
+
+        mvc.perform(get("/api/admin/workspace").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.leaderboard[0].memberId").value(timelyMember.getId()))
+                .andExpect(jsonPath("$.leaderboard[0].score").value(100))
+                .andExpect(jsonPath("$.leaderboard[0].adherenceScore").value(100))
+                .andExpect(jsonPath("$.leaderboard[0].timingScore").value(100))
+                .andExpect(jsonPath("$.leaderboard[0].onTimePosts").value(1))
+                .andExpect(jsonPath("$.leaderboard[0].averageTimingMinutes").value(10))
+                .andExpect(jsonPath("$.leaderboard[1].memberId").value(lateMember.getId()))
+                .andExpect(jsonPath("$.leaderboard[1].score").value(65))
+                .andExpect(jsonPath("$.leaderboard[1].onTimePosts").value(0))
+                .andExpect(jsonPath("$.leaderboard[1].averageTimingMinutes").value(90));
+    }
+
+    private MealPost mealPost(User user, Meal meal, Instant postedAt, String requestId) {
+        return MealPost.builder().user(user).plannedMeal(meal).mealType(meal.getType()).mealName(meal.getName())
+                .calories(BigDecimal.valueOf(meal.getCalories())).proteinGrams(BigDecimal.valueOf(meal.getProteinGrams()))
+                .carbsGrams(BigDecimal.ZERO).fatGrams(BigDecimal.ZERO).postedAt(postedAt)
+                .mediaKey(requestId + ".png").mediaOriginalName("meal.png").mediaContentType("image/png")
+                .mediaSize(png.length).clientRequestId(requestId).build();
     }
 
     @Test void attentionAndRemindersOnlyComeFromAssignedOverdueMeals() throws Exception {

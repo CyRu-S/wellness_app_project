@@ -25,6 +25,7 @@ public class MemberAccessService {
     private final MealPostRepository mealPosts;
     private final WaterLogRepository waterLogs;
     private final ActivitySessionRepository activities;
+    private final PlanItemCompletionRepository completions;
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final PlanService plans;
@@ -134,6 +135,14 @@ public class MemberAccessService {
                 subject.getId(), start, end);
         List<ActivitySession> activity = activities.findByUserIdAndStartedAtGreaterThanEqualAndStartedAtLessThanOrderByStartedAt(
                 subject.getId(), start, end);
+        Map<Long, PlanItemCompletion> completionByItem = completions.findByUserIdAndCompletedDate(subject.getId(), date).stream()
+                .collect(Collectors.toMap(value -> value.getPlanItem().getId(), Function.identity()));
+        List<SharedMemberTodayResponse.TaskEntry> tasks = plans.scheduledTasks(subject.getId()).stream().map(item -> {
+            var completion = completionByItem.get(item.getId());
+            return new SharedMemberTodayResponse.TaskEntry(item.getId(), item.getType().name(), item.getTitle(),
+                    item.getDetail(), item.getScheduledTime(), completion != null,
+                    completion == null ? null : completion.getCompletedAt());
+        }).toList();
 
         Map<Long, MealPost> postByPlannedMeal = posts.stream()
                 .filter(post -> post.getPlannedMeal() != null)
@@ -172,6 +181,7 @@ public class MemberAccessService {
                 applicationZoneId.getId(),
                 summary,
                 List.copyOf(mealEntries),
+                tasks,
                 water.stream().map(item -> new SharedMemberTodayResponse.WaterEntry(item.getId(), item.getAmountMl(), item.getLoggedAt())).toList(),
                 activity.stream().map(item -> new SharedMemberTodayResponse.ActivityEntry(
                         item.getId(), item.getActivity(), item.getDurationSeconds() / 60, item.getDistanceKm(), item.getStartedAt())).toList());

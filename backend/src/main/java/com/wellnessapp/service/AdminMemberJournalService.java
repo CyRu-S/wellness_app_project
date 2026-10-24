@@ -9,6 +9,7 @@ import com.wellnessapp.entity.UserProfile;
 import com.wellnessapp.exception.NotFoundException;
 import com.wellnessapp.exception.BadRequestException;
 import com.wellnessapp.repository.MealPostRepository;
+import com.wellnessapp.repository.HealthProfileHistoryRepository;
 import com.wellnessapp.repository.UserProfileRepository;
 import com.wellnessapp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class AdminMemberJournalService {
     private final UserRepository users;
     private final UserProfileRepository profiles;
     private final MealPostRepository mealPosts;
+    private final HealthProfileHistoryRepository healthHistory;
     private final MemberAccessService memberAccess;
     private final Clock clock;
     private final ZoneId applicationZoneId;
@@ -59,7 +61,22 @@ public class AdminMemberJournalService {
                 member(member, profile),
                 memberAccess.adminMemberToday(memberId),
                 history,
+                healthHistory.findTop52ByUserIdOrderByRecordedAtDesc(memberId).stream()
+                        .map(entry -> new AdminMemberJournalResponse.HealthReport(
+                                entry.getId(), entry.getRecordedAt(), entry.getHeightCm(), entry.getWeightKg(),
+                                entry.getAge(), entry.getBodyFatPercent(), entry.getDietaryPreferences()))
+                        .toList(),
                 RETENTION_DAYS);
+    }
+
+    @Transactional
+    public AdminMemberJournalResponse getShared(String viewerEmail, Long memberId) {
+        User viewer = users.findByEmailIgnoreCase(viewerEmail)
+                .orElseThrow(() -> new NotFoundException("Shared member not found"));
+        if (!memberAccess.canReadMember(viewer, memberId)) {
+            throw new NotFoundException("Shared member not found");
+        }
+        return get(memberId);
     }
 
     @Transactional

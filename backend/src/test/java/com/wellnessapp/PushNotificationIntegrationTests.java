@@ -89,8 +89,8 @@ class PushNotificationIntegrationTests {
         assertThat(devices.count()).isEqualTo(1);
         mvc.perform(put("/api/notifications/preferences").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"mealReminders\":false,\"coachNudges\":true,\"customSound\":false}")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.mealReminders").value(false)).andExpect(jsonPath("$.customSound").value(false));
-        mvc.perform(get("/api/notifications/preferences").header("Authorization", auth(member))).andExpect(jsonPath("$.mealReminders").value(false))
+                .andExpect(jsonPath("$.mealReminders").value(true)).andExpect(jsonPath("$.customSound").value(false));
+        mvc.perform(get("/api/notifications/preferences").header("Authorization", auth(member))).andExpect(jsonPath("$.mealReminders").value(true))
                 .andExpect(jsonPath("$.coachNudges").value(true)).andExpect(jsonPath("$.customSound").value(false));
     }
     @Test void pendingAccountCannotRegister() throws Exception {
@@ -140,13 +140,15 @@ class PushNotificationIntegrationTests {
         accounts.unregister(member.getEmail(), pushToken, registration); assertThat(row.getDevice().isEnabled()).isTrue();
         worker.sendPending(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
     }
-    @Test void optingOutCancelsPendingCoachNudge() {
+    @Test void requiredCoachNudgeCannotBeDisabled() throws Exception {
         accounts.register(member.getEmail(), pushToken, registration);
         var missedEvent = missed.save(MissedEvent.builder().user(member).itemType("Meals").itemTitle("Meal overdue").missedAt(now).build());
         reminders.nudge(missedEvent.getId()); reminders.nudge(missedEvent.getId());
         assertThat(deliveries.count()).isEqualTo(1);
         accounts.savePreferences(member.getEmail(), true, false);
-        worker.sendPending(); assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED); verifyNoInteractions(expo);
+        when(expo.send(anyList())).thenReturn(json.readTree("[{\"status\":\"ok\",\"id\":\"required-nudge\"}]"));
+        worker.sendPending(); assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.RECEIPT);
+        assertThat(accounts.preferences(member.getEmail()).coachNudges()).isTrue();
     }
     @Test void mealReminderQueuedOnceAndCancelledAfterLogging() {
         accounts.register(member.getEmail(), pushToken, registration);
@@ -156,6 +158,15 @@ class PushNotificationIntegrationTests {
         reminders.refresh(); reminders.refresh(); assertThat(deliveries.count()).isEqualTo(1);
         meal.setConsumed(true); meals.saveAndFlush(meal); worker.sendPending();
         assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED); verifyNoInteractions(expo);
+    }
+    @Test void missedFiveMinuteWindowDoesNotCreateALateReminder() {
+        accounts.register(member.getEmail(), pushToken, registration);
+        meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
+                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(8, 0)).build());
+        advance(1561);
+        reminders.refresh();
+        assertThat(count(PushDelivery.Kind.MEAL, member)).isZero();
+        assertThat(deliveries.count()).isZero();
     }
     @Test void rescheduledMealCancelsOldReminder() {
         accounts.register(member.getEmail(), pushToken, registration);
@@ -178,8 +189,8 @@ class PushNotificationIntegrationTests {
                 .content("{\"mealReminders\":true,\"coachNudges\":true,\"signupAlerts\":false,\"deadlineAlerts\":false,\"dailyDigest\":true,\"memberUpdates\":false,\"accountUpdates\":false,\"customSound\":false}"))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/notifications/preferences").header("Authorization", auth(admin)))
-                .andExpect(jsonPath("$.signupAlerts").value(false)).andExpect(jsonPath("$.deadlineAlerts").value(false))
-                .andExpect(jsonPath("$.dailyDigest").value(true)).andExpect(jsonPath("$.memberUpdates").value(false))
+                .andExpect(jsonPath("$.signupAlerts").value(true)).andExpect(jsonPath("$.deadlineAlerts").value(true))
+                .andExpect(jsonPath("$.dailyDigest").value(true)).andExpect(jsonPath("$.memberUpdates").value(true))
                 .andExpect(jsonPath("$.customSound").value(false));
         assertThat(deliveries.count()).isZero();
     }
@@ -207,10 +218,35 @@ class PushNotificationIntegrationTests {
                 .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
         reminders.refresh(); reminders.refresh();
         assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isEqualTo(1);
-        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
+        assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(admin.getId()).getFirst().getTitle())
+                .isEqualTo("Push Test: Breakfast check-in overdue");
         meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); worker.sendPending();
-        assertThat(deliveries.findAll()).hasSize(2).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
+        assertThat(deliveries.findAll()).hasSize(1).allMatch(d -> d.getStatus() == PushDelivery.Status.CANCELLED);
         verifyNoInteractions(expo);
+    }
+    @Test void adminPushNamesTheMemberAndTheSpecificIssue() throws Exception {
+        var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
+        meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
+                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
+        when(expo.send(anyList())).thenAnswer(call -> {
+            String payload = json.writeValueAsString(call.getArgument(0));
+            assertThat(payload).contains("Push Test", "Breakfast check-in overdue", "Oats");
+            return json.readTree("[{\"status\":\"ok\",\"id\":\"specific-admin-alert\"}]");
+        });
+        reminders.refresh();
+        worker.sendPending();
+        verify(expo).send(anyList());
+    }
+    @Test void clubHydrationReminderReachesEveryActiveMemberOncePerDay() {
+        User second = users.saveAndFlush(User.builder().email("second@example.com").fullName("Second Member").passwordHash("unused")
+                .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(now).build());
+        assertThat(reminders.nudgeHydrationForAll()).isEqualTo(2);
+        assertThat(reminders.nudgeHydrationForAll()).isZero();
+        assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.NUDGE, second)).isEqualTo(1);
+        assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).getFirst().getTitle())
+                .isEqualTo("Hydration check-in");
     }
     @Test void overdueMealNudgeReachesMemberAndIsIdempotent() {
         var admin = admin();
@@ -223,7 +259,7 @@ class PushNotificationIntegrationTests {
         reminders.nudge(attention.getId()); reminders.nudge(attention.getId());
         assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(1);
         assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()))
-                .extracting(NotificationEvent::getKind).contains(PushDelivery.Kind.DEADLINE, PushDelivery.Kind.NUDGE);
+                .extracting(NotificationEvent::getKind).containsExactly(PushDelivery.Kind.NUDGE);
     }
     @Test void lateNightDeadlineIsStillReportedAfterMidnight() {
         var admin = admin();
@@ -234,7 +270,7 @@ class PushNotificationIntegrationTests {
                 .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(23, 0)).build());
         reminders.refresh();
         assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isEqualTo(1);
-        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
     }
     @Test void dailyDigestIsOptInAndOnlyOnceInTheMorningWindow() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
@@ -261,14 +297,14 @@ class PushNotificationIntegrationTests {
         assertThat(count(PushDelivery.Kind.ACTIVITY, admin)).isEqualTo(1);
         assertThat(count(PushDelivery.Kind.ACTIVITY, member)).isZero();
     }
-    @Test void mutedCategoriesKeepInboxHistoryWithoutQueuingPush() {
+    @Test void requiredCategoriesQueuePushEvenWhenLegacyPreferencesRequestMute() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
         accounts.savePreferences(admin.getEmail(), true, true, false, false, false, false, true);
         for (var kind : List.of(PushDelivery.Kind.SIGNUP, PushDelivery.Kind.DEADLINE, PushDelivery.Kind.ACTIVITY, PushDelivery.Kind.MEAL_POST)) {
             notices.admins(kind, "muted-" + kind, "Test", "Details");
             assertThat(count(kind, admin)).isEqualTo(1);
         }
-        assertThat(deliveries.count()).isZero();
+        assertThat(deliveries.count()).isEqualTo(4);
     }
     @Test void inboxAndReadEndpointCannotAccessAnotherAccountsNotifications() throws Exception {
         var admin = admin(); notices.notify(admin, PushDelivery.Kind.TEST, "owner", "Admin only", "Private inbox detail");

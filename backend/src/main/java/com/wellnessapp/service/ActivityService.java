@@ -37,7 +37,9 @@ import java.time.Instant;
     public ActivitySession create(String email, ActivityRequest request) {
         User user = users.findByEmailIgnoreCase(email).orElseThrow();
         var activity = activities.save(ActivitySession.builder().user(user).activity(request.activity()).durationSeconds(request.durationSeconds()).distanceKm(request.distanceKm()).startedAt(clock.instant()).build());
-        notices.admins(PushDelivery.Kind.ACTIVITY, "activity-" + activity.getId(), "New movement check-in", user.getFullName() + " completed an activity. Review today's member profile.");
+        notices.admins(PushDelivery.Kind.ACTIVITY, "activity-" + activity.getId(),
+                user.getFullName() + ": " + activity.getActivity() + " completed",
+                user.getFullName() + " logged " + Math.max(1, activity.getDurationSeconds() / 60) + " minutes of activity. Review today's member profile.");
         return activity;
     }
 }

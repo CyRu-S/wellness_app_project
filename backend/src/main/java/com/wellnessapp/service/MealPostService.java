@@ -83,7 +83,9 @@ public class MealPostService {
                 plannedMeal.setProteinGrams(request.proteinGrams().setScale(0, RoundingMode.HALF_UP).intValueExact());
                 meals.saveAndFlush(plannedMeal);
             }
-            notices.admins(PushDelivery.Kind.MEAL_POST, "meal-post-" + post.getId(), "New meal check-in", user.getFullName() + " posted a meal photo. Review it in their member profile.");
+            notices.admins(PushDelivery.Kind.MEAL_POST, "meal-post-" + post.getId(),
+                    user.getFullName() + ": " + post.getMealType() + " logged",
+                    user.getFullName() + " posted " + post.getMealName() + ". Review it in their member profile.");
             return response(post);
         } catch (RuntimeException exception) {
             mediaStorage.deleteQuietly(stored.key());

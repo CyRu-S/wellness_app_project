@@ -112,7 +112,7 @@ function HydrationSection({ total, logs }) {
           <Text style={styles.hydrationValue}>{hydrationLabel(total)} today</Text>
           <Text style={styles.hydrationMeta}>{logs.length ? `${logs.length} water check-in${logs.length === 1 ? '' : 's'}` : 'No water logged yet'}</Text>
         </View>
-        {logs.length ? <View style={styles.timeChips}>{logs.slice(-3).map((log, index) => <Text key={log.id || index} style={styles.timeChip}>{numeric(log.amountMl)} ml · {formatJournalClock(log.loggedAt) || 'Today'}</Text>)}</View> : null}
+        {logs.length ? <View style={styles.timeChips}>{logs.map((log, index) => <Text key={log.id || index} style={styles.timeChip}>{numeric(log.amountMl)} ml · {formatJournalClock(log.loggedAt) || 'Today'}</Text>)}</View> : null}
       </View>
     </View>
   );
@@ -140,6 +140,28 @@ function ActivitySection({ total, activities }) {
   );
 }
 
+function TaskSection({ tasks }) {
+  const complete = tasks.filter((task) => task.completed).length;
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeading}>
+        <View><Text style={styles.eyebrow}>DAILY TO-DO</Text><Text style={styles.sectionTitle}>Habits & coach exercise</Text></View>
+        <Text style={styles.sectionCount}>{complete}/{tasks.length}</Text>
+      </View>
+      {tasks.length ? <View style={styles.taskList}>{tasks.map((task, index) => (
+        <View key={task.id || index} style={[styles.taskRow, index < tasks.length - 1 && styles.activityDivider]}>
+          <View style={[styles.taskCheck, task.completed && styles.taskCheckDone]}>{task.completed ? <Ionicons name="checkmark" size={15} color={colors.white} /> : null}</View>
+          <View style={styles.activityCopy}>
+            <Text style={styles.activityName}>{task.title}</Text>
+            <Text style={styles.activityMeta}>{task.type === 'ACTIVITY' ? 'Coach exercise' : 'Healthy habit'} · {task.completed ? `Completed ${formatJournalClock(task.completedAt) || 'today'}` : `Due ${formatJournalClock(task.scheduledTime) || 'today'}`}</Text>
+          </View>
+          <Text style={[styles.taskStatus, task.completed && styles.taskStatusDone]}>{task.completed ? 'DONE' : 'OPEN'}</Text>
+        </View>
+      ))}</View> : <View style={styles.emptySection}><Ionicons name="checkbox-outline" size={25} color={colors.tealDark} /><View style={styles.emptySectionCopy}><Text style={styles.emptySectionTitle}>No daily to-do items</Text><Text style={styles.emptySectionText}>Assigned habits and coach exercises will appear here.</Text></View></View>}
+    </View>
+  );
+}
+
 export default function MemberTodaySnapshot({
   snapshot,
   token,
@@ -153,13 +175,15 @@ export default function MemberTodaySnapshot({
   const meals = snapshot?.meals || snapshot?.plannedMeals || [];
   const waterLogs = snapshot?.waterLogs || snapshot?.hydration?.logs || [];
   const activities = snapshot?.activities || snapshot?.activity?.sessions || [];
+  const tasks = snapshot?.tasks || [];
   const name = snapshot?.member?.name || 'Member';
 
   return (
     <>
       {showHero ? <SummaryHero name={name} title={title} date={snapshot?.date} summary={summary} /> : null}
-      {showAccessNote ? <View style={styles.accessNote}><Ionicons name="shield-checkmark-outline" size={18} color={colors.tealDark} /><Text style={styles.accessNoteText}>You can view today’s check-ins only. Personal details and previous days remain private.</Text></View> : null}
+      {showAccessNote ? <View style={styles.accessNote}><Ionicons name="shield-checkmark-outline" size={18} color={colors.tealDark} /><Text style={styles.accessNoteText}>Assigned wellness check-ins are read-only. Access is managed by the administrator.</Text></View> : null}
       <MealTimeline meals={meals} token={token} onOpenPhoto={onOpenPhoto} />
+      <TaskSection tasks={tasks} />
       {showHydration ? <HydrationSection total={summary.hydrationMl ?? snapshot?.hydration?.totalMl} logs={waterLogs} /> : null}
       <ActivitySection total={summary.activityMinutes ?? snapshot?.activity?.totalMinutes} activities={activities} />
     </>
@@ -223,5 +247,11 @@ const styles = StyleSheet.create({
   activityName: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14 },
   activityMeta: { color: colors.muted, fontFamily: fonts.regular, fontSize: 10, marginTop: 4 },
   activityDuration: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 17 },
+  taskList: { overflow: 'hidden', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
+  taskRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14 },
+  taskCheck: { width: 31, height: 31, borderRadius: 16, borderWidth: 1.5, borderColor: colors.tealMid, alignItems: 'center', justifyContent: 'center' },
+  taskCheckDone: { backgroundColor: colors.tealMid },
+  taskStatus: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 9, letterSpacing: 0.8 },
+  taskStatusDone: { color: colors.tealDark },
   pressed: { opacity: 0.68, transform: [{ scale: 0.98 }] },
 });

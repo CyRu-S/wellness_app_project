@@ -17,16 +17,14 @@ export default function NotificationSettings() {
     if (key === 'customSound' && value) previewThemeSound();
     dispatch(saveNotificationPreferences({ ...notificationPreferences(n), [key]: value }));
   };
-  const options = admin ? [['signupAlerts', t('signupRequests'), n.signupAlerts], ['deadlineAlerts', t('missedDeadlines'), n.deadlineAlerts],
-    ['dailyDigest', t('morningDigest'), n.dailyDigest], ['memberUpdates', t('mealMovementCheckins'), n.memberUpdates]]
-    : [['mealReminders', t('mealReminders'), n.timelineRemindersEnabled], ['coachNudges', t('coachNudges'), n.coachNudgesEnabled],
-      ['accountUpdates', t('planAccessUpdates'), n.accountUpdates]];
-  options.push(['customSound', t('themeRingtone'), n.customSound, t('themeRingtoneDetail')]);
+  const options = [...(admin ? [['dailyDigest', t('morningDigest'), n.dailyDigest]] : []),
+    ['customSound', t('themeRingtone'), n.customSound, t('themeRingtoneDetail')]];
   const enable = () => { requestPushPermission().then(() => dispatch(retryPushRegistration()))
     .catch((error) => dispatch(setPushState({ status: 'error', message: error.message || 'Could not request notification permission. Try again.' }))); };
   const retry = () => dispatch(n.failedPreferences ? saveNotificationPreferences(n.failedPreferences) : loadNotificationPreferences());
   return <View style={styles.card}>
     <Text style={styles.title}>{t('remindersNotifications')}</Text>
+    <Text style={styles.required}>Notifications are required for scheduled reminders and coach updates. You can keep them silent.</Text>
     {options.map(([key, label, value, detail]) =>
       <View key={key} style={styles.row}><View style={styles.copy}><Text style={styles.label}>{label}</Text>{detail ? <Text style={styles.detail}>{detail}</Text> : null}</View><Switch accessibilityLabel={label} value={value}
         disabled={!n.preferencesLoaded || n.savingPreferences} onValueChange={(next) => save(key, next)}
@@ -49,6 +47,7 @@ const styles = StyleSheet.create({
   copy: { flex: 1, paddingVertical: 8 },
   label: { fontFamily: fonts.medium, color: colors.ink, fontSize: 14 },
   detail: { fontFamily: fonts.medium, color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  required: { fontFamily: fonts.medium, color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7, marginBottom: 3 },
   note: { fontFamily: fonts.medium, color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 8 },
   button: { minHeight: 44, justifyContent: 'center', alignItems: 'center', padding: 10, marginTop: 8, backgroundColor: colors.accentSoft, borderRadius: 12 },
   buttonText: { fontFamily: fonts.semibold, color: colors.tealDark, fontSize: 13 },

@@ -36,6 +36,7 @@ const saveAttention = async (dispatch, action) => {
 function AttentionCard({ item, token, onMember, onNudge, onResolve }) {
   const high = item.severity === 'HIGH';
   const nudged = item.status === 'NUDGED';
+  const hydration = item.category === 'Hydration';
 
   return (
     <View style={[styles.itemShell, high && styles.itemShellHigh]}>
@@ -78,7 +79,7 @@ function AttentionCard({ item, token, onMember, onNudge, onResolve }) {
         </Pressable>
 
         <View style={styles.actions}>
-          <Pressable
+          {!hydration ? <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Nudge ${item.memberName}`}
             onPress={onNudge}
@@ -86,7 +87,7 @@ function AttentionCard({ item, token, onMember, onNudge, onResolve }) {
           >
             <Ionicons name="notifications-outline" size={17} color={nudged ? adminColors.deepTeal : adminColors.white} />
             <Text style={[styles.nudgeText, nudged && styles.nudgedText]}>{nudged ? 'Send again' : 'Send nudge'}</Text>
-          </Pressable>
+          </Pressable> : <View style={styles.centralNudgeNote}><Ionicons name="people-outline" size={16} color={adminColors.deepTeal} /><Text style={styles.centralNudgeText}>Use the club hydration reminder on Home</Text></View>}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Resolve alert for ${item.memberName}`}
@@ -145,7 +146,7 @@ export default function AdminAttentionScreen({ navigation }) {
   );
   const actNow = openItems.filter((item) => item.severity === 'HIGH');
   const watch = openItems.filter((item) => item.severity !== 'HIGH');
-  const priorityOpen = attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN').length;
+  const priorityOpen = attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN' && item.category !== 'Hydration').length;
   const nudgedCount = allOpenItems.filter((item) => item.status === 'NUDGED').length;
   const filters = useMemo(() => ['All', ...defaultFilters.filter((category) => allOpenItems.some((item) => item.category === category)),
     ...allOpenItems.map((item) => item.category).filter((category, index, values) => category && !defaultFilters.includes(category) && values.indexOf(category) === index)], [allOpenItems]);
@@ -293,6 +294,8 @@ const styles = StyleSheet.create({
   nudged: { backgroundColor: adminColors.sageSoft },
   nudgeText: { color: adminColors.white, fontFamily: adminFonts.semibold, fontSize: 13 },
   nudgedText: { color: adminColors.deepTeal },
+  centralNudgeNote: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, borderRadius: 15, backgroundColor: adminColors.aqua },
+  centralNudgeText: { flex: 1, color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 11, lineHeight: 15 },
   resolve: { minWidth: 112, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: adminColors.line, backgroundColor: 'rgba(255,255,255,0.58)' },
   resolveText: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12 },
   empty: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 28, borderRadius: adminRadius.lg, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, ...adminShadow },

@@ -20,3 +20,11 @@ export const getSharedMemberToday = (token, memberId) => request(`/shared-member
   headers: authHeaders(token),
 });
 
+export const getSharedMemberJournal = (token, memberId) => request(`/shared-members/${memberId}/journal`, {
+  headers: authHeaders(token),
+});
+
+export const nudgeSharedMember = (token, memberId) => request(`/shared-members/${memberId}/nudge`, {
+  method: 'POST', headers: authHeaders(token),
+});
+

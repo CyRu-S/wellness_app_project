@@ -17,13 +17,10 @@ public class PushQueueService {
     private final Clock clock;
 
     public boolean allowed(Long userId, PushDelivery.Kind kind) {
-        return preferences.findById(userId).map(p -> switch (kind) {
-            case MEAL, HABIT -> p.isMealReminders(); case NUDGE -> p.isCoachNudges(); case TEST -> true;
-            case SIGNUP -> p.isSignupAlerts(); case DEADLINE -> p.isDeadlineAlerts(); case DIGEST -> p.isDailyDigest();
-            case MEAL_POST, ACTIVITY -> p.isMemberUpdates(); case PLAN, ACCESS, APPROVAL -> p.isAccountUpdates();
-        }).orElse(Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT, PushDelivery.Kind.NUDGE,
-                PushDelivery.Kind.SIGNUP, PushDelivery.Kind.DEADLINE, PushDelivery.Kind.PLAN,
-                PushDelivery.Kind.ACCESS, PushDelivery.Kind.APPROVAL, PushDelivery.Kind.TEST).contains(kind));
+        // Operational notifications are required. Only the optional morning digest
+        // can be disabled; sound remains a separate user choice.
+        if (kind != PushDelivery.Kind.DIGEST) return true;
+        return preferences.findById(userId).map(NotificationPreferences::isDailyDigest).orElse(false);
     }
 
     public boolean customSound(Long userId) {
@@ -60,7 +57,7 @@ public class PushQueueService {
         for (var event : events.findByUserIdAndScheduledAtGreaterThanEqualAndScheduledAtLessThanOrderByScheduledAtDesc(
                 device.getUser().getId(), now.minusSeconds(3900), now.plusSeconds(1))) {
             if (event.getKind() == null || !allowed(device.getUser().getId(), event.getKind())) continue;
-            var expires = event.getScheduledAt().plusSeconds(Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(event.getKind()) ? 3900 : 86400);
+            var expires = event.getScheduledAt().plusSeconds(Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(event.getKind()) ? 300 : 86400);
             if (now.isBefore(expires)) enqueueForDevice(event, device, event.getKind(), expires);
         }
     }

@@ -3,11 +3,13 @@ package com.wellnessapp;
 import com.wellnessapp.dto.access.ReplaceMemberAccessRequest;
 import com.wellnessapp.dto.mealpost.CreateMealPostRequest;
 import com.wellnessapp.dto.profile.BodyMetricsRequest;
+import com.wellnessapp.dto.profile.UpdateProfileRequest;
 import com.wellnessapp.entity.User;
 import com.wellnessapp.exception.BadRequestException;
 import com.wellnessapp.exception.ConflictException;
 import com.wellnessapp.exception.NotFoundException;
 import com.wellnessapp.repository.MealRepository;
+import com.wellnessapp.repository.HealthProfileHistoryRepository;
 import com.wellnessapp.repository.UserRepository;
 import com.wellnessapp.service.*;
 import org.junit.jupiter.api.Test;
@@ -27,10 +29,15 @@ import static org.assertj.core.api.Assertions.*;
 @Transactional
 class MemberAccessFeatureIntegrationTests {
     @Autowired MemberAccessService memberAccess;
+    @Autowired PlanService plans;
+    @Autowired ReminderService reminders;
+    @Autowired AdminMemberJournalService journals;
     @Autowired MealPostService mealPosts;
     @Autowired ProfileService profiles;
     @Autowired UserRepository users;
     @Autowired MealRepository meals;
+    @Autowired HealthProfileHistoryRepository healthHistory;
+    @Autowired com.wellnessapp.repository.NotificationRepository notifications;
     @Autowired ZoneId applicationZoneId;
 
     @Test
@@ -81,6 +88,24 @@ class MemberAccessFeatureIntegrationTests {
     }
 
     @Test
+    void assignedCoachCanReadTheSameMealHistoryAndHealthReportsAsAdmin() {
+        User coach = user("user@mr-care.app");
+        User member = user("kavya.menon@example.com");
+        profiles.update(member.getEmail(), new UpdateProfileRequest(member.getFullName(), "High protein", null, null));
+        assertThat(healthHistory.findTop52ByUserIdOrderByRecordedAtDesc(member.getId())).isEmpty();
+        profiles.updateBodyMetrics(member.getEmail(), new BodyMetricsRequest(168, 62.5, 31, 22.0));
+
+        assertThatThrownBy(() -> journals.getShared(coach.getEmail(), member.getId()))
+                .isInstanceOf(NotFoundException.class);
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+
+        var adminJournal = journals.get(member.getId());
+        var coachJournal = journals.getShared(coach.getEmail(), member.getId());
+        assertThat(coachJournal.history()).isEqualTo(adminJournal.history());
+        assertThat(coachJournal.healthReports()).isEqualTo(adminJournal.healthReports()).hasSize(1);
+    }
+
+    @Test
     void suspendedViewersAndSubjectsImmediatelyLoseAccess() {
         User aarav = user("user@mr-care.app");
         User kavya = user("kavya.menon@example.com");
@@ -108,6 +133,40 @@ class MemberAccessFeatureIntegrationTests {
         assertThatThrownBy(() -> profiles.updateBodyMetrics(
                 "user@mr-care.app", new BodyMetricsRequest(176, 71.5, 28, 18.0)))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void dailyHabitsAndCoachExercisesExposeCompletionToAdminAndAssignedCoach() {
+        User coach = user("user@mr-care.app");
+        User member = user("rohan.das@example.com");
+        var saved = plans.save(member.getId(), new com.wellnessapp.dto.plan.SaveMealPlanRequest("Coach plan", List.of(
+                new com.wellnessapp.dto.plan.SaveMealPlanRequest.Item("Healthy habit", "Morning sunlight", java.time.LocalTime.of(7, 0), 0, 0, List.of(), null, "HEALTHY_HABIT", "Wellbeing"),
+                new com.wellnessapp.dto.plan.SaveMealPlanRequest.Item("Coach exercise", "Strength circuit", java.time.LocalTime.of(17, 0), 0, 0, List.of(), null, "ACTIVITY", "Coach exercise"))));
+        Long exerciseId = ((Number) ((java.util.List<?>) saved.get("exercises")).stream()
+                .map(value -> (java.util.Map<?, ?>) value).findFirst().orElseThrow().get("id")).longValue();
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+
+        assertThat(memberAccess.adminMemberToday(member.getId()).tasks()).hasSize(2).allMatch(task -> !task.completed());
+        plans.completeTask(member.getEmail(), exerciseId);
+        var coachView = memberAccess.sharedMemberToday(coach.getEmail(), member.getId());
+        assertThat(coachView.tasks()).anySatisfy(task -> {
+            assertThat(task.type()).isEqualTo("ACTIVITY");
+            assertThat(task.completed()).isTrue();
+            assertThat(task.completedAt()).isNotNull();
+        });
+    }
+
+    @Test
+    void assignedCoachCanNudgeOnlyTheirMemberOncePerDay() {
+        User coach = user("user@mr-care.app");
+        User member = user("kavya.menon@example.com");
+        assertThatThrownBy(() -> reminders.nudgeSharedMember(coach.getEmail(), member.getId()))
+                .isInstanceOf(NotFoundException.class);
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+        assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId())).isTrue();
+        assertThat(reminders.nudgeSharedMember(coach.getEmail(), member.getId())).isFalse();
+        assertThat(notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).stream()
+                .filter(event -> event.getKind() == com.wellnessapp.entity.PushDelivery.Kind.NUDGE)).hasSize(1);
     }
 
     @Test

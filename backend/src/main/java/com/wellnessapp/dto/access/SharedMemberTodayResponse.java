@@ -10,6 +10,7 @@ public record SharedMemberTodayResponse(
         String timeZone,
         Summary summary,
         List<MealEntry> meals,
+        List<TaskEntry> tasks,
         List<WaterEntry> waterLogs,
         List<ActivityEntry> activities
 ) {
@@ -40,5 +41,7 @@ public record SharedMemberTodayResponse(
     ) {}
 
     public record WaterEntry(Long id, int amountMl, Instant loggedAt) {}
+    public record TaskEntry(Long id, String type, String title, String detail, LocalTime scheduledTime,
+                            boolean completed, Instant completedAt) {}
     public record ActivityEntry(Long id, String activity, int durationMinutes, Double distanceKm, Instant startedAt) {}
 }

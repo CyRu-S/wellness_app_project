@@ -123,7 +123,7 @@ function Overview({ member, plan, snapshot }) {
 }
 
 function Today({ plan, snapshot, token, onOpenPhoto }) {
-  if (snapshot) return <MemberTodaySnapshot snapshot={snapshot} token={token} onOpenPhoto={onOpenPhoto} showHero={false} showHydration={false} />;
+  if (snapshot) return <MemberTodaySnapshot snapshot={snapshot} token={token} onOpenPhoto={onOpenPhoto} showHero={false} />;
   const completed = plan.items.filter((item) => item.consumed).length;
   return (
     <>
@@ -211,6 +211,25 @@ function History({ posts = [], days, token, retentionDays = 21, onOpenPhoto }) {
       ) : (
         <View style={styles.historyEmpty}><Text style={styles.historyEmptyTitle}>No previous posts</Text><Text style={styles.historyEmptyText}>Yesterday’s meal posts will appear here and remain available for 21 days.</Text></View>
       )}
+    </>
+  );
+}
+
+function HealthReports({ reports = [] }) {
+  return (
+    <>
+      <View style={styles.historyHeading}>
+        <View><Text style={styles.cardEyebrow}>HEALTH REPORTS</Text><Text style={styles.historyHeadingTitle}>Saved profile check-ins</Text></View>
+        <View style={styles.retentionPill}><Text style={styles.retentionText}>{reports.length} SAVED</Text></View>
+      </View>
+      <Text style={styles.historyIntro}>Measurements and health preferences recorded by this member.</Text>
+      {reports.length ? <View style={styles.reportList}>{reports.map((report) => (
+        <View key={report.id} style={styles.healthReport}>
+          <View style={styles.reportHead}><Text style={styles.historyTitle}>{formatJournalDate(report.recordedAt, { day: 'numeric', month: 'short', year: 'numeric' })}</Text><Ionicons name="document-text-outline" size={18} color={adminColors.teal} /></View>
+          <Text style={styles.reportMetrics}>{report.weightKg ?? '—'} kg · {report.heightCm ?? '—'} cm · {report.bodyFatPercent ?? '—'}% body fat · age {report.age ?? '—'}</Text>
+          <Text style={styles.historyDetail}>{report.dietaryPreferences || 'No health preferences recorded'}</Text>
+        </View>
+      ))}</View> : <View style={styles.historyEmpty}><Ionicons name="document-text-outline" size={28} color={adminColors.teal} /><Text style={styles.historyEmptyTitle}>No health reports yet</Text><Text style={styles.historyEmptyText}>The member’s saved profile updates will appear here.</Text></View>}
     </>
   );
 }
@@ -319,7 +338,7 @@ function WaterGoalEditor({ visible, member, currentGoal, saving, onClose, onSave
 
 function PlanEditor({ visible, member, plan, onClose, onSave }) {
   const [planName, setPlanName] = useState(plan.planName);
-  const [items, setItems] = useState([...(plan.items || []), ...(plan.habits || [])]
+  const [items, setItems] = useState([...(plan.items || []), ...(plan.habits || []), ...(plan.exercises || [])]
     .map((item) => ({ kind: item.kind || 'MEAL', ...item })));
   const [saving, setSaving] = useState(false);
   const [timePickerIndex, setTimePickerIndex] = useState(null);
@@ -335,8 +354,8 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
       {
         id: `${member?.id}-new-${Date.now()}`,
         kind,
-        type: kind === 'HEALTHY_HABIT' ? 'Healthy habit' : 'Snack',
-        category: null,
+        type: kind === 'HEALTHY_HABIT' ? 'Healthy habit' : kind === 'ACTIVITY' ? 'Coach exercise' : 'Snack',
+        category: kind === 'ACTIVITY' ? 'Coach exercise' : null,
         name: '',
         time: '4:00 PM',
         hour: 16,
@@ -372,7 +391,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
       items: items.map((item) => ({
         ...item,
         name: item.name.trim(),
-        category: item.kind === 'HEALTHY_HABIT' ? null : item.category,
+        category: item.kind === 'MEAL' ? item.category : (item.category || item.type),
         time: item.time.trim().toUpperCase(),
         hour: timeToHour(item.time, item.hour),
         ingredients: (item.ingredients || []).map((ingredient) => ingredient.trim()).filter(Boolean),
@@ -389,7 +408,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
             <View style={styles.editorHeaderCopy}><Text style={styles.editorEyebrow}>RECURRING DAILY PLAN</Text><Text style={styles.editorTitle}>Plan {member.name}’s day</Text></View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close plan editor" onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={21} color={adminColors.ink} /></Pressable>
           </View>
-          <Text style={styles.editorIntro}>Meals and healthy habits repeat daily until you change them.</Text>
+          <Text style={styles.editorIntro}>Meals, healthy habits, and coach exercises repeat daily until you change them.</Text>
           <View style={styles.preferenceBanner}><Ionicons name="nutrition-outline" size={18} color={adminColors.deepTeal} /><View style={styles.preferenceCopy}><Text style={styles.inputLabel}>MEMBER HEALTH PREFERENCES</Text><Text style={styles.preferenceText}>{member.dietaryPreferences || 'No preferences provided'}</Text></View></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.editorScroll}>
             <Text style={styles.inputLabel}>PLAN NAME</Text>
@@ -399,7 +418,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
               <View key={meal.id || `${meal.type}-${index}`} style={styles.editorMeal}>
                 <View style={styles.editorMealTop}>
                   <View style={styles.editorMealNumber}><Text style={styles.editorMealNumberText}>{String(index + 1).padStart(2, '0')}</Text></View>
-                  <Text style={styles.editorMealType}>{meal.kind === 'HEALTHY_HABIT' ? 'Healthy habit' : meal.type}</Text>
+                  <Text style={styles.editorMealType}>{meal.kind === 'HEALTHY_HABIT' ? 'Healthy habit' : meal.kind === 'ACTIVITY' ? 'Coach exercise' : meal.type}</Text>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${meal.type}`} onPress={() => removeItem(index)} style={styles.removeMeal}>
                     <Ionicons name="trash-outline" size={17} color={adminColors.coral} />
                   </Pressable>
@@ -409,7 +428,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                     <Ionicons name="time-outline" size={15} color={adminColors.deepTeal} />
                   </Pressable>
                 </View>
-                {meal.kind !== 'HEALTHY_HABIT' ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeOptions}>
+                {meal.kind === 'MEAL' ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeOptions}>
                   {MEAL_TYPES.map((type) => {
                     const selected = meal.type === type;
                     return (
@@ -423,7 +442,7 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
                   accessibilityLabel={`${meal.type} description`}
                   value={meal.name}
                   onChangeText={(value) => changeItem(index, 'name', value)}
-                  placeholder={meal.kind === 'HEALTHY_HABIT' ? 'Habit, for example 20-minute walk' : `${meal.type} description`}
+                  placeholder={meal.kind === 'HEALTHY_HABIT' ? 'Habit, for example morning meditation' : meal.kind === 'ACTIVITY' ? 'Exercise, for example 20-minute strength circuit' : `${meal.type} description`}
                   placeholderTextColor={adminColors.muted}
                   multiline
                   style={styles.mealInput}
@@ -437,6 +456,10 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
             <Pressable accessibilityRole="button" onPress={() => addItem('HEALTHY_HABIT')} style={({ pressed }) => [styles.addMealButton, styles.addHabitButton, pressed && styles.pressed]}>
               <View style={styles.addMealIcon}><Ionicons name="leaf-outline" size={20} color={adminColors.deepTeal} /></View>
               <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add healthy habit</Text><Text style={styles.addMealDetail}>Add one daily wellbeing action with its reminder time.</Text></View>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => addItem('ACTIVITY')} style={({ pressed }) => [styles.addMealButton, styles.addHabitButton, pressed && styles.pressed]}>
+              <View style={styles.addMealIcon}><Ionicons name="barbell-outline" size={20} color={adminColors.deepTeal} /></View>
+              <View style={styles.addMealCopy}><Text style={styles.addMealTitle}>Add coach exercise</Text><Text style={styles.addMealDetail}>Assign one exercise that appears in the member’s Move section.</Text></View>
             </Pressable>
           </ScrollView>
           {timePickerIndex != null && items[timePickerIndex] ? <MealTimePicker key={`${timePickerIndex}-${items[timePickerIndex].id}`}
@@ -605,7 +628,7 @@ export default function UserDetailsScreen({ route, navigation }) {
         <View style={styles.waterActionValue}><Text style={styles.waterActionNumber}>{((profileMember.waterGoalMl || 2000) / 1000).toFixed((profileMember.waterGoalMl || 2000) % 1000 ? 2 : 0)} L</Text><Ionicons name="chevron-forward" size={18} color={adminColors.muted} /></View>
       </Pressable>
 
-      <View style={styles.segmentWrap}><AdminSegmentedControl options={['Overview', 'Today', 'History', 'Access']} value={segment} onChange={setSegment} accessibilityLabel="Member profile section" /></View>
+      <View style={styles.segmentWrap}><AdminSegmentedControl options={[{ value: 'Overview', label: 'Profile' }, 'Today', 'History', 'Reports', 'Access']} value={segment} onChange={setSegment} accessibilityLabel="Member profile section" /></View>
 
       {segment === 'Overview' && <Overview member={profileMember} plan={plan} snapshot={todaySnapshot} />}
       {segment === 'Today' && (todaySnapshot ? <Today plan={plan} snapshot={todaySnapshot} token={token} onOpenPhoto={setSelectedPhoto} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
@@ -616,6 +639,7 @@ export default function UserDetailsScreen({ route, navigation }) {
         <Pressable onPress={() => navigation.navigate('ManageMemberAccess', { viewerId: member.id })} style={styles.retryButton}><Text style={styles.retryText}>Manage access</Text></Pressable>
       </View>}
       {segment === 'History' && (journal ? <History days={journal.history || []} token={token} retentionDays={journal.retentionDays || 21} onOpenPhoto={setSelectedPhoto} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
+      {segment === 'Reports' && (journal ? <HealthReports reports={journal.healthReports || []} /> : <JournalState loading={journalLoading} error={journalRequest.error} onRetry={retryJournal} />)}
       <Pressable accessibilityRole="button" accessibilityState={{ disabled: deletingMember, busy: deletingMember }} disabled={deletingMember} onPress={confirmDeleteMember} style={({ pressed }) => [styles.deleteMember, (pressed || deletingMember) && styles.pressed]}><Ionicons name="trash-outline" size={18} color={adminColors.coral} /><Text style={styles.deleteMemberText}>{deletingMember ? 'Deleting member account…' : 'Delete member account'}</Text></Pressable>
 
       {editingPlan ? <PlanEditor visible member={member} plan={plan} onClose={() => setEditingPlan(false)} onSave={savePlan} /> : null}
@@ -742,6 +766,10 @@ const styles = StyleSheet.create({
   historyEmpty: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 38, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
   historyEmptyTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16 },
   historyEmptyText: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 5 },
+  reportList: { marginTop: 14, borderTopWidth: 1, borderTopColor: adminColors.line },
+  healthReport: { paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: adminColors.line },
+  reportHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  reportMetrics: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 18, marginTop: 8 },
   journalState: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 38, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line },
   journalStateTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16, marginTop: 12 },
   journalStateText: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 5 },

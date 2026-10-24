@@ -13,6 +13,7 @@ import AdminMembersScreen from '../screens/admin/AdminMembersScreen';
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import AdminSettingsScreen from '../screens/admin/AdminSettingsScreen';
 import AdminNotificationsScreen from '../screens/admin/AdminNotificationsScreen';
+import AdminLeaderboardScreen from '../screens/admin/AdminLeaderboardScreen';
 import UserDetailsScreen from '../screens/admin/UserDetailsScreen';
 import ManageMemberAccessScreen from '../screens/admin/ManageMemberAccessScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
@@ -68,6 +69,7 @@ export default function AdminNavigator() {
     >
       <Stack.Screen name="AdminTabs" component={AdminTabs} options={{ headerShown: false }} />
       <Stack.Screen name="AdminNotifications" component={AdminNotificationsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Leaderboard" component={AdminLeaderboardScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Reports" component={AdminMealInsightsScreen} options={{ headerShown: false }} />
       {Object.keys(variants).map((name) => <Stack.Screen key={name} name={name} component={Variant} />)}
       <Stack.Screen name="UserDetails" component={UserDetailsScreen} options={{ headerShown: false }} />

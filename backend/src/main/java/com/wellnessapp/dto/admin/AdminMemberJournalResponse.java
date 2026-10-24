@@ -10,6 +10,7 @@ public record AdminMemberJournalResponse(
         Member member,
         SharedMemberTodayResponse today,
         List<HistoryDay> history,
+        List<HealthReport> healthReports,
         int retentionDays
 ) {
     public record Member(
@@ -30,6 +31,16 @@ public record AdminMemberJournalResponse(
     ) {}
 
     public record HistoryDay(LocalDate date, List<HistoryPost> posts) {}
+
+    public record HealthReport(
+            Long id,
+            Instant recordedAt,
+            Integer heightCm,
+            Double weightKg,
+            Integer age,
+            Double bodyFatPercent,
+            String dietaryPreferences
+    ) {}
 
     public record HistoryPost(
             Long postId,

@@ -48,9 +48,11 @@ export const deleteMemberAccount = createAsyncThunk('admin/deleteMember', async 
   return memberId;
 });
 export const nudgePriorityAttention = createAsyncThunk('admin/nudgePriority', async (_, { getState, dispatch }) => {
-  const ids = getState().admin.attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN').map((item) => item.id);
+  const ids = getState().admin.attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN' && item.category !== 'Hydration').map((item) => item.id);
   await Promise.all(ids.map((id) => dispatch(nudgeAttention(id)).unwrap()));
 });
+export const nudgeClubHydration = createAsyncThunk('admin/nudgeClubHydration', async (_, { getState }) =>
+  request('/admin/hydration/nudge-all', { method: 'POST', headers: headers(getState) }));
 export const updateMemberMealPlan = createAsyncThunk('admin/savePlan', async ({ memberId, planName, items }, { getState }) => {
   const body = { planName, items: items.map((item) => {
     const minutes = Math.round(item.hour * 60);
@@ -62,14 +64,14 @@ export const updateMemberMealPlan = createAsyncThunk('admin/savePlan', async ({ 
   const result = await request(`/admin/plans/members/${memberId}`, { method: 'PUT', headers: headers(getState), body: JSON.stringify(body) });
   return result;
 });
-const writes = [approveRequest, declineRequest, nudgeAttention, resolveAttention, updateMemberMealPlan, deleteMemberAccount];
+const writes = [approveRequest, declineRequest, nudgeAttention, resolveAttention, nudgeClubHydration, updateMemberMealPlan, deleteMemberAccount];
 const emptyRange = { label: '', totalLogs: 0, completionRate: 0, comparison: 0, series: [] };
 const initialState = {
-  summary: { pendingApprovals: 0, mealLogsToday: 0, mealComparison: 0, missedItems: 0, activeUsers: 0, totalMembers: 0, averageAdherence: 0, onTrackPercentage: 0, activePlans: 0, products: 0 },
-  members: [], approvals: [], attention: [], products: [], productsError: null, approvalsError: null, memberMealPlans: {}, memberMealPostHistory: {},
+  summary: { pendingApprovals: 0, mealLogsToday: 0, membersWithMealLogsToday: 0, mealComparison: 0, missedItems: 0, activeUsers: 0, totalMembers: 0, averageAdherence: 0, onTrackPercentage: 0, activePlans: 0, products: 0 },
+  members: [], approvals: [], attention: [], leaderboard: [], products: [], productsError: null, approvalsError: null, memberMealPlans: {}, memberMealPostHistory: {},
   mealInsights: { selectedRange: 'TODAY', ranges: { TODAY: emptyRange, '7D': emptyRange, '30D': emptyRange }, mealTypes: [], missingMembers: [] },
   preferences: { signupAlerts: true, deadlineAlerts: true, dailyDigest: false },
-  attentionError: null, pageReads: {}, readId: null, writes: {}, attentionRollbacks: {}, membersStatus: 'idle', membersError: null, lastApprovalDecision: null,
+  attentionError: null, hydrationNudge: { status: 'idle', notified: 0, error: null }, pageReads: {}, readId: null, writes: {}, attentionRollbacks: {}, membersStatus: 'idle', membersError: null, lastApprovalDecision: null,
 };
 const slice = createSlice({
   name: 'admin', initialState,
@@ -123,7 +125,7 @@ const slice = createSlice({
     .addCase(loadAdminMemberPlan.fulfilled, (state, action) => {
       if (state.pageReads['plan'] !== action.meta.requestId || Object.keys(state.writes).length) return;
       delete state.pageReads['plan']; state.memberMealPlans[action.meta.arg] = { ...action.payload, items: action.payload.items.map(normalizeMeal),
-        habits: (action.payload.habits || []).map(normalizeMeal) }; })
+        habits: (action.payload.habits || []).map(normalizeMeal), exercises: (action.payload.exercises || []).map(normalizeMeal) }; })
     .addCase(loadAdminMembers.pending, (state, action) => { state.membersStatus = 'loading'; state.readId = action.meta.requestId; })
     .addCase(loadAdminMembers.fulfilled, (state, action) => {
       if (state.readId !== action.meta.requestId) return;
@@ -140,7 +142,7 @@ const slice = createSlice({
       const selectedRange = state.mealInsights.selectedRange;
       Object.assign(state, action.payload, { membersStatus: 'succeeded', membersError: null });
       state.mealInsights.selectedRange = selectedRange;
-      Object.values(state.memberMealPlans).forEach((plan) => { plan.items = plan.items.map(normalizeMeal); plan.habits = (plan.habits || []).map(normalizeMeal); });
+      Object.values(state.memberMealPlans).forEach((plan) => { plan.items = plan.items.map(normalizeMeal); plan.habits = (plan.habits || []).map(normalizeMeal); plan.exercises = (plan.exercises || []).map(normalizeMeal); });
     })
     .addCase(loadAdminMembers.rejected, (state, action) => {
       if (state.readId !== action.meta.requestId) return;
@@ -148,7 +150,7 @@ const slice = createSlice({
     })
     .addCase(updateMemberMealPlan.fulfilled, (state, action) => {
       state.memberMealPlans[action.meta.arg.memberId] = { ...action.payload, items: action.payload.items.map(normalizeMeal),
-        habits: (action.payload.habits || []).map(normalizeMeal) };
+        habits: (action.payload.habits || []).map(normalizeMeal), exercises: (action.payload.exercises || []).map(normalizeMeal) };
       const member = state.members.find((row) => row.id === action.meta.arg.memberId);
       if (member) member.plan = action.payload.planName || 'No plan assigned';
     })
@@ -187,6 +189,13 @@ const slice = createSlice({
       if (rollback && !state.attention.some((row) => row.id === rollback.item.id)) state.attention.splice(rollback.index, 0, rollback.item);
       delete state.attentionRollbacks[action.meta.requestId];
     })
+    .addCase(nudgeClubHydration.pending, (state) => { state.hydrationNudge = { status: 'loading', notified: 0, error: null }; })
+    .addCase(nudgeClubHydration.fulfilled, (state, action) => {
+      state.hydrationNudge = { status: 'succeeded', notified: Number(action.payload?.notified || 0), error: null };
+    })
+    .addCase(nudgeClubHydration.rejected, (state, action) => {
+      state.hydrationNudge = { status: 'failed', notified: 0, error: action.error?.message || 'Hydration reminder could not be sent.' };
+    })
     .addCase(deleteMemberAccount.fulfilled, (state, action) => {
       state.members = state.members.filter((member) => member.id !== action.payload);
       state.attention = state.attention.filter((item) => item.memberId !== action.payload);
@@ -218,6 +227,7 @@ export const selectAdminMembers = (state) => state.admin.members;
 export const selectAdminApprovals = (state) => state.admin.approvals;
 export const selectAdminMealInsights = (state) => state.admin.mealInsights;
 export const selectAdminAttention = (state) => state.admin.attention;
+export const selectAdminLeaderboard = (state) => state.admin.leaderboard;
 export const selectAdminPreferences = (state) => state.admin.preferences;
 export const selectAdminMemberMealPlans = (state) => state.admin.memberMealPlans;
 export const selectAdminMemberMealPostHistory = (state) => state.admin.memberMealPostHistory;

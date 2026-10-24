@@ -4,7 +4,7 @@ import { Animated, Image, Pressable, StyleSheet, useWindowDimensions, View } fro
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 import AdminMealRhythmChart from '../../components/admin/AdminMealRhythmChart';
 import AdminScreen from '../../components/admin/AdminScreen';
@@ -15,9 +15,12 @@ import {
   selectAdminAttention,
   selectAdminMealInsights,
   selectAdminSummary,
+  nudgeClubHydration,
+  selectAdminLeaderboard,
 } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 import { selectUnreadNotificationCount } from '../../store/slices/notificationSlice';
+import Alert from '../../utils/appAlert';
 
 const heroArtwork = require('../../../assets/shake.png');
 
@@ -127,10 +130,13 @@ function PriorityRow({ item, last, onPress }) {
 }
 
 export default function AdminDashboardScreen({ navigation }) {
+  const dispatch = useDispatch();
   const summary = useSelector(selectAdminSummary);
   const approvals = useSelector(selectAdminApprovals);
   const attention = useSelector(selectAdminAttention);
   const insights = useSelector(selectAdminMealInsights);
+  const leaderboard = useSelector(selectAdminLeaderboard);
+  const hydrationNudge = useSelector((state) => state.admin.hydrationNudge);
   const admin = useSelector((state) => state.auth.user);
   const reduceMotion = useReducedMotion();
   const { width, fontScale } = useWindowDimensions();
@@ -151,7 +157,7 @@ export default function AdminDashboardScreen({ navigation }) {
     })),
     [summary.totalMembers, todaySeries],
   );
-  const latestMealValue = todayMemberSeries[todayMemberSeries.length - 1]?.value || 0;
+  const latestMealValue = summary.membersWithMealLogsToday ?? todayMemberSeries[todayMemberSeries.length - 1]?.value ?? 0;
   const peakMealPoint = useMemo(
     () => todayMemberSeries.reduce(
       (peak, item) => (item.value > peak.value ? item : peak),
@@ -199,6 +205,16 @@ export default function AdminDashboardScreen({ navigation }) {
     navigation.navigate(route, params);
   };
   const unreadCount = useSelector(selectUnreadNotificationCount);
+  const sendHydrationReminder = async () => {
+    try {
+      const result = await dispatch(nudgeClubHydration()).unwrap();
+      Alert.alert('Hydration reminder sent', result.notified
+        ? `${result.notified} members received today’s club hydration reminder.`
+        : 'Today’s hydration reminder was already sent to every active member.');
+    } catch (error) {
+      Alert.alert('Reminder not sent', error.message || 'Check your connection and try again.');
+    }
+  };
 
   return (
     <AdminScreen contentStyle={styles.screenContent}>
@@ -365,6 +381,22 @@ export default function AdminDashboardScreen({ navigation }) {
             <CompactSignal icon="alert-circle-outline" label="Attention" value={openAttention.length} meta={`${highPriorityCount} high priority`} tone="coral" onPress={() => openRoute('Alerts')} />
           </View>
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Send a hydration reminder to all active members"
+          accessibilityState={{ busy: hydrationNudge.status === 'loading', disabled: hydrationNudge.status === 'loading' }}
+          disabled={hydrationNudge.status === 'loading'}
+          onPress={sendHydrationReminder}
+          style={({ pressed }) => [styles.hydrationAction, pressed && styles.pressed]}
+        >
+          <View style={styles.hydrationIcon}><Ionicons name="water" size={21} color={adminColors.white} /></View>
+          <View style={styles.hydrationCopy}>
+            <Text style={styles.hydrationLabel}>CLUB HYDRATION</Text>
+            <Text style={styles.hydrationTitle}>{hydrationNudge.status === 'loading' ? 'Sending reminder…' : 'Remind every member'}</Text>
+            <Text style={styles.hydrationMeta}>One notification reaches all active members.</Text>
+          </View>
+          <Ionicons name="notifications-outline" size={21} color={adminColors.deepTeal} />
+        </Pressable>
       </Reveal>
 
       <Reveal delay={180} reduceMotion={reduceMotion}>
@@ -416,6 +448,23 @@ export default function AdminDashboardScreen({ navigation }) {
               </View>
             </View>
           </LinearGradient>
+        </Pressable>
+      </Reveal>
+
+      <Reveal delay={215} reduceMotion={reduceMotion}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open yesterday’s diet-plan leaderboard" onPress={() => openRoute('Leaderboard')} style={({ pressed }) => [styles.leaderboard, pressed && styles.panelPressed]}>
+          <View style={styles.leaderboardHead}>
+            <View><Text style={styles.sectionEyebrow}>YESTERDAY</Text><Text style={styles.leaderboardTitle}>Diet-plan leaderboard</Text></View>
+            <View style={styles.leaderboardArrow}><Ionicons name="arrow-forward" size={18} color={adminColors.white} /></View>
+          </View>
+          {leaderboard.slice(0, 3).map((member) => (
+            <View key={member.memberId} style={styles.leaderboardRow}>
+              <Text style={styles.leaderboardRank}>{String(member.rank).padStart(2, '0')}</Text>
+              <Text numberOfLines={1} style={styles.leaderboardName}>{member.name}</Text>
+              <Text style={styles.leaderboardScore}>{member.score}%</Text>
+            </View>
+          ))}
+          {!leaderboard.length ? <Text style={styles.leaderboardEmpty}>Yesterday’s results will appear after members begin following their meal plans.</Text> : null}
         </Pressable>
       </Reveal>
 
@@ -590,4 +639,19 @@ const styles = StyleSheet.create({
   emptyTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16 },
   emptyText: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, marginTop: 3 },
   pressed: { opacity: 0.68, transform: [{ scale: 0.98 }] },
+  hydrationAction: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 14, padding: 14, borderRadius: 22, backgroundColor: adminColors.aqua, borderWidth: 1, borderColor: '#C4E2DC' },
+  hydrationIcon: { width: 46, height: 46, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.teal },
+  hydrationCopy: { flex: 1, minWidth: 0 },
+  hydrationLabel: { color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 10, letterSpacing: 1 },
+  hydrationTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16, marginTop: 2 },
+  hydrationMeta: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, marginTop: 2 },
+  leaderboard: { marginTop: 28, paddingVertical: 17, borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line },
+  leaderboardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  leaderboardTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 22, marginTop: 3 },
+  leaderboardArrow: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.deepTeal },
+  leaderboardRow: { minHeight: 45, flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: adminColors.line },
+  leaderboardRank: { width: 36, color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 12 },
+  leaderboardName: { flex: 1, color: adminColors.ink, fontFamily: adminFonts.medium, fontSize: 14 },
+  leaderboardScore: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 15 },
+  leaderboardEmpty: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, paddingVertical: 12 },
 });
