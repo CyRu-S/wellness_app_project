@@ -22,8 +22,8 @@ public class AiMealAnalysisService {
         String normalized = category == null ? "meal" : category.strip().toLowerCase(Locale.ROOT);
         if (Set.of("product", "herbalife", "herbalife product").contains(normalized))
             throw new ResponseStatusException(BAD_REQUEST, "Herbalife products use photo check-ins with fixed calories for listed products; no AI analysis is needed");
-        if (!Set.of("meal", "breakfast", "lunch", "dinner", "snack", "snacks").contains(normalized))
-            throw new ResponseStatusException(BAD_REQUEST, "Choose breakfast, lunch, dinner or snacks for food analysis");
+        if (!Set.of("meal", "breakfast", "lunch", "dinner", "snack", "snacks", "outside food").contains(normalized))
+            throw new ResponseStatusException(BAD_REQUEST, "Choose breakfast, lunch, dinner, snacks or outside food for food analysis");
         if (image == null || image.isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "A meal image is required");
         if (image.getSize() > 10 * 1024 * 1024) throw new ResponseStatusException(BAD_REQUEST, "Image must be smaller than 10 MB");
         String contentType = image.getContentType();

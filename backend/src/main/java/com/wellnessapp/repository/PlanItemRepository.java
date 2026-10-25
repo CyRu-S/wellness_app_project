@@ -3,6 +3,8 @@ import com.wellnessapp.entity.PlanItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 public interface PlanItemRepository extends JpaRepository<PlanItem, Long> {
+    @org.springframework.data.jpa.repository.Query("select item.id from PlanItem item where item.plan.id = :planId and item.type = :type and item.mealType is not null")
+    List<Long> scheduledIds(Long planId, PlanItem.Type type);
     @org.springframework.data.jpa.repository.Query("select item.id from PlanItem item where item.id in :ids")
     List<Long> existingIds(java.util.Collection<Long> ids);
     List<PlanItem> findByPlanIdOrderBySortOrder(Long planId);

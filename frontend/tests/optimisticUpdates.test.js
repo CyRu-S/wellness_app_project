@@ -12,6 +12,32 @@ const dashboardModule = (read, write) => loadModule('../src/store/slices/dashboa
   '@reduxjs/toolkit': toolkit, '../../services/api/dashboardApi': { getDashboard: read }, '../../services/api/client': { request: write }, '../../utils/activitySession': activityUtils,
 });
 
+test('outside food adds nutrition and a tagged post without completing a plan slot, and failure rolls back', async () => {
+  const write = deferred();
+  const meals = loadModule('../src/store/slices/mealSlice.js', {
+    '@reduxjs/toolkit': toolkit, '../../services/api/client': { request: async () => [] },
+    '../../services/api/mealApi': { getMeals: async () => [] }, '../../services/api/planApi': { getPlan: async () => ({}) },
+    '../../utils/memberJournal': { formatJournalClock: (time) => time }, '../../services/api/mealPostApi': { createMealPost: () => write.promise },
+  });
+  const dashboard = dashboardModule(async () => ({}), async () => ({}));
+  const store = setup({ meals, dashboard }, {
+    meals: { ...meals.default(undefined, { type: 'init' }), items: [{ id: 4, consumed: false }] },
+    dashboard: { ...dashboard.default(undefined, { type: 'init' }), completion: 25 },
+  });
+  const saving = store.dispatch(meals.postMeal({ plannedMealId: null, mealType: 'Outside food', mealName: 'Pizza',
+    calories: 450, proteinGrams: 15, clientRequestId: 'outside-photo', imageUri: 'file:///pizza.jpg' }));
+  assert.equal(store.getState().meals.items[0].consumed, false);
+  assert.equal(store.getState().meals.items.length, 1);
+  assert.equal(store.getState().meals.postHistory[0].type, 'Outside food');
+  assert.equal(store.getState().dashboard.calories, 450);
+  assert.equal(store.getState().dashboard.completion, 25);
+  write.reject(new Error('Offline')); await saving;
+  assert.equal(store.getState().meals.postHistory.length, 0);
+  assert.equal(store.getState().dashboard.calories, 0);
+  assert.equal(store.getState().dashboard.completion, 25);
+  assert.equal(store.getState().meals.failedPost.mealType, 'Outside food');
+});
+
 test('water updates immediately, blocks duplicate taps, ignores a stale poll and rolls back failure', async () => {
   const read = deferred(), write = deferred();
   let posts = 0;

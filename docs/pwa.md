@@ -47,12 +47,16 @@ On iPhone/iPad, users need **iOS/iPadOS 16.4 or later**. Open the HTTPS site in 
 
 ## Release check on a real iPhone
 
+Meal capture offers separate **Take photo** and **Choose from photo library** buttons. Take photo opens an Expo Camera live preview in the browser/PWA and requests permission when pressed. Camera access needs HTTPS or localhost; opening an Expo dev server on a plain HTTP LAN address can block browser camera access. The app explains unavailable camera access and keeps the library path available. See [Expo Camera web support](https://docs.expo.dev/versions/latest/sdk/camera/#web-support).
+
+The Log page also offers **Outside food**. It uses the same backend Gemini key and photo-estimation flow, then displays a tagged check-in at its posting time between scheduled meals. It adds nutrition to the day's totals without completing any assigned slot or adding an admin-plan template. Yesterday's outside food remains in history and does not enter today's schedule.
+
 1. Install from Safari and confirm the standalone app, icons and normal login/navigation.
 2. Visit a page, disconnect, and confirm offline launch and cached reads. Reconnect and pull to refresh.
 3. Enable notifications and send a test from notification settings. Check delivery with the installed app closed and confirm tapping opens the inbox.
 4. Log out, then verify subsequent notifications are not delivered to that account on this device. Sign in as another account and repeat the test.
 5. Deploy an updated web export and confirm the Update prompt installs it.
 6. As admin, refresh Members and Attention, decline a request, and remove shared access; confirm cancel does nothing and accepting completes the action. As member, verify the success buttons after email verification and password reset navigate correctly.
-7. Upload an iPhone camera/library photo, enter nutrition manually, and verify the saved photo and meal. Focus form fields and check the keyboard, input zoom and bottom navigation in portrait and landscape.
+7. Test Take photo, permission denial, front/back switching, capture and library upload. Review food-photo nutrition and save; unlisted Herbalife photos should go directly to the dashboard. Focus form fields and check the keyboard, input zoom and bottom navigation in portrait and landscape.
 
 Automated tests cover storage, user-gesture permission, subscription ownership/logout, provider separation, dead subscriptions and the service worker. Physical iOS delivery still requires the deployed HTTPS site and configured backend; local exports cannot verify Apple's push delivery or OS behavior.

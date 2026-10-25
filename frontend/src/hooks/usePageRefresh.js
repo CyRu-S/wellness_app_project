@@ -15,7 +15,7 @@ import { loadSharedMembers, loadSharedMemberToday, loadAdminMemberAccess } from 
 import { loadAdminMemberJournal } from '../store/slices/adminMemberJournalSlice';
 import { loadLeaderboard } from '../store/slices/leaderboardSlice';
 
-const LIVE_SYNC_PAGES = new Set(['AdminDashboard', 'Reports', 'Alerts', 'Dashboard', 'TodayTimeline', 'UserDetails', 'SharedMembers', 'SharedMemberToday', 'Leaderboard']);
+const LIVE_SYNC_PAGES = new Set(['AdminDashboard', 'Reports', 'Alerts', 'Dashboard', 'TodayTimeline', 'DailyPlan', 'UserDetails', 'SharedMembers', 'SharedMemberToday', 'Leaderboard']);
 
 export default function usePageRefresh() {
   const route = useRoute();
@@ -34,7 +34,7 @@ export default function usePageRefresh() {
     if (name === 'UserRequests') return { paths: ['/admin/approvals'], actions: [loadAdminApprovals()] };
     if (name === 'Dashboard') return { paths: ['/dashboard', '/meals/today', '/plans/today', '/meal-posts', '/leaderboard'], actions: [refreshDashboard(), loadMeals(), loadPlan(), loadLeaderboard({ force })] };
     if (name === 'Leaderboard') return { paths: ['/leaderboard'], actions: [loadLeaderboard({ force })] };
-    if (['TodayTimeline', 'MealDetails'].includes(name)) return { paths: ['/meals/today', '/plans/today', '/meal-posts'], actions: [loadMeals()] };
+    if (['TodayTimeline', 'MealDetails'].includes(name)) return { paths: ['/meals/today', '/plans/today', '/meal-posts'], actions: [loadMeals(), loadPlan()] };
     if (name === 'ActivityTimer' || name === 'Move') return { paths: ['/activities'], actions: [loadActivities()] };
     if (name === 'DailyPlan') return { paths: ['/plans/today'], actions: [loadPlan()] };
     if (['Notifications', 'AdminNotifications'].includes(name)) return { paths: ['/notifications'], actions: [loadNotifications()] };

@@ -21,6 +21,12 @@ class AiMealAnalysisServiceTests {
         service.analyse(image, "Lunch");
         verify(gemini).analyse(jpeg, "image/jpeg", "lunch");
     }
+    @Test void outsideFoodImagesUseTheSameKeyBackedGeminiClient() {
+        var gemini = mock(GeminiFoodAnalysisClient.class); var service = new AiMealAnalysisService(gemini);
+        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 1};
+        service.analyse(new MockMultipartFile("image", "outside.jpg", "image/jpeg", jpeg), "Outside food");
+        verify(gemini).analyse(jpeg, "image/jpeg", "outside food");
+    }
     @Test void emptyUnsupportedAndOversizedUploadsNeverReachAi() {
         var gemini = mock(GeminiFoodAnalysisClient.class); var service = new AiMealAnalysisService(gemini);
         for (var image : new MockMultipartFile[]{

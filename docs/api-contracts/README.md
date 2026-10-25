@@ -17,7 +17,7 @@ Base URL: `http://localhost:8080/api`. Protected endpoints require `Authorizatio
 - `GET /profile/photo`, `PUT /profile/photo`
 - `GET /dashboard`, `GET /plans/today`, `GET /meals/today`
 - `POST /meals/analyze`: multipart image and category; Gemini photo-based serving estimates and nutrition totals (ESTIMATED_PORTION), requires backend `GEMINI_API_KEY`. Herbalife products bypass AI.
-- `GET /meal-posts`, `POST /meal-posts`: multipart metadata JSON text and image
+- `GET /meal-posts`, `POST /meal-posts`: multipart metadata JSON text and image. Assigned meals supply their `plannedMealId`. Outside-food posts omit it (or use null) and set `mealType` to `Outside food`; they use the same authenticated `/meals/analyze` Gemini flow with category `Outside food`. Active members may post outside food without an assigned plan. The server timestamps the post and does not create or complete a recurring plan slot. Nutrition contributes to daily totals, but outside posts do not count toward assigned-plan completion. Today's timelines place them by posting time between the planned schedule slots; history retains the photo after the day ends.
 - `GET /meal-posts/{id}/image`: owner/admin/granted viewer only
 - `POST /water`: amountMl
 - `GET /activities`, `POST /activities`: activity, durationSeconds, optional distanceKm
@@ -32,6 +32,8 @@ Push request shapes, credential setup, and delivery semantics are documented in 
 - `POST /shared-members/{memberId}/attention/{attentionId}/nudge`: nudge the selected overdue item using the admin message and one shared 30-minute lock per recipient across all categories, admins, coaches and club hydration reminders. The first sender wins, including simultaneous requests. Returns `sent`, `lastSentAt` and `availableAt`. At expiry, only unfinished items are available again; completed/resolved items cannot be nudged. Resolving alerts remains admin-only. Unassigned/revoked access or an item belonging to another member returns 404.
 
 ## Admin workspace
+
+Daily plan reads reconcile cached meals against the current admin plan: unposted orphan/obsolete slots are removed, while already-posted slots remain for that local day only. Removing or reclassifying a plan item does not cause it to recur tomorrow. Healthy habits remain tasks rather than appearing as meal slots. Plan editing and meal posting use the same member lock.
 
 - `GET /admin/workspace`: summary, pending approvals, member rows and adherence series, plans, attention, meal insights
 - `GET /admin/members`: lightweight member list if the full workspace report is temporarily unavailable

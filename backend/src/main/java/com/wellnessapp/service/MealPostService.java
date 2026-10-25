@@ -27,6 +27,7 @@ public class MealPostService {
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final WorkflowNotificationService notices;
+    private final PlanService plans;
     @Transactional(readOnly = true)
     public java.util.List<MealPostResponse> history(String email) {
         var user = users.findByEmailIgnoreCase(email).orElseThrow();
@@ -36,7 +37,8 @@ public class MealPostService {
 
     @Transactional
     public MealPostResponse create(String email, CreateMealPostRequest request, MultipartFile image) {
-        User user = users.findByEmailIgnoreCase(email).orElseThrow(() -> new NotFoundException("Account not found"));
+        User account = users.findByEmailIgnoreCase(email).orElseThrow(() -> new NotFoundException("Account not found"));
+        User user = users.lockById(account.getId()).orElseThrow(() -> new NotFoundException("Account not found"));
         if (user.getRole() != User.Role.USER || user.getStatus() != User.Status.ACTIVE) {
             throw new BadRequestException("Only active members can create meal posts");
         }
@@ -44,9 +46,10 @@ public class MealPostService {
         String requestId = request.clientRequestId().trim();
         MealPost existing = posts.findByUserIdAndClientRequestId(user.getId(), requestId).orElse(null);
         if (existing != null) return response(existing);
-        if (meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.now(clock.withZone(applicationZoneId))).isEmpty()) {
-            throw new BadRequestException("Your admin must assign a diet plan before you can post meals");
-        }
+        boolean outsideFood = request.plannedMealId() == null;
+        if (outsideFood && !"Outside food".equalsIgnoreCase(request.mealType().trim()))
+            throw new BadRequestException("Choose an assigned meal or use Outside food");
+        if (!outsideFood) plans.ensureDailyMeals(user.getId());
 
         Meal plannedMeal = null;
         if (request.plannedMealId() != null) {
@@ -60,7 +63,7 @@ public class MealPostService {
         }
 
         // The assigned category is authoritative, including when a client edits the displayed name/type.
-        String productType = plannedMeal == null ? request.mealType() : plannedMeal.getType();
+        String productType = outsideFood ? "Outside food" : plannedMeal.getType();
         String assignedName = plannedMeal == null ? request.mealName() : plannedMeal.getName();
         var assignedCalories = HerbalifeCalories.find(productType, assignedName);
         boolean product = HerbalifeCalories.isProduct(productType);
@@ -74,7 +77,7 @@ public class MealPostService {
             MealPost post = posts.saveAndFlush(MealPost.builder()
                     .user(user)
                     .plannedMeal(plannedMeal)
-                    .mealType(HerbalifeCalories.isProduct(productType) ? productType.trim() : request.mealType().trim())
+                    .mealType(productType.trim())
                     .mealName(product ? assignedName.trim() : request.mealName().trim())
                     .calories(calories)
                     .proteinGrams(protein)

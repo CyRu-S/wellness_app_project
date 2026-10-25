@@ -20,10 +20,12 @@ export default function MealCaptureScreen({ navigation, route }) {
   const focused = useIsFocused();
   const { height } = useWindowDimensions();
   const category = route.params?.category || 'meal';
+  const outsideFood = route.params?.outsideFood === true;
   const targetMealId = route.params?.targetMealId;
   const allMeals = useSelector((state) => state.meals.items);
   const pendingPost = useSelector((state) => state.meals.pendingPost);
-  const targetMeal = useSelector((state) => state.meals.items.find((meal) => meal.id === targetMealId));
+  const plannedMeal = useSelector((state) => state.meals.items.find((meal) => meal.id === targetMealId));
+  const targetMeal = outsideFood ? { type: 'Outside food', name: 'Outside food' } : plannedMeal;
   const manualProduct = isManualProduct(targetMeal) || isManualProduct(category);
   const analysisCategory = manualProduct ? 'product' : 'meal';
   const token = useSelector((state) => state.auth.token);
@@ -37,6 +39,9 @@ export default function MealCaptureScreen({ navigation, route }) {
   const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [webCameraActive, setWebCameraActive] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
   const needsPortions = !!analysis?.items?.length;
   const portionsReady = !needsPortions || hasValidFoodPortions(analysis);
   const clientRequestId = useRef(null);
@@ -73,7 +78,7 @@ export default function MealCaptureScreen({ navigation, route }) {
 
 
     const operation = dispatch(postMeal({
-      plannedMealId: Number(targetMealId),
+      plannedMealId: outsideFood ? null : Number(targetMealId),
       mealType: targetMeal.type,
       mealName: result.name,
       calories: nutrition.calories,
@@ -82,7 +87,7 @@ export default function MealCaptureScreen({ navigation, route }) {
       fatGrams: nutrition.fat,
       clientRequestId: clientRequestId.current,
       imageUri,
-      optimisticCompletion: Math.min(100, Math.round((allMeals.filter((meal) => meal.consumed).length + 1) * 100 / allMeals.length)),
+      optimisticCompletion: outsideFood ? undefined : Math.min(100, Math.round((allMeals.filter((meal) => meal.consumed).length + 1) * 100 / allMeals.length)),
     }));
     // The dashboard shows the local post immediately, and retains retry data.
     operation.then((result) => {
@@ -123,13 +128,29 @@ export default function MealCaptureScreen({ navigation, route }) {
   };
 
   const capture = async () => {
-    if (!camera.current || analyzing || posting || submitting.current) return;
+    if (!camera.current || !cameraReady || analyzing || posting || submitting.current) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const result = await camera.current.takePictureAsync({ quality: 0.76, skipProcessing: false });
       await processPhoto(result);
     } catch (error) {
       Alert.alert('Camera unavailable', error.message || 'Please try again.');
+    }
+  };
+
+  const openWebCamera = async () => {
+    if (analyzing || posting || submitting.current) return;
+    setCameraError(null);
+    setCameraReady(false);
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      Alert.alert('Camera unavailable', 'Open this app over HTTPS or localhost to use the camera. You can still choose a photo from your library.');
+      return;
+    }
+    try {
+      await requestPermission();
+      setWebCameraActive(true);
+    } catch (error) {
+      Alert.alert('Camera unavailable', error.message || 'Allow camera access in your browser settings, or choose a photo from your library.');
     }
   };
 
@@ -146,31 +167,35 @@ export default function MealCaptureScreen({ navigation, route }) {
     clientRequestId.current = null;
     setPhoto(null);
     setAnalysis(null);
+    setCameraReady(false);
     sheet.setValue(0);
   };
 
   const confirm = () => submitPhoto(analysis, photo);
 
   if (!targetMeal) return <SafeAreaView style={styles.permission}><Text style={styles.permissionTitle}>No meal assigned</Text><Text style={styles.permissionCopy}>Your admin must assign a diet plan before you can post a meal.</Text><Pressable onPress={() => navigation.goBack()}><Text style={styles.libraryLink}>Go back</Text></Pressable></SafeAreaView>;
-  if (Platform.OS === 'web' && !photo) return <SafeAreaView style={styles.webPicker} edges={['top', 'left', 'right', 'bottom']}>
+  if (Platform.OS === 'web' && !photo && !webCameraActive) return <SafeAreaView style={styles.webPicker} edges={['top', 'left', 'right', 'bottom']}>
     <View style={styles.webPickerTop}><Pressable accessibilityRole="button" accessibilityLabel="Close photo upload" onPress={() => navigation.goBack()} style={styles.webClose}><Ionicons name="close" size={21} color={colors.ink} /></Pressable><Text style={styles.webPickerLabel}>{targetMeal.type}</Text><View style={styles.webClosePlaceholder} /></View>
     <View style={styles.webPickerBody}>
       <View style={styles.webPhotoIcon}><Ionicons name="image-outline" size={34} color={colors.tealDark} /></View>
       <Text style={styles.webPickerTitle}>Add a meal photo</Text>
-      <Text style={styles.webPickerCopy}>Choose or take a photo without leaving the PWA. The selected image stays visible while it is prepared.</Text>
-      <Pressable accessibilityRole="button" disabled={analyzing || posting} onPress={choosePhoto} style={({ pressed }) => [styles.webChoose, pressed && styles.disabled]}><Ionicons name="camera-outline" size={19} color={colors.white} /><Text style={styles.webChooseText}>Choose or take photo</Text></Pressable>
+      <Text style={styles.webPickerCopy}>Take a photo with your camera or choose one from your library.</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open camera" disabled={analyzing || posting} onPress={openWebCamera} style={({ pressed }) => [styles.webChoose, pressed && styles.disabled]}><Ionicons name="camera-outline" size={19} color={colors.white} /><Text style={styles.webChooseText}>Take photo</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Choose from photo library" disabled={analyzing || posting} onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable>
     </View>
   </SafeAreaView>;
   if (!permission && !photo) return <View style={styles.loading} />;
   if (!permission?.granted && !photo) {
-    return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Take a meal photo to estimate nutrition for your serving.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
+    return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Take a meal photo to estimate nutrition for your serving.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Choose from photo library" onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
   }
 
   return (
     <SafeAreaView style={styles.page} edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.visual}>
-        {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : focused && permission?.granted ? <CameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch} /> : null}
+        {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : focused && permission?.granted ? <CameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch}
+          onCameraReady={() => { setCameraReady(true); setCameraError(null); }}
+          onMountError={(error) => { setCameraReady(false); setCameraError(error.message || 'Camera could not start. Check browser permissions or choose a photo.'); }} /> : null}
         <View pointerEvents="none" style={styles.scrim} />
         <View style={styles.topbar}>
           <Pressable accessibilityLabel="Close camera" onPress={() => navigation.goBack()} style={styles.roundButton}><Ionicons name="close" size={21} color={colors.white} /></Pressable>
@@ -178,11 +203,11 @@ export default function MealCaptureScreen({ navigation, route }) {
           <Pressable accessibilityLabel="Toggle camera" onPress={() => setFacing((value) => value === 'back' ? 'front' : 'back')} style={styles.roundButton}><Ionicons name="camera-reverse-outline" size={20} color={colors.white} /></Pressable>
         </View>
 
-        <View style={styles.instruction}><Text style={styles.instructionTitle}>{analyzing ? 'Preparing your photo' : analysis ? 'Review nutrition' : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Review the food and nutrition before saving.' : manualProduct ? 'Listed products use fixed calories.' : 'Keep the complete meal inside the guides and hold steady.'}</Text></View>
+        <View style={styles.instruction}><Text style={styles.instructionTitle}>{cameraError ? 'Camera unavailable' : analyzing ? 'Preparing your photo' : analysis ? 'Review nutrition' : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{cameraError || (analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Review the food and nutrition before saving.' : manualProduct ? 'Listed products use fixed calories.' : 'Keep the complete meal inside the guides and hold steady.')}</Text></View>
 
         {!analysis ? <View pointerEvents="none" style={styles.frame}><View style={[styles.corner, styles.tl]} /><View style={[styles.corner, styles.tr]} /><View style={[styles.corner, styles.bl]} /><View style={[styles.corner, styles.br]} />{analyzing ? <Animated.View style={[styles.scan, { transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [0, 220] }) }] }]} /> : <View style={styles.centerTarget}><Ionicons name="scan-outline" size={27} color="rgba(255,255,255,0.75)" /></View>}</View> : null}
 
-        {!analysis ? <View style={styles.controls}><Pressable accessibilityLabel="Choose from library" onPress={choosePhoto} style={styles.smallControl}><Ionicons name="images-outline" size={20} color={colors.white} /></Pressable><Pressable accessibilityLabel="Take photo" onPress={capture} disabled={analyzing || !!photo} style={styles.shutter}><View style={styles.shutterInner}>{analyzing ? <Ionicons name="sparkles" size={22} color={colors.tealDark} /> : <Ionicons name="camera" size={22} color={colors.tealDark} />}</View></Pressable><Pressable accessibilityLabel="Toggle flash" onPress={() => setTorch((value) => !value)} style={[styles.smallControl, torch && styles.controlActive]}><Ionicons name={torch ? 'flash' : 'flash-off-outline'} size={20} color={colors.white} /></Pressable></View> : null}
+        {!analysis ? <View style={styles.controls}><Pressable accessibilityLabel="Choose from library" onPress={choosePhoto} style={styles.smallControl}><Ionicons name="images-outline" size={20} color={colors.white} /></Pressable><Pressable accessibilityLabel="Take photo" onPress={capture} disabled={!cameraReady || analyzing || !!photo} style={styles.shutter}><View style={styles.shutterInner}>{analyzing ? <Ionicons name="sparkles" size={22} color={colors.tealDark} /> : <Ionicons name="camera" size={22} color={colors.tealDark} />}</View></Pressable><Pressable accessibilityLabel="Toggle flash" onPress={() => setTorch((value) => !value)} style={[styles.smallControl, torch && styles.controlActive]}><Ionicons name={torch ? 'flash' : 'flash-off-outline'} size={20} color={colors.white} /></Pressable></View> : null}
       </View>
 
       {analysis ? <Animated.View style={[styles.result, { maxHeight: height * 0.6, flexShrink: 1 }, { opacity: sheet, transform: [{ translateY: sheet.interpolate({ inputRange: [0, 1], outputRange: [70, 0] }) }] }]}>

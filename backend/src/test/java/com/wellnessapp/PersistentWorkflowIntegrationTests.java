@@ -35,6 +35,8 @@ class PersistentWorkflowIntegrationTests {
     @Autowired UserRepository users;
     @Autowired UserProfileRepository profiles;
     @Autowired MealRepository meals;
+    @Autowired PlanRepository planRepository;
+    @Autowired PlanItemRepository planItems;
     @Autowired MealPostRepository posts;
     @Autowired MissedEventRepository missed;
     @Autowired NotificationRepository notifications;
@@ -44,6 +46,7 @@ class PersistentWorkflowIntegrationTests {
     @Autowired NotificationService notificationService;
     @Autowired JwtTokenProvider tokens;
     @Autowired PlanService plans;
+    @Autowired MemberAccessService memberAccess;
     @Autowired ReminderService reminders;
     @MockitoBean Clock clock;
     @MockitoBean PasswordResetMailService mail;
@@ -245,6 +248,124 @@ class PersistentWorkflowIntegrationTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
         assertThat(plans.today(user.getEmail()).items()).isEmpty();
         assertThat(posts.findByPlannedMealId(breakfast.getId())).isPresent();
+    }
+
+    @Test void dailyReadsRemoveLegacyUnpostedMealsMissingFromTheAdminPlanForEveryMember() throws Exception {
+        for (String email : List.of("stale-first@example.com", "stale-second@example.com")) {
+            var user = approve(email); plan(user);
+            var breakfast = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
+            plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of(
+                    new SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 400, 20, List.of(), breakfast.getPlanItem().getId()),
+                    new SaveMealPlanRequest.Item("Healthy habit", "Sleep", LocalTime.of(22, 0), 0, 0, List.of(), null, "HEALTHY_HABIT", "Rest"))));
+            var stale = meals.saveAndFlush(Meal.builder().user(user).type("Snack").name("Sleep")
+                    .mealDate(LocalDate.of(2026, 9, 5)).mealTime(LocalTime.of(10, 0)).build());
+            missed.saveAndFlush(MissedEvent.builder().user(user).sourceKey("meal-" + stale.getId())
+                    .itemType("Meals").itemTitle("Snack check-in is overdue").missedAt(clock.instant()).build());
+            mvc.perform(get("/api/meals/today").header("Authorization", token(user)))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].name").value("Oats"));
+            assertThat(meals.findById(stale.getId())).isEmpty();
+            assertThat(missed.findBySourceKey("meal-" + stale.getId())).get().extracting(MissedEvent::isResolved).isEqualTo(true);
+            assertThat(plans.today(email).items()).extracting(com.wellnessapp.dto.plan.PlanResponse.Item::title).containsExactly("Oats", "Sleep");
+            assertThat(plans.scheduledTasks(user.getId())).singleElement().extracting(PlanItem::getTitle).isEqualTo("Sleep");
+            plans.ensureDailyMeals(user.getId());
+            assertThat(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5))).hasSize(1);
+        }
+    }
+
+    @Test void inactivePlanSlotsDisappearButPostedEvidenceStaysTodayAndNeverRecurs() throws Exception {
+        var user = approve("replaced-plan@example.com"); plan(user);
+        var breakfast = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
+        posts.saveAndFlush(mealPost(user, breakfast, clock.instant(), "old-plan-evidence"));
+        // Also repairs older inconsistent consumed flags when photo evidence exists.
+        breakfast.setConsumed(false); meals.saveAndFlush(breakfast);
+        var oldPlan = breakfast.getPlanItem().getPlan();
+        oldPlan.setActive(false); planRepository.saveAndFlush(oldPlan);
+        var oldItem = planItems.saveAndFlush(PlanItem.builder().plan(oldPlan).type(PlanItem.Type.MEAL)
+                .mealType("Snack").title("Sleep").detail("Snack").scheduledTime(LocalTime.of(10, 0)).build());
+        var stale = meals.saveAndFlush(Meal.builder().user(user).planItem(oldItem).type("Snack").name("Sleep")
+                .mealDate(LocalDate.of(2026, 9, 5)).mealTime(LocalTime.of(10, 0)).build());
+        mvc.perform(get("/api/meals/today").header("Authorization", token(user)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("Oats")).andExpect(jsonPath("$[0].consumed").value(true));
+        assertThat(meals.findById(stale.getId())).isEmpty();
+        assertThat(breakfast.getPlanItem()).isNull();
+        assertThat(posts.findByPlannedMealId(breakfast.getId())).isPresent();
+        plans.save(user.getId(), new SaveMealPlanRequest("New plan", List.of(
+                new SaveMealPlanRequest.Item("Dinner", "Rice", LocalTime.of(20, 0), 440, 15, List.of(), null))));
+        setTime("2026-09-05T18:30:00Z");
+        mvc.perform(get("/api/meals/today").header("Authorization", token(user)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("Rice")).andExpect(jsonPath("$[0].consumed").value(false));
+        assertThat(posts.findByPlannedMealId(breakfast.getId())).isPresent();
+    }
+
+    @Test void staleClientsCannotPostAnUnassignedLegacyMeal() throws Exception {
+        var user = approve("stale-post@example.com"); plan(user);
+        var stale = meals.saveAndFlush(Meal.builder().user(user).type("Snack").name("Sleep")
+                .mealDate(LocalDate.of(2026, 9, 5)).mealTime(LocalTime.of(10, 0)).build());
+        var metadata = new MockMultipartFile("metadata", "", "text/plain", json.writeValueAsBytes(Map.of(
+                "plannedMealId", stale.getId(), "mealType", "Snack", "mealName", "Sleep", "calories", 0,
+                "proteinGrams", 0, "carbsGrams", 0, "fatGrams", 0, "clientRequestId", "stale-plan-photo")));
+        mvc.perform(multipart("/api/meal-posts").file(metadata).file(new MockMultipartFile("image", "meal.png", "image/png", png))
+                .header("Authorization", token(user))).andExpect(status().isNotFound());
+        assertThat(posts.findByUserIdAndClientRequestId(user.getId(), "stale-plan-photo")).isEmpty();
+    }
+
+    @Test void outsideFoodPostsFitBetweenPlannedSlotsWithoutCompletingOrChangingThePlan() throws Exception {
+        var user = approve("outside-food@example.com");
+        plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of(
+                new SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 400, 20, List.of(), null),
+                new SaveMealPlanRequest.Item("Dinner", "Rice", LocalTime.of(20, 0), 440, 15, List.of(), null))));
+        var initial = memberAccess.adminMemberToday(user.getId());
+        var metadata = new MockMultipartFile("metadata", "", "text/plain", json.writeValueAsBytes(Map.of(
+                "mealType", "Outside food", "mealName", "Pizza", "calories", 450,
+                "proteinGrams", 15, "carbsGrams", 60, "fatGrams", 17, "clientRequestId", "outside-photo")));
+        for (int i = 0; i < 2; i++) mvc.perform(multipart("/api/meal-posts").file(metadata)
+                        .file(new MockMultipartFile("image", "meal.png", "image/png", png)).header("Authorization", token(user)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.mealType").value("Outside food"))
+                .andExpect(jsonPath("$.plannedMealId").isEmpty()).andExpect(jsonPath("$.calories").value(450));
+        var snapshot = memberAccess.adminMemberToday(user.getId());
+        assertThat(snapshot.meals()).extracting(com.wellnessapp.dto.access.SharedMemberTodayResponse.MealEntry::name)
+                .containsExactly("Oats", "Pizza", "Rice");
+        assertThat(snapshot.summary().plannedMeals()).isEqualTo(2);
+        assertThat(snapshot.summary().completedMeals()).isZero();
+        assertThat(snapshot.summary().completionPercentage()).isEqualTo(initial.summary().completionPercentage());
+        assertThat(snapshot.summary().calories()).isEqualByComparingTo("450");
+        assertThat(snapshot.summary().mealPosts()).isEqualTo(1);
+        assertThat((List<?>) plans.memberPlan(user.getId()).get("items")).hasSize(2);
+        assertThat(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)))
+                .hasSize(2).allMatch(meal -> !meal.isConsumed());
+        // A planned breakfast posted late keeps its scheduled position in the timeline.
+        var breakfast = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();
+        breakfast.setConsumed(true); meals.saveAndFlush(breakfast);
+        posts.saveAndFlush(mealPost(user, breakfast, clock.instant().plusSeconds(4 * 3600), "late-breakfast"));
+        assertThat(memberAccess.adminMemberToday(user.getId()).meals())
+                .extracting(com.wellnessapp.dto.access.SharedMemberTodayResponse.MealEntry::name).containsExactly("Oats", "Pizza", "Rice");
+        plans.save(user.getId(), new SaveMealPlanRequest("Daily", List.of()));
+        assertThat(memberAccess.adminMemberToday(user.getId()).meals())
+                .extracting(com.wellnessapp.dto.access.SharedMemberTodayResponse.MealEntry::name).containsExactly("Oats", "Pizza");
+        setTime("2026-09-05T18:30:00Z");
+        assertThat(memberAccess.adminMemberToday(user.getId()).meals()).isEmpty();
+        assertThat(posts.findByUserIdAndClientRequestId(user.getId(), "outside-photo")).isPresent();
+    }
+
+    @Test void activeMembersCanPostOutsideFoodWithoutAnAssignedPlanButCannotInventOtherUnassignedSlots() throws Exception {
+        var user = approve("outside-no-plan@example.com");
+        for (String type : List.of("Outside food", "Herbalife product", "Lunch")) {
+            var metadata = new MockMultipartFile("metadata", "", "text/plain", json.writeValueAsBytes(Map.of(
+                    "mealType", type, "mealName", "Mango shake", "calories", 350,
+                    "proteinGrams", 8, "carbsGrams", 60, "fatGrams", 10, "clientRequestId", "unassigned-" + type)));
+            mvc.perform(multipart("/api/meal-posts").file(metadata).file(new MockMultipartFile("image", "meal.png", "image/png", png))
+                    .header("Authorization", token(user)))
+                    .andExpect("Outside food".equals(type) ? status().isCreated() : status().isBadRequest());
+        }
+        assertThat(posts.findByUserId(user.getId())).singleElement().satisfies(post -> {
+            assertThat(post.getMealType()).isEqualTo("Outside food");
+            assertThat(post.getCalories()).isEqualByComparingTo("350");
+            assertThat(post.getPlannedMeal()).isNull();
+        });
+        assertThat(memberAccess.adminMemberToday(user.getId()).summary().completedMeals()).isZero();
     }
 
     @Test void adminProfileDetailsAreSavedAndMemberCannotChangeClubDetails() throws Exception {

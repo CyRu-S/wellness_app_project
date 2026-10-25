@@ -57,7 +57,8 @@ const slice = createSlice({
     .addCase('meals/post/pending', (state, action) => {
       const meal = action.meta.arg;
       begin(state, action, 'meal', { calories: state.calories + meal.calories, protein: state.protein + meal.proteinGrams,
-        completion: meal.optimisticCompletion, lastMeal: { name: meal.mealName, nutrition: { calories: meal.calories } } });
+        completion: meal.plannedMealId == null ? state.completion : meal.optimisticCompletion ?? state.completion,
+        lastMeal: { name: meal.mealName, type: meal.mealType, nutrition: { calories: meal.calories } } });
     })
     .addCase('meals/post/fulfilled', (state, action) => { settle(state, action, 'meal'); })
     .addCase('meals/post/rejected', (state, action) => { settle(state, action, 'meal', true); }),

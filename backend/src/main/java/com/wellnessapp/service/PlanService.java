@@ -191,24 +191,50 @@ public class PlanService {
     @Transactional
     public void ensureDailyMeals(Long memberId) {
         Plan plan = current(memberId);
-        if (plan == null) return;
         var initialMeals = meals.findByUserIdAndMealDateOrderByMealTime(memberId, today());
-        var scheduled = items.findByPlanIdOrderBySortOrder(plan.getId());
-        if (scheduled.stream().filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null)
-                .allMatch(item -> initialMeals.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId())))) return;
-        // Most reads already have a complete schedule and need no write lock.
+        // The pre-lock check reads IDs only, so it cannot cache stale template
+        // fields when an admin edits the plan before this request gets the lock.
+        var scheduledIds = plan == null ? Set.<Long>of() : new HashSet<>(items.scheduledIds(plan.getId(), PlanItem.Type.MEAL));
+        boolean staleEntries = initialMeals.stream().anyMatch(meal ->
+                !belongsToSchedule(meal, scheduledIds) && (!meal.isConsumed() || meal.getPlanItem() != null));
+        if (!staleEntries && scheduledIds.stream()
+                .allMatch(id -> initialMeals.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(id)))) return;
+        // Reconcile under the same member lock as admin edits and meal posting.
+        // Ordinary reads of an unchanged schedule still avoid a write lock.
         User user = users.lockById(memberId).orElseThrow(() -> new NotFoundException("Member not found"));
         if (user.getStatus() != User.Status.ACTIVE) return;
         plan = current(memberId);
-        if (plan == null) return;
-        var existing = meals.findByUserIdAndMealDateOrderByMealTime(memberId, today());
-        for (PlanItem item : items.findByPlanIdOrderBySortOrder(plan.getId())) {
-            if (item.getType() != PlanItem.Type.MEAL || item.getMealType() == null) continue;
+        var scheduled = scheduledMeals(plan);
+        var currentIds = scheduled.stream().map(PlanItem::getId).collect(java.util.stream.Collectors.toSet());
+        var existing = new ArrayList<>(meals.findByUserIdAndMealDateOrderByMealTime(memberId, today()));
+        for (Meal meal : new ArrayList<>(existing)) {
+            if (belongsToSchedule(meal, currentIds)) continue;
+            if (meal.isConsumed() || posts.findByPlannedMealId(meal.getId()).isPresent()) {
+                // A photo/check-in is evidence for today, never a recurring template.
+                meal.setPlanItem(null);
+                meal.setConsumed(true);
+                meals.save(meal);
+            } else {
+                removeTodayMeal(meal);
+                existing.remove(meal);
+            }
+        }
+        meals.flush();
+        for (PlanItem item : scheduled) {
             if (existing.stream().anyMatch(meal -> meal.getPlanItem() != null && meal.getPlanItem().getId().equals(item.getId()))) continue;
             Meal meal = meals.save(Meal.builder().user(user).planItem(item).type(item.getMealType()).name(item.getTitle())
                     .mealDate(today()).mealTime(item.getScheduledTime()).calories(item.getCalories()).proteinGrams(item.getProteinGrams()).build());
             for (String name : split(item.getIngredients())) ingredients.save(MealItem.builder().meal(meal).name(name).quantity("").build());
         }
+    }
+
+    private List<PlanItem> scheduledMeals(Plan plan) {
+        return plan == null ? List.of() : items.findByPlanIdOrderBySortOrder(plan.getId()).stream()
+                .filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null).toList();
+    }
+
+    private boolean belongsToSchedule(Meal meal, Set<Long> scheduledIds) {
+        return meal.getPlanItem() != null && scheduledIds.contains(meal.getPlanItem().getId());
     }
 
     @Transactional(readOnly = true)

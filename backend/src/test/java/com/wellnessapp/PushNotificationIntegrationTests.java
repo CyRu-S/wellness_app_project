@@ -33,6 +33,8 @@ class PushNotificationIntegrationTests {
     @Autowired PushDeliveryRepository deliveries;
     @Autowired NotificationRepository events;
     @Autowired MealRepository meals;
+    @Autowired PlanRepository planRepository;
+    @Autowired PlanItemRepository planItems;
     @Autowired MissedEventRepository missed;
     @Autowired PushAccountService accounts;
     @Autowired PushQueueService queue;
@@ -72,6 +74,15 @@ class PushNotificationIntegrationTests {
     }
     long count(PushDelivery.Kind kind, User user) {
         return events.findAll().stream().filter(e -> e.getKind() == kind && e.getUser().getId().equals(user.getId())).count();
+    }
+    Meal scheduledMeal(String type, String name, LocalTime time) {
+        var date = LocalDate.of(2026, 9, 7);
+        var plan = planRepository.saveAndFlush(Plan.builder().user(member).title("Assigned daily plan").goal("")
+                .startDate(date).endDate(LocalDate.of(9999, 12, 31)).active(true).build());
+        var item = planItems.saveAndFlush(PlanItem.builder().plan(plan).type(PlanItem.Type.MEAL)
+                .mealType(type).title(name).detail(type).scheduledTime(time).build());
+        return meals.saveAndFlush(Meal.builder().user(member).planItem(item).type(type).name(name)
+                .mealDate(date).mealTime(time).build());
     }
     PushDelivery queuedTest() {
         accounts.register(member.getEmail(), pushToken, registration);
@@ -155,8 +166,7 @@ class PushNotificationIntegrationTests {
     }
     @Test void mealReminderQueuedOnceAndCancelledAfterLogging() {
         accounts.register(member.getEmail(), pushToken, registration);
-        var meal = new Meal(); meal.setUser(member); meal.setType("Breakfast"); meal.setName("Oats");
-        meal.setMealDate(LocalDate.of(2026, 9, 7)); meal.setMealTime(LocalTime.of(8, 0)); meals.saveAndFlush(meal);
+        var meal = scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
         advance(1500);
         reminders.refresh(); reminders.refresh(); assertThat(deliveries.count()).isEqualTo(1);
         meal.setConsumed(true); meals.saveAndFlush(meal); worker.sendPending();
@@ -164,8 +174,7 @@ class PushNotificationIntegrationTests {
     }
     @Test void missedFiveMinuteWindowDoesNotCreateALateReminder() {
         accounts.register(member.getEmail(), pushToken, registration);
-        meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
-                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(8, 0)).build());
+        scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
         advance(1561);
         reminders.refresh();
         assertThat(count(PushDelivery.Kind.MEAL, member)).isZero();
@@ -173,8 +182,7 @@ class PushNotificationIntegrationTests {
     }
     @Test void rescheduledMealCancelsOldReminder() {
         accounts.register(member.getEmail(), pushToken, registration);
-        var meal = new Meal(); meal.setUser(member); meal.setType("Breakfast"); meal.setName("Oats");
-        meal.setMealDate(LocalDate.of(2026, 9, 7)); meal.setMealTime(LocalTime.of(8, 0)); meals.saveAndFlush(meal);
+        var meal = scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
         advance(1500);
         reminders.refresh(); meal.setMealTime(LocalTime.of(9, 0)); meals.saveAndFlush(meal); worker.sendPending();
         assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
@@ -217,8 +225,7 @@ class PushNotificationIntegrationTests {
     @Test void overdueMealAppearsInAttentionWithoutAnImmediateAdminPush() {
         var admin = admin(); accounts.register(admin.getEmail(), pushToken, registration);
         accounts.register(member.getEmail(), "ExponentPushToken[member-device]", UUID.randomUUID().toString());
-        var meal = meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
-                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
+        var meal = scheduledMeal("Breakfast", "Oats", LocalTime.of(6, 0));
         reminders.refresh(); reminders.refresh();
         assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isZero();
         assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
@@ -258,8 +265,7 @@ class PushNotificationIntegrationTests {
         var administrator = admin();
         access.replaceAssignments(administrator.getEmail(), coach.getId(), new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of(member.getId())));
         access.replaceAssignments(administrator.getEmail(), second.getId(), new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of(member.getId())));
-        var meal = meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
-                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
+        var meal = scheduledMeal("Breakfast", "Oats", LocalTime.of(6, 0));
         var breakfast = missed.saveAndFlush(MissedEvent.builder().user(member).sourceKey("meal-" + meal.getId())
                 .itemType("Meals").itemTitle("Breakfast check-in is overdue").missedAt(now.minusSeconds(3600)).build());
         var habit = missed.saveAndFlush(MissedEvent.builder().user(member).sourceKey("custom-unfinished-habit")
@@ -291,8 +297,7 @@ class PushNotificationIntegrationTests {
         var admin = admin();
         accounts.register(admin.getEmail(), pushToken, registration);
         accounts.register(member.getEmail(), "ExponentPushToken[member-device]", UUID.randomUUID().toString());
-        meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
-                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
+        scheduledMeal("Breakfast", "Oats", LocalTime.of(6, 0));
         reminders.refresh();
         var attention = missed.findByResolvedFalseOrderByMissedAtDesc().getFirst();
         reminders.nudge(attention.getId()); reminders.nudge(attention.getId());
@@ -305,8 +310,7 @@ class PushNotificationIntegrationTests {
         accounts.register(admin.getEmail(), pushToken, registration);
         // Application zone is Asia/Kolkata; 20:00 UTC is after local midnight.
         advance(18 * 3600);
-        meals.saveAndFlush(Meal.builder().user(member).type("Dinner").name("Rice")
-                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(23, 0)).build());
+        scheduledMeal("Dinner", "Rice", LocalTime.of(23, 0));
         reminders.refresh();
         assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isZero();
         assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();

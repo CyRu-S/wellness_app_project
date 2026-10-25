@@ -101,13 +101,22 @@ public class AppConfig {
         profiles.save(UserProfile.builder().user(user).heightCm(164 + offset * 3).weightKg(61.0 + offset * 4)
                 .waistCm(72.0 + offset * 2).bodyFatPercent(17.0 + offset)
                 .waterGoalMl(1750 + offset * 250).build());
-        meals.saveAll(List.of(
+        var assignedMeals = List.of(
                 Meal.builder().user(user).type("Breakfast").name("Protein breakfast bowl").mealDate(today)
                         .mealTime(LocalTime.of(8, 0)).calories(390 + offset * 10).proteinGrams(22).consumed(true).build(),
                 Meal.builder().user(user).type("Lunch").name("Balanced grain bowl").mealDate(today)
                         .mealTime(LocalTime.of(13, 0)).calories(490 + offset * 10).proteinGrams(28).consumed(offset < 3).build(),
                 Meal.builder().user(user).type("Dinner").name("Vegetables and protein").mealDate(today)
-                        .mealTime(LocalTime.of(19, 30)).calories(460).proteinGrams(27).consumed(false).build()));
+                        .mealTime(LocalTime.of(19, 30)).calories(460).proteinGrams(27).consumed(false).build());
+        var plan = plans.save(Plan.builder().user(user).title("Daily balance").goal("").startDate(today)
+                .endDate(LocalDate.of(9999, 12, 31)).active(true).build());
+        for (int index = 0; index < assignedMeals.size(); index++) {
+            var meal = assignedMeals.get(index);
+            meal.setPlanItem(planItems.save(PlanItem.builder().plan(plan).type(PlanItem.Type.MEAL)
+                    .mealType(meal.getType()).title(meal.getName()).detail(meal.getType()).scheduledTime(meal.getMealTime())
+                    .calories(meal.getCalories()).proteinGrams(meal.getProteinGrams()).sortOrder(index).build()));
+        }
+        meals.saveAll(assignedMeals);
         for (int i = 0; i < Math.max(2, 6 - offset); i++) {
             water.save(WaterLog.builder().user(user).amountMl(250).loggedAt(Instant.now().minusSeconds(i * 2700L)).build());
         }

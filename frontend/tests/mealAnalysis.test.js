@@ -65,6 +65,24 @@ test('all food meal categories display estimated serving totals ready to save wi
   assert.equal(requests.length, 4);
 });
 
+test('outside food sends its photo and authenticated category to AI and displays estimated nutrition', async () => {
+  let request;
+  const analyze = captured(async (input) => {
+    request = input;
+    return { source: 'live', portionBasis: 'ESTIMATED_PORTION', items: [
+      { name: 'Pizza', portionGrams: 200, calories: 450, protein: 15, carbs: 60, fat: 17 }] };
+  });
+  const result = await analyze({ uri: 'file:///outside.jpg', meal: { type: 'Outside food', name: 'Outside food' }, token: 'jwt' });
+  assert.equal(request.category, 'Outside food');
+  assert.equal(request.uri, 'file:///outside.jpg');
+  assert.equal(request.token, 'jwt');
+  assert.equal(result.source, 'live');
+  assert.equal(result.name, 'Pizza');
+  assert.equal(result.calories, 450);
+  assert.equal(result.protein, 15);
+  assert.equal(helpers.hasValidFoodPortions(result), true);
+});
+
 test('estimated servings sum once and food removal or correction updates totals without weight input', () => {
   let result = helpers.withEstimatedPortions({ portionBasis: 'ESTIMATED_PORTION', items: [
     { name: 'Rice', portionGrams: 200, calories: 260, protein: 5, carbs: 56, fat: 1 },

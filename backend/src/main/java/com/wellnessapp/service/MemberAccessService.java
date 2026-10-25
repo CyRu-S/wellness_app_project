@@ -164,11 +164,11 @@ public class MemberAccessService {
                 .filter(post -> post.getPlannedMeal() == null || planned.stream().noneMatch(meal -> meal.getId().equals(post.getPlannedMeal().getId())))
                 .map(this::standaloneMealEntry)
                 .forEach(mealEntries::add);
-        mealEntries.sort(Comparator.comparing(entry -> entry.postedAt() != null
-                ? entry.postedAt()
-                : date.atTime(entry.scheduledTime() == null ? LocalTime.MIDNIGHT : entry.scheduledTime()).atZone(applicationZoneId).toInstant()));
+        mealEntries.sort(Comparator.comparing(entry -> entry.scheduledTime() != null
+                ? date.atTime(entry.scheduledTime()).atZone(applicationZoneId).toInstant()
+                : entry.postedAt()));
 
-        int completed = (int) mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed).count();
+        int completed = (int) planned.stream().filter(meal -> meal.isConsumed() || postByPlannedMeal.containsKey(meal.getId())).count();
         BigDecimal calories = mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed)
                 .map(SharedMemberTodayResponse.MealEntry::nutrition).filter(Objects::nonNull)
                 .map(SharedMemberTodayResponse.Nutrition::calories)

@@ -13,6 +13,7 @@ import Screen from '../../components/common/Screen';
 import UserHeader from '../../components/user/UserHeader';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import { fixedHerbalifeCalories, isUnlistedHerbalife } from '../../utils/mealAnalysis';
+import { buildMealTimeline } from '../../utils/mealTimeline';
 
 export default function MealsScreen({ navigation }) {
   const dispatch = useDispatch();
@@ -21,7 +22,8 @@ export default function MealsScreen({ navigation }) {
   const habits = plan.tasks.filter((item) => item.type === 'HEALTHY_HABIT');
   const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
   const logged = meals.items.filter((meal) => meal.consumed).length;
-  const openMeal = (meal) => meal.consumed
+  const timeline = buildMealTimeline(meals.items, meals.postHistory);
+  const openMeal = (meal) => meal.outsideFood ? navigation.navigate('MealDetails', { postId: meal.postId }) : meal.consumed
     ? navigation.navigate('MealDetails', { mealId: meal.id })
     : navigation.navigate('MealCapture', { category: 'meal', targetMealId: meal.id });
   const openPost = (post) => navigation.navigate('MealDetails', { mealId: post.targetMealId, postId: post.id });
@@ -37,8 +39,14 @@ export default function MealsScreen({ navigation }) {
         <View style={styles.progress}><View style={[styles.progressFill, { width: `${meals.items.length ? (logged / meals.items.length) * 100 : 0}%` }]} /></View>
         <View style={styles.summaryFoot}><Text style={styles.summaryMeta}>{overdue.length ? `${overdue.length} overdue check-in${overdue.length > 1 ? 's' : ''}` : meals.items.length ? 'All check-ins are on time' : 'Waiting for your plan'}</Text><Pressable disabled={!!meals.pendingPost || !meals.items.some((meal) => !meal.consumed)} onPress={() => navigation.navigate('MealCapture', { category: 'meal', targetMealId: meals.items.find((meal) => !meal.consumed)?.id })} style={styles.logButton}><Ionicons name="add" size={17} color={colors.white} /><Text style={styles.logButtonText}>Log entry</Text></Pressable></View>
       </StaggeredView>
+      <Pressable accessibilityRole="button" accessibilityLabel="Log outside food" disabled={!!meals.pendingPost}
+        onPress={() => navigation.navigate('MealCapture', { category: 'meal', outsideFood: true })}
+        style={({ pressed }) => [styles.outsideFoodButton, pressed && styles.pressed]}>
+        <Ionicons name="restaurant-outline" size={20} color={colors.tealDark} />
+        <Text style={styles.outsideFoodText}>Outside food</Text><Ionicons name="add-circle-outline" size={21} color={colors.tealDark} />
+      </Pressable>
       {overdue.length ? <StaggeredView delay={150} style={styles.alert}><Ionicons name="alert-circle-outline" size={19} color={colors.danger} /><View style={styles.alertCopy}><Text style={styles.alertTitle}>{overdue[0].type} photo is overdue</Text><Text style={styles.alertText}>Scheduled for {overdue[0].time}. Upload now or add a note.</Text></View><Pressable onPress={() => openMeal(overdue[0])}><Ionicons name="camera" size={18} color={colors.danger} /></Pressable></StaggeredView> : null}
-      <StaggeredView delay={210} style={styles.schedule}><View style={styles.scheduleHead}><Text style={styles.scheduleLabel}>TODAY’S SCHEDULE</Text><Text style={styles.scheduleDate}>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</Text></View><MealSchedule items={meals.items} onLog={openMeal} /></StaggeredView>
+      <StaggeredView delay={210} style={styles.schedule}><View style={styles.scheduleHead}><Text style={styles.scheduleLabel}>TODAY’S SCHEDULE</Text><Text style={styles.scheduleDate}>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</Text></View><MealSchedule items={timeline} onLog={openMeal} /></StaggeredView>
       {habits.length ? <StaggeredView delay={240} style={styles.habits}><Text style={styles.scheduleLabel}>DAILY PLAN REMINDERS</Text>{habits.map((habit) => <Pressable key={habit.id} accessibilityRole="button" disabled={habit.done || plan.completingId === habit.id} onPress={() => dispatch(completeHealthyHabit(habit.id))} style={({ pressed }) => [styles.habitRow, pressed && styles.pressed]}><View style={[styles.habitIcon, habit.done && styles.habitDone]}><Ionicons name={habit.done ? 'checkmark' : 'notifications-outline'} size={18} color={habit.done ? colors.white : colors.tealDark} /></View><View style={styles.habitCopy}><Text style={[styles.habitTitle, habit.done && styles.habitTitleDone]}>{habit.title}</Text><Text style={styles.habitMeta}>{habit.scheduledTime || habit.time}{habit.detail ? ` · ${habit.detail}` : ''} · Reminder 5 minutes before</Text></View><Text style={styles.habitAction}>{habit.done ? 'DONE' : 'CHECK IN'}</Text></Pressable>)}</StaggeredView> : null}
       {meals.uploads.length ? <StaggeredView delay={270} style={styles.uploads}><Text style={styles.uploadLabel}>RECENTLY ANALYSED</Text>{meals.uploads.slice(0, 3).map((item) => <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.name} meal details`} onPress={() => openPost(item)} key={item.id} style={({ pressed }) => [styles.uploadRow, pressed && styles.pressed]}><View style={styles.uploadIcon}><Ionicons name="sparkles-outline" size={19} color={colors.tealDark} /></View><View style={styles.uploadCopy}><Text style={styles.uploadName}>{item.name}</Text><Text style={styles.uploadMeta}>{item.loggedAt}{!isUnlistedHerbalife(item) ? <>{' \u00b7 '}{item.calories} kcal{fixedHerbalifeCalories(item) === null ? ` \u00b7 ${item.protein}g protein` : ''}</> : null}</Text></View><Ionicons name="arrow-forward" size={19} color={colors.tealMid} /></Pressable>)}</StaggeredView> : null}
     </Screen>
@@ -46,6 +54,8 @@ export default function MealsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  outsideFoodButton: { minHeight: 50, marginTop: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: radius.md, backgroundColor: colors.accentSoft },
+  outsideFoodText: { flex: 1, fontFamily: fonts.semibold, color: colors.tealDark, fontSize: 15 },
   head: { marginTop: 24 }, kicker: { ...type.label, color: colors.tealMid }, title: { ...type.display, color: colors.ink, marginTop: 6 }, body: { ...type.body, color: colors.muted, marginTop: 7, maxWidth: 340 },
   summary: { minHeight: 190, backgroundColor: colors.tealDark, borderRadius: radius.xl, marginTop: 24, padding: 21, overflow: 'hidden', ...shadows.soft }, summaryTop: { flexDirection: 'row', justifyContent: 'space-between' }, summaryLabel: { ...type.label, color: '#C9ECE8', fontSize: 11 }, summaryTitle: { color: colors.white, fontFamily: fonts.semibold, fontSize: 22, marginTop: 5 }, coach: { color: '#CFEAE7', fontFamily: fonts.medium, fontSize: 12, marginTop: 4 }, count: { color: '#D9EFEC', fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, marginLeft: 12 }, progress: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.12)', marginTop: 21, overflow: 'hidden' }, progressFill: { height: 6, borderRadius: 3, backgroundColor: '#89E5D6' }, summaryFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 17 }, summaryMeta: { flex: 1, color: '#CFEAE7', fontFamily: fonts.medium, fontSize: 12 }, logButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: radius.pill, paddingHorizontal: 14 }, logButtonText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 12 },
   alert: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF4F2', borderRadius: radius.md, padding: 14, marginTop: 14 }, alertCopy: { flex: 1 }, alertTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14 }, alertText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, marginTop: 3 },
