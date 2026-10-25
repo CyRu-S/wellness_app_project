@@ -3,6 +3,7 @@ import {
   getAdminMemberAccess,
   getSharedMemberToday,
   getSharedMemberJournal,
+  getSharedMemberAttention,
   nudgeSharedMember as nudgeSharedMemberApi,
   getSharedMembers,
   replaceAdminMemberAccess,
@@ -19,6 +20,7 @@ export const memberAccessInitialState = {
   sharedMembersStatus: 'idle',
   sharedMembersError: null,
   todayByMemberId: {},
+  attentionReadIds: {},
   sharedToday: null,
   sharedJournal: null,
   sharedTodayStatus: 'idle',
@@ -54,11 +56,19 @@ export const loadAdminMemberAccess = createAsyncThunk(
   },
 );
 
-export const nudgeSharedMember = createAsyncThunk('memberAccess/nudgeSharedMember', async ({ memberId, type }, { getState }) => {
+export const nudgeSharedMember = createAsyncThunk('memberAccess/nudgeSharedMember', async ({ memberId, type, attentionId }, { getState }) => {
   const token = getState().auth?.token;
   requireApiToken(token);
-  return { memberId: Number(memberId), type, ...await nudgeSharedMemberApi(token, memberId, type) };
+  return { memberId: Number(memberId), type, attentionId, ...await nudgeSharedMemberApi(token, memberId, type, attentionId) };
 });
+
+export const syncSharedMemberAttention = createAsyncThunk('memberAccess/syncAttention', async (memberId, { getState, rejectWithValue }) => {
+  try {
+    return { memberId: Number(memberId), nudges: await getSharedMemberAttention(getState().auth?.token, memberId) };
+  } catch (error) { return rejectWithValue({ memberId: Number(memberId), status: error.status, message: error.message }); }
+}, { condition: (memberId, { getState }) => !!getState().auth?.token
+  && !getState().memberAccess.attentionReadIds?.[memberId]
+  && getState().memberAccess.sharedNudge?.status !== 'loading' });
 
 export const replaceMemberAccessAssignments = createAsyncThunk(
   'memberAccess/replaceAssignments',
@@ -224,31 +234,52 @@ const memberAccessSlice = createSlice({
           state.sharedJournal = null;
         }
       })
-      .addCase(nudgeSharedMember.pending, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg.memberId), type: action.meta.arg.type, status: 'loading', sent: false, error: null }; })
+      .addCase(nudgeSharedMember.pending, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg.memberId), type: action.meta.arg.type, attentionId: action.meta.arg.attentionId, status: 'loading', sent: false, error: null }; })
       .addCase(nudgeSharedMember.fulfilled, (state, action) => {
         const id = Number(action.payload.memberId);
         const type = action.payload.type;
-        state.sharedNudge = { memberId: id, type, status: 'succeeded', sent: !!action.payload?.sent, error: null };
+        state.sharedNudge = { memberId: id, type, attentionId: action.payload.attentionId, status: 'succeeded', sent: !!action.payload?.sent, error: null };
         if (Number(state.sharedToday?.member?.id) === id) state.sharedToday.nudgedToday = true;
         if (state.todayByMemberId[id]) {
           state.todayByMemberId[id].nudgedToday = true;
-          const option = state.todayByMemberId[id].nudges?.find((item) => item.type === type);
-          if (option) {
+          state.todayByMemberId[id].nudges?.forEach((option) => {
+            option.status = 'NUDGED';
             option.lastSentAt = action.payload.lastSentAt;
             option.availableAt = action.payload.availableAt;
-          }
+          });
         }
-        const currentOption = state.sharedToday?.nudges?.find((item) => item.type === type);
-        if (currentOption) {
+        const currentNudges = Number(state.sharedToday?.member?.id) === id ? state.sharedToday.nudges : [];
+        currentNudges?.forEach((currentOption) => {
+          currentOption.status = 'NUDGED';
           currentOption.lastSentAt = action.payload.lastSentAt;
           currentOption.availableAt = action.payload.availableAt;
-        }
+        });
         [state.shared?.members, state.sharedMembers?.members].forEach((members) => {
           const member = members?.find((item) => Number(item.id ?? item.memberId) === id);
           if (member) member.nudgedToday = true;
         });
       })
-      .addCase(nudgeSharedMember.rejected, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg.memberId), type: action.meta.arg.type, status: 'failed', sent: false, error: action.error?.message || 'Nudge could not be sent.' }; });
+      .addCase(nudgeSharedMember.rejected, (state, action) => { state.sharedNudge = { memberId: Number(action.meta.arg.memberId), type: action.meta.arg.type, status: 'failed', sent: false, error: action.error?.message || 'Nudge could not be sent.' }; })
+      .addCase(syncSharedMemberAttention.pending, (state, action) => { state.attentionReadIds ||= {}; state.attentionReadIds[action.meta.arg] = action.meta.requestId; })
+      .addCase(syncSharedMemberAttention.fulfilled, (state, action) => {
+        const { memberId, nudges } = action.payload;
+        if (state.attentionReadIds[memberId] !== action.meta.requestId) return;
+        delete state.attentionReadIds[memberId];
+        if (state.todayByMemberId[memberId]) state.todayByMemberId[memberId].nudges = nudges;
+        if (Number(state.sharedToday?.member?.id) === memberId) state.sharedToday.nudges = nudges;
+      })
+      .addCase(syncSharedMemberAttention.rejected, (state, action) => {
+        const memberId = Number(action.meta.arg);
+        if (state.attentionReadIds[memberId] !== action.meta.requestId) return;
+        delete state.attentionReadIds[memberId];
+        if (action.payload?.status !== 404) return;
+        delete state.todayByMemberId[memberId];
+        if (Number(state.sharedToday?.member?.id) === memberId) {
+          state.sharedToday = null; state.sharedJournal = null; state.sharedTodayStatus = 'failed';
+          state.sharedTodayError = { message: 'Shared access is no longer available.', status: 404 };
+          state.todayRequest.requestId = null;
+        }
+      });
   },
 });
 

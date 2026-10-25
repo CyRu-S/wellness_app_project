@@ -1,6 +1,7 @@
 package com.wellnessapp.dto.access;
 
 import java.util.List;
+import java.math.BigDecimal;
 
 public record SharedMembersResponse(int total, List<SharedMemberSummary> members) {
     public record SharedMemberSummary(
@@ -9,7 +10,7 @@ public record SharedMembersResponse(int total, List<SharedMemberSummary> members
             int plannedMeals,
             int completedMeals,
             int mealPosts,
-            int calories,
+            BigDecimal calories,
             int proteinGrams,
             int hydrationMl,
             int hydrationGoalMl,

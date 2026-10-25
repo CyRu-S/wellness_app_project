@@ -64,7 +64,7 @@ public class MediaStorageService {
         }
     }
 
-    private boolean matchesSignature(byte[] bytes, String contentType) {
+    static boolean matchesSignature(byte[] bytes, String contentType) {
         return switch (contentType) {
             case "image/jpeg" -> bytes.length >= 3 && unsigned(bytes[0]) == 0xFF && unsigned(bytes[1]) == 0xD8 && unsigned(bytes[2]) == 0xFF;
             case "image/png" -> bytes.length >= 8 && unsigned(bytes[0]) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47
@@ -74,13 +74,13 @@ public class MediaStorageService {
         };
     }
 
-    private boolean ascii(byte[] bytes, int offset, String expected) {
+    private static boolean ascii(byte[] bytes, int offset, String expected) {
         if (bytes.length < offset + expected.length()) return false;
         for (int i = 0; i < expected.length(); i++) if (bytes[offset + i] != (byte) expected.charAt(i)) return false;
         return true;
     }
 
-    private int unsigned(byte value) { return value & 0xFF; }
+    private static int unsigned(byte value) { return value & 0xFF; }
 
     private String extension(String contentType) {
         return switch (contentType) {

@@ -22,7 +22,7 @@ public record SharedMemberTodayResponse(
             int plannedMeals,
             int completedMeals,
             int mealPosts,
-            int calories,
+            BigDecimal calories,
             int proteinGrams,
             int hydrationMl,
             int hydrationGoalMl,

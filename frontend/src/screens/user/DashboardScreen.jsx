@@ -76,7 +76,7 @@ export default function DashboardScreen({ navigation }) {
           <View style={styles.heroBody}>
             <View style={styles.heroCopy}>
               <Text style={styles.heroTitle}>A steady day,{`\n`}in progress.</Text>
-              <View style={styles.nutritionLine}><View><AnimatedNumber value={dashboard.calories} style={styles.nutritionValue} /><Text style={styles.nutritionLabel}>KCAL LOGGED</Text></View><View style={styles.heroRule} /><View><Text style={styles.nutritionValue}>{dashboard.protein}g</Text><Text style={styles.nutritionLabel}>PROTEIN</Text></View></View>
+              <View style={styles.nutritionLine}><View><AnimatedNumber value={dashboard.calories} formatter={(value) => value.toLocaleString('en-IN', { maximumFractionDigits: 2 })} style={styles.nutritionValue} /><Text style={styles.nutritionLabel}>KCAL LOGGED</Text></View><View style={styles.heroRule} /><View><Text style={styles.nutritionValue}>{dashboard.protein}g</Text><Text style={styles.nutritionLabel}>PROTEIN</Text></View></View>
             </View>
             <ProgressRing value={dashboard.completion} label="complete" size={120} />
           </View>

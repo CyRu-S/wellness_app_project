@@ -3,22 +3,41 @@ import assert from 'node:assert/strict';
 import * as toolkit from '@reduxjs/toolkit';
 import { loadModule, deferred } from './loadModule.js';
 
-const createPush = ({ request = async () => null, environment = 'standalone', permission = { granted: true }, native = {} } = {}) => {
+const createPush = ({ request = async () => null, environment = 'standalone', permission = { granted: true }, native = {},
+  nativeTopicsAvailable = true, onNotificationsImport = () => {} } = {}) => {
   const Notifications = { AndroidImportance: { HIGH: 4 }, setNotificationChannelAsync: async () => {},
     getPermissionsAsync: async () => permission, requestPermissionsAsync: async () => ({ granted: true }),
     getExpoPushTokenAsync: async () => ({ data: 'ExponentPushToken[test-device]' }), ...native };
-  return loadModule('../src/services/notifications/pushNotifications.js', {
+  const dependencies = {
     'react-native': { Platform: { OS: 'android' } },
     'expo-constants': { executionEnvironment: environment, easConfig: { projectId: 'test-project' } },
     'expo-crypto': { randomUUID: () => 'a1111111-1111-4111-a111-111111111111' },
-    'expo-notifications': Notifications, '../api/client': { request },
-  });
+    'expo': { requireOptionalNativeModule: () => nativeTopicsAvailable ? {} : null },
+    '../api/client': { request },
+  };
+  Object.defineProperty(dependencies, 'expo-notifications', { get: () => { onNotificationsImport(); return Notifications; } });
+  return loadModule('../src/services/notifications/pushNotifications.js', dependencies);
 };
 test('Expo Go explains the development build requirement and never calls push registration', async () => {
   const push = createPush({ environment: 'storeClient', request: () => { throw Error('Must not call backend'); } });
   const result = await push.syncPushRegistration(push.beginPushSession('auth', 1), true);
   assert.equal(result.status, 'unsupported'); assert.match(result.message, /installed Mr_Care APK/);
   assert.equal(await push.notificationModule(), null);
+});
+
+test('an old Android APK reports a rebuild requirement without importing the crashing notification package', async () => {
+  let imports = 0;
+  const push = createPush({ nativeTopicsAvailable: false,
+    onNotificationsImport: () => { imports++; throw new Error("Cannot find native module 'ExpoTopicSubscriptionModule'"); },
+    request: () => { throw new Error('Must not register an incompatible APK'); } });
+  const session = push.beginPushSession('auth', 1);
+  for (let i = 0; i < 3; i++) {
+    assert.equal(await push.notificationModule(), null);
+    const result = await push.syncPushRegistration(session, true);
+    assert.equal(result.status, 'unsupported');
+    assert.match(result.message, /Build and install a new Mr_Care development APK/);
+  }
+  assert.equal(imports, 0);
 });
 test('Android creates separate default and theme ringtone channels', async () => {
   const channels = [];

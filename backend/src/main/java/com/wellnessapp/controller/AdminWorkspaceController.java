@@ -19,11 +19,11 @@ public class AdminWorkspaceController {
     void decide(@PathVariable Long id, @jakarta.validation.Valid @RequestBody Decision request) { workspace.decide(id, request.decision(), request.followUpDays()); }
     @PatchMapping("/attention/{id}/resolve") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     void resolve(@PathVariable Long id) { reminders.resolve(id); }
-    @PostMapping("/attention/{id}/nudge") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    void nudge(@PathVariable Long id) { reminders.nudge(id); }
+    @PostMapping("/attention/{id}/nudge")
+    ReminderService.NudgeResult nudge(@PathVariable Long id) { return reminders.nudge(id); }
     @PostMapping("/hydration/nudge-all")
     Map<String, Object> nudgeHydrationForAll() {
         int notified = reminders.nudgeHydrationForAll();
-        return Map.of("notified", notified);
+        return Map.of("notified", notified, "attention", reminders.attention());
     }
 }

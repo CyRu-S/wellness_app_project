@@ -35,6 +35,28 @@ class MemberAccessApiIntegrationTests {
     @Autowired UserRepository users;
     @Autowired MealRepository meals;
     @Autowired ZoneId applicationZoneId;
+    @Autowired com.wellnessapp.repository.MissedEventRepository missedEvents;
+    @Autowired com.wellnessapp.service.MemberAccessService access;
+    @Autowired java.time.Clock clock;
+
+    @Test
+    void assignedCoachCanReadAndNudgeAttentionButCannotResolveIt() throws Exception {
+        var coach = user("user@mr-care.app");
+        var member = user("kavya.menon@example.com");
+        var header = "Bearer " + token(coach.getEmail(), "ROLE_USER");
+        var item = missedEvents.saveAndFlush(com.wellnessapp.entity.MissedEvent.builder().user(member)
+                .sourceKey("shared-http-test").itemType("Meals").itemTitle("Breakfast is overdue").missedAt(clock.instant()).build());
+        mvc.perform(get("/api/shared-members/{id}/attention", member.getId()).header("Authorization", header))
+                .andExpect(status().isNotFound());
+        access.replaceAssignments("admin@mr-care.app", coach.getId(), new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of(member.getId())));
+        mvc.perform(get("/api/shared-members/{id}/attention", member.getId()).header("Authorization", header))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(item.getId()))
+                .andExpect(jsonPath("$[0].title").value("Breakfast is overdue"));
+        mvc.perform(post("/api/shared-members/{id}/attention/{item}/nudge", member.getId(), item.getId()).header("Authorization", header))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.sent").value(true)).andExpect(jsonPath("$.type").value("MEALS"));
+        mvc.perform(patch("/api/admin/attention/{id}/resolve", item.getId()).header("Authorization", header))
+                .andExpect(status().isForbidden());
+    }
 
     @Test
     void adminCanGrantAndUserCanReadButCannotAdminister() throws Exception {

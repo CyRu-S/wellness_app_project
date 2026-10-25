@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import PrimaryTealCardBackground from '../common/PrimaryTealCardBackground';
+import { fixedHerbalifeCalories, isUnlistedHerbalife } from '../../utils/mealAnalysis';
 import { colors, fonts, radius, shadows, type } from '../../theme';
 import {
   formatJournalClock,
@@ -67,11 +68,13 @@ function MealTimeline({ meals, token, onOpenPhoto }) {
                   </View>
                   <Text style={styles.mealName}>{meal.name || 'Planned meal'}</Text>
                   <Text style={styles.mealTime}>{scheduled ? `Planned ${scheduled}` : 'No scheduled time'}{postedAt ? ` · Posted ${postedAt}` : ''}</Text>
-                  {posted ? (
+                  {posted && !isUnlistedHerbalife(meal) ? (
                     <View style={styles.nutritionRow}>
                       <Text style={styles.nutritionText}>{numeric(nutrition.calories ?? meal.calories)} kcal</Text>
-                      <View style={styles.nutritionDot} />
-                      <Text style={styles.nutritionText}>{numeric(nutrition.proteinGrams ?? meal.proteinGrams ?? meal.protein)}g protein</Text>
+                      {fixedHerbalifeCalories(meal) === null ? <>
+                        <View style={styles.nutritionDot} />
+                        <Text style={styles.nutritionText}>{numeric(nutrition.proteinGrams ?? meal.proteinGrams ?? meal.protein)}g protein</Text>
+                      </> : null}
                     </View>
                   ) : null}
                   {hasPhoto ? (

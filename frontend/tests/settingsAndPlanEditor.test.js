@@ -46,20 +46,19 @@ test('assigned count avoids duplicate meals and the Log count stays compact', as
   assert.doesNotMatch(log, /count: \{[^}]*fontSize: 29/);
 });
 
-test('shared member profile has category nudges with a shared thirty minute cooldown', async () => {
-  const [profile, list, api] = await Promise.all([
+test('shared member profile uses admin attention cards with a shared thirty minute cooldown', async () => {
+  const [profile, list, api, card] = await Promise.all([
     source('../src/screens/user/SharedMemberTodayScreen.jsx'),
     source('../src/screens/user/SharedMembersScreen.jsx'),
     source('../src/services/api/memberAccessApi.js'),
+    source('../src/components/common/MemberAttentionCard.jsx'),
   ]);
   assert.match(profile, /\['Today', 'Nudges', 'History', 'Reports'\]/);
-  assert.match(profile, /Available in \$\{minutes\} min/);
+  assert.match(card, /Available in \$\{minutes\} min/);
   assert.match(profile, /locked for every admin and coach for 30 minutes/);
   assert.match(profile, /memberName=\{memberName\}/);
-  assert.match(profile, /styles\.nudgeCategory/);
-  assert.match(profile, /Shared member/);
-  assert.match(profile, /option\.title/);
-  assert.match(api, /nudges\/\$\{type\}/);
+  assert.match(profile, /MemberAttentionCard/);
+  assert.match(api, /attention\/\$\{attentionId\}\/nudge/);
   assert.doesNotMatch(list, /Send nudge/);
 });
 

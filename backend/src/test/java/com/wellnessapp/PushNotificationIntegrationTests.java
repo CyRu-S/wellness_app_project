@@ -239,7 +239,7 @@ class PushNotificationIntegrationTests {
         worker.sendPending();
         verify(expo).send(anyList());
     }
-    @Test void clubHydrationReminderReachesEveryActiveMemberOncePerDay() {
+    @Test void clubHydrationReminderSharesTheRecipientCooldown() {
         User second = users.saveAndFlush(User.builder().email("second@example.com").fullName("Second Member").passwordHash("unused")
                 .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(now).build());
         assertThat(reminders.nudgeHydrationForAll()).isEqualTo(2);
@@ -248,6 +248,44 @@ class PushNotificationIntegrationTests {
         assertThat(count(PushDelivery.Kind.NUDGE, second)).isEqualTo(1);
         assertThat(events.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).getFirst().getTitle())
                 .isEqualTo("Push · Hydration");
+    }
+
+    @Test void theFirstSenderLocksEveryCategoryUntilExactlyThirtyMinutesAndCompletedMealsNeverReopen() throws Exception {
+        var coach = users.saveAndFlush(User.builder().email("cooldown-coach@example.com").fullName("Coach").passwordHash("unused")
+                .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(now).build());
+        var second = users.saveAndFlush(User.builder().email("cooldown-second@example.com").fullName("Second Coach").passwordHash("unused")
+                .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(now).build());
+        var administrator = admin();
+        access.replaceAssignments(administrator.getEmail(), coach.getId(), new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of(member.getId())));
+        access.replaceAssignments(administrator.getEmail(), second.getId(), new com.wellnessapp.dto.access.ReplaceMemberAccessRequest(List.of(member.getId())));
+        var meal = meals.saveAndFlush(Meal.builder().user(member).type("Breakfast").name("Oats")
+                .mealDate(LocalDate.of(2026, 9, 7)).mealTime(LocalTime.of(6, 0)).build());
+        var breakfast = missed.saveAndFlush(MissedEvent.builder().user(member).sourceKey("meal-" + meal.getId())
+                .itemType("Meals").itemTitle("Breakfast check-in is overdue").missedAt(now.minusSeconds(3600)).build());
+        var habit = missed.saveAndFlush(MissedEvent.builder().user(member).sourceKey("custom-unfinished-habit")
+                .itemType("Healthy habit").itemTitle("Stretch is overdue").missedAt(now.minusSeconds(3600)).build());
+        var first = reminders.nudge(breakfast.getId());
+        assertThat(first.sent()).isTrue();
+        assertThat(reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), habit.getId()).sent()).isFalse();
+        assertThat(reminders.sharedAttention(second.getEmail(), member.getId())).allSatisfy(row -> {
+            assertThat(row.get("status")).isEqualTo("NUDGED");
+            assertThat(row.get("availableAt")).isEqualTo(now.plusSeconds(1800));
+        });
+        advance(1799);
+        assertThat(reminders.nudgeSharedAttention(second.getEmail(), member.getId(), habit.getId()).sent()).isFalse();
+        advance(1);
+        assertThat(reminders.attention()).filteredOn(row -> member.getId().equals(row.get("memberId")))
+                .allSatisfy(row -> assertThat(row.get("status")).isEqualTo("OPEN"));
+        assertThat(reminders.nudgeSharedAttention(second.getEmail(), member.getId(), habit.getId()).sent()).isTrue();
+        assertThat(reminders.nudge(breakfast.getId()).sent()).isFalse();
+        advance(1800);
+        meal.setConsumed(true); meals.saveAndFlush(meal);
+        assertThat(reminders.attention()).extracting(row -> row.get("id")).doesNotContain(breakfast.getId());
+        assertThatThrownBy(() -> reminders.nudge(breakfast.getId())).isInstanceOf(com.wellnessapp.exception.BadRequestException.class);
+        missed.findById(habit.getId()).ifPresent(row -> { row.setResolved(true); missed.saveAndFlush(row); });
+        assertThatThrownBy(() -> reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), habit.getId()))
+                .isInstanceOf(com.wellnessapp.exception.BadRequestException.class);
+        assertThat(count(PushDelivery.Kind.NUDGE, member)).isEqualTo(2);
     }
     @Test void overdueMealNudgeReachesMemberAndIsIdempotent() {
         var admin = admin();

@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
+import { requireOptionalNativeModule } from 'expo';
 import { request } from '../api/client';
 
 let session = null;
@@ -15,6 +16,10 @@ export const pushSupport = () => {
   if (Platform.OS !== 'android') return 'Phone push notifications are currently available in the Android app only.';
   if (Constants.executionEnvironment === 'storeClient') return 'Phone push notifications require the installed Mr_Care APK, not Expo Go.';
   if (!(Constants.easConfig?.projectId || Constants.expoConfig?.extra?.eas?.projectId)) return 'An Expo project ID must be configured before enabling push notifications.';
+  // expo-notifications eagerly imports this Android module, even though we do not use topics.
+  // Check first so an old APK reports the rebuild requirement without throwing during import.
+  if (!requireOptionalNativeModule('ExpoTopicSubscriptionModule'))
+    return 'This installed app needs an update for Expo SDK 58 notifications. Build and install a new Mr_Care development APK, then reopen it.';
   return null;
 };
 export async function notificationModule() {

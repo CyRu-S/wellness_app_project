@@ -13,6 +13,7 @@ import AdminSegmentedControl from '../../components/admin/AdminSegmentedControl'
 import MealTimePicker from '../../components/admin/MealTimePicker';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
 import { formatNutrition } from '../../utils/formatNutrition';
+import { isManualProduct, isUnlistedHerbalife } from '../../utils/mealAnalysis';
 import {
   selectAdminMemberMealPlans,
   selectAdminMembers,
@@ -262,6 +263,8 @@ function JournalHistory({ days, token, retentionDays, onOpenPhoto }) {
               {day.posts.map((post, index) => {
                 const hasPhoto = Boolean(mealImageUri(post));
                 const nutrition = post.nutrition || {};
+                const caloriesOnly = isManualProduct(post);
+                const nutritionOmitted = isUnlistedHerbalife(post);
                 return (
                   <Pressable
                     key={post.postId || `${day.date}-${index}`}
@@ -275,8 +278,8 @@ function JournalHistory({ days, token, retentionDays, onOpenPhoto }) {
                     <View style={styles.historyCopy}>
                       <View style={styles.historyTitleRow}><Text style={styles.historyTitle}>{post.type}</Text><Text style={styles.historyTime}>{formatJournalClock(post.postedAt)}</Text></View>
                       <Text numberOfLines={1} style={styles.historyDetail}>{post.name}</Text>
-                      <Text style={styles.historyNutrition}>{formatNutrition(nutrition.calories)} kcal · {formatNutrition(nutrition.proteinGrams)}g protein{hasPhoto ? ' · View photo' : ''}</Text>
-                      <Text style={styles.historyNutrition}>{formatNutrition(nutrition.carbsGrams)}g carbs · {formatNutrition(nutrition.fatGrams)}g fat</Text>
+                      {!nutritionOmitted ? <Text style={styles.historyNutrition}>{formatNutrition(nutrition.calories)} kcal{!caloriesOnly ? ` · ${formatNutrition(nutrition.proteinGrams)}g protein` : ''}{hasPhoto ? ' · View photo' : ''}</Text> : null}
+                      {!caloriesOnly ? <Text style={styles.historyNutrition}>{formatNutrition(nutrition.carbsGrams)}g carbs · {formatNutrition(nutrition.fatGrams)}g fat</Text> : null}
                     </View>
                     {hasPhoto ? <Ionicons name="expand-outline" size={19} color={adminColors.teal} /> : null}
                   </Pressable>
@@ -472,6 +475,8 @@ function PlanEditor({ visible, member, plan, onClose, onSave }) {
 
 function PhotoViewer({ meal, token, memberName, onClose, onDelete, deleting }) {
   const nutrition = meal?.nutrition || {};
+  const caloriesOnly = isManualProduct(meal);
+  const nutritionOmitted = isUnlistedHerbalife(meal || {});
   const source = meal ? protectedImageSource(meal, token) : null;
   return (
     <Modal visible={Boolean(meal)} transparent animationType="fade" onRequestClose={onClose}>
@@ -481,8 +486,9 @@ function PhotoViewer({ meal, token, memberName, onClose, onDelete, deleting }) {
         <View style={styles.photoCaption}>
           <Text style={styles.photoType}>{meal?.type}</Text>
           <Text style={styles.photoTitle}>{meal?.detectedName || meal?.name}</Text>
-          <Text style={styles.photoMeta}>Posted {formatJournalClock(meal?.postedAt || meal?.uploadedAt) || 'today'} · {formatNutrition(nutrition.calories ?? meal?.detectedCalories ?? meal?.calories)} kcal · {formatNutrition(nutrition.proteinGrams ?? meal?.detectedProtein ?? meal?.protein)}g protein</Text>
-          <Text style={styles.photoMeta}>{formatNutrition(nutrition.carbsGrams ?? meal?.carbsGrams)}g carbs · {formatNutrition(nutrition.fatGrams ?? meal?.fatGrams)}g fat</Text>
+          <Text style={styles.photoMeta}>Posted {formatJournalClock(meal?.postedAt || meal?.uploadedAt) || 'today'}</Text>
+          {!nutritionOmitted ? <Text style={styles.photoMeta}>{formatNutrition(nutrition.calories ?? meal?.detectedCalories ?? meal?.calories)} kcal{!caloriesOnly ? ` · ${formatNutrition(nutrition.proteinGrams ?? meal?.detectedProtein ?? meal?.protein)}g protein` : ''}</Text> : null}
+          {!caloriesOnly ? <Text style={styles.photoMeta}>{formatNutrition(nutrition.carbsGrams ?? meal?.carbsGrams)}g carbs · {formatNutrition(nutrition.fatGrams ?? meal?.fatGrams)}g fat</Text> : null}
           <Pressable accessibilityRole="button" disabled={deleting} onPress={onDelete} style={styles.photoDelete}><Ionicons name="trash-outline" size={17} color={adminColors.coral} /><Text style={styles.photoDeleteText}>{deleting ? 'Deleting…' : 'Delete incorrect post'}</Text></Pressable>
         </View>
       </View>

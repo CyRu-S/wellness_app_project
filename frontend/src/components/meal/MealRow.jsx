@@ -3,15 +3,17 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../../theme';
+import { fixedHerbalifeCalories, isUnlistedHerbalife } from '../../utils/mealAnalysis';
 
 export default function MealRow({ meal, onPress }) {
+  const productCalories = fixedHerbalifeCalories(meal);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
       <View style={styles.time}><Text style={styles.timeText}>{meal.time}</Text></View>
       <View style={styles.copy}>
         <Text style={styles.type}>{meal.type}</Text>
         <Text style={styles.name}>{meal.name}</Text>
-        <Text style={styles.meta}>{meal.calories} kcal · {meal.protein}g protein</Text>
+        {!isUnlistedHerbalife(meal) ? <Text style={styles.meta}>{productCalories ?? meal.calories} kcal{productCalories === null ? ` · ${meal.protein}g protein` : ''}</Text> : null}
       </View>
       <Ionicons name="chevron-forward" size={19} color={colors.muted} />
     </Pressable>

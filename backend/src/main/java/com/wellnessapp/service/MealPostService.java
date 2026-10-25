@@ -59,17 +59,27 @@ public class MealPostService {
             }
         }
 
+        // The assigned category is authoritative, including when a client edits the displayed name/type.
+        String productType = plannedMeal == null ? request.mealType() : plannedMeal.getType();
+        String assignedName = plannedMeal == null ? request.mealName() : plannedMeal.getName();
+        var assignedCalories = HerbalifeCalories.find(productType, assignedName);
+        boolean product = HerbalifeCalories.isProduct(productType);
+        var calories = product ? assignedCalories.orElse(java.math.BigDecimal.ZERO) : request.calories();
+        // Only calories are specified for these products; do not invent macronutrients.
+        var protein = product ? java.math.BigDecimal.ZERO : request.proteinGrams();
+        var carbs = product ? java.math.BigDecimal.ZERO : request.carbsGrams();
+        var fat = product ? java.math.BigDecimal.ZERO : request.fatGrams();
         MediaStorageService.StoredMedia stored = mediaStorage.store(image);
         try {
             MealPost post = posts.saveAndFlush(MealPost.builder()
                     .user(user)
                     .plannedMeal(plannedMeal)
-                    .mealType(request.mealType().trim())
-                    .mealName(request.mealName().trim())
-                    .calories(request.calories())
-                    .proteinGrams(request.proteinGrams())
-                    .carbsGrams(request.carbsGrams())
-                    .fatGrams(request.fatGrams())
+                    .mealType(HerbalifeCalories.isProduct(productType) ? productType.trim() : request.mealType().trim())
+                    .mealName(product ? assignedName.trim() : request.mealName().trim())
+                    .calories(calories)
+                    .proteinGrams(protein)
+                    .carbsGrams(carbs)
+                    .fatGrams(fat)
                     .postedAt(clock.instant())
                     .mediaKey(stored.key())
                     .mediaOriginalName(stored.originalName())
@@ -79,8 +89,8 @@ public class MealPostService {
                     .build());
             if (plannedMeal != null && !plannedMeal.isConsumed()) {
                 plannedMeal.setConsumed(true);
-                plannedMeal.setCalories(request.calories().setScale(0, RoundingMode.HALF_UP).intValueExact());
-                plannedMeal.setProteinGrams(request.proteinGrams().setScale(0, RoundingMode.HALF_UP).intValueExact());
+                plannedMeal.setCalories(calories.setScale(0, RoundingMode.HALF_UP).intValueExact());
+                plannedMeal.setProteinGrams(protein.setScale(0, RoundingMode.HALF_UP).intValueExact());
                 meals.saveAndFlush(plannedMeal);
             }
             notices.admins(PushDelivery.Kind.MEAL_POST, "meal-post-" + post.getId(),

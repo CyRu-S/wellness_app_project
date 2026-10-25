@@ -18,6 +18,8 @@ Required Railway variables:
 | `MAIL_ENABLED` | `true` |
 | `MAIL_FROM` | Verified sender address in Brevo |
 | `BREVO_API_KEY` | Secret Brevo API key |
+| `GEMINI_API_KEY` | Secret Gemini API key, set only in the backend service Variables |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` (default) |
 | `APP_TIME_ZONE` | `Asia/Kolkata` |
 | `DEMO_SEED_ENABLED` | `false` |
 | `SCHEDULERS_ENABLED` | `true` |
@@ -25,6 +27,8 @@ Required Railway variables:
 | `PUSH_ENABLED` | `true` after Expo/FCM credentials are configured |
 
 The first startup of an empty database also needs `ADMIN_EMAIL` and `ADMIN_INITIAL_PASSWORD`; remove the initial password variable once the admin is created. `GOOGLE_CLIENT_IDS` and Google OAuth credentials are no longer needed. Keep all secret values out of Git, Expo environment variables, screenshots, and chat.
+
+For food photos, open the Railway **backend service → Variables**, add `GEMINI_API_KEY` and redeploy. Do not edit `application-local.properties.example` with a real key: that file is committed. For local development only, put `app.gemini.api-key=YOUR_KEY` in the ignored `backend/application-local.properties` and restart the backend. See [food photo configuration](gemini-food-analysis.md).
 
 The previously documented Railway service is `mr-care-api-production.up.railway.app`; the mobile API URL must be `https://mr-care-api-production.up.railway.app/api`. The EAS preview environment points to this address, and `/api/health` returned HTTP 200 on October 8, 2026. Confirm `/api/health` returns HTTP 200 and the service is healthy and Flyway migrations have completed before building the app.
 

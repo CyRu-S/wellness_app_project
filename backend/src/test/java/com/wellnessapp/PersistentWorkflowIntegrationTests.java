@@ -269,6 +269,33 @@ class PersistentWorkflowIntegrationTests {
                 .andExpect(jsonPath("$[0].name").value("Updated Member"));
     }
 
+    @Test void herbalifePostsEnforceExactCaloriesAndDashboardTotalsDespiteClientOverrides() throws Exception {
+        var user = approve("herbalife@example.com");
+        var names = List.of("🌿 Afresh morning", "SHAKE 🥤", "Hydrate 💧", "Beta💚heart", "Rebuild 💪", "Lift-off 🚀", "Afresh + Shake", "Unknown product 🍃", "Banana shake");
+        var expected = List.of(4.0, 220.0, 14.0, 47.5, 174.75, 13.39, 224.0, 0.0, 321.0);
+        var items = new ArrayList<SaveMealPlanRequest.Item>();
+        for (int i = 0; i < names.size(); i++) items.add(new SaveMealPlanRequest.Item(
+            i == names.size() - 1 ? "Snacks" : "Herbalife product", names.get(i), LocalTime.of(7 + i, 0), 999, 99, List.of(), null));
+        plans.save(user.getId(), new SaveMealPlanRequest("Product plan", items));
+        var scheduled = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5));
+        for (int i = 0; i < scheduled.size(); i++) {
+            var meal = scheduled.get(i);
+            var metadata = new MockMultipartFile("metadata", "", "text/plain", json.writeValueAsBytes(Map.of(
+                "plannedMealId", meal.getId(), "mealType", "Snacks", "mealName", i == 0 ? "Edited client name" : i == 7 ? "Shake" : meal.getName(),
+                "calories", 321, "proteinGrams", 99, "carbsGrams", 99, "fatGrams", 99, "clientRequestId", "product-" + i)));
+            mvc.perform(multipart("/api/meal-posts").file(metadata).file(new MockMultipartFile("image", "product.png", "image/png", png))
+                    .header("Authorization", token(user))).andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.calories").value(expected.get(i)))
+                    .andExpect(jsonPath("$.mealName").value(meal.getName()))
+                    .andExpect(jsonPath("$.mealType").value(meal.getType()))
+                    .andExpect(jsonPath("$.proteinGrams").value(i == names.size() - 1 ? 99 : 0));
+            assertThat(posts.findByPlannedMealId(meal.getId()).orElseThrow().getCalories())
+                    .isEqualByComparingTo(BigDecimal.valueOf(expected.get(i)));
+        }
+        mvc.perform(get("/api/dashboard").header("Authorization", token(user))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.calories").value(1018.64));
+    }
+
     @Test void mealWaterAndTimerAppearInAdminJournalAndDashboard() throws Exception {
         var user = approve("journal@example.com"); plan(user);
         var meal = meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), LocalDate.of(2026, 9, 5)).getFirst();

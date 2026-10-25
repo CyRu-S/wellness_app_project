@@ -4,6 +4,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDate;
 import java.util.List;
 public interface MealRepository extends JpaRepository<Meal, Long> {
+    @org.springframework.data.jpa.repository.Query("select meal.id from Meal meal where meal.id in :ids and meal.consumed = false")
+    List<Long> incompleteIds(java.util.Collection<Long> ids);
     @org.springframework.data.jpa.repository.Query("select distinct m.user.id, m.mealDate from Meal m where m.consumed = true")
     List<Object[]> allConsumedDates();
     @org.springframework.data.jpa.repository.Query("select distinct m.mealDate from Meal m where m.user.id = :userId and m.consumed = true order by m.mealDate desc")

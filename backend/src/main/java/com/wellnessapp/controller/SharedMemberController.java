@@ -34,6 +34,17 @@ public class SharedMemberController {
         return journals.getShared(authentication.getName(), memberId);
     }
 
+    @GetMapping("/{memberId}/attention")
+    java.util.List<java.util.Map<String, Object>> attention(Authentication authentication, @PathVariable Long memberId) {
+        return reminders.sharedAttention(authentication.getName(), memberId);
+    }
+
+    @PostMapping("/{memberId}/attention/{attentionId}/nudge")
+    ReminderService.NudgeResult nudgeAttention(Authentication authentication, @PathVariable Long memberId,
+            @PathVariable Long attentionId) {
+        return reminders.nudgeSharedAttention(authentication.getName(), memberId, attentionId);
+    }
+
     @PostMapping("/{memberId}/nudge")
     ReminderService.NudgeResult legacyNudge(Authentication authentication, @PathVariable Long memberId) {
         return reminders.nudgeSharedMember(authentication.getName(), memberId, MemberNudgeType.HABITS);

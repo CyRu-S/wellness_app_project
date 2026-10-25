@@ -1,6 +1,6 @@
 # Mr_Care
 
-Expo SDK 57 (React Native 0.86.3 / React 19.2.3) client with a Spring Boot API and Supabase PostgreSQL persistence.
+Expo SDK 58 (React Native 0.88.0 / React 19.3.0) client with a Spring Boot API and Supabase PostgreSQL persistence.
 
 ## Run locally
 
@@ -34,7 +34,9 @@ npm install
 npx expo start --go --clear
 ```
 
-Use an SDK 57-compatible Expo Go client from [expo.dev/go](https://expo.dev/go). Stop any SDK 54 Metro server before starting the upgraded project. The migration follows [Expo's SDK upgrade guide](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/). Native photo uploads use Expo File objects for compatibility with the new fetch implementation.
+SDK 58 requires a new development build; an installed SDK 57 development client cannot run it. Build and install a new development client, then run `npm start -- --clear`. Expo Go must explicitly support SDK 58; see [Expo's SDK 58 upgrade guide](https://expo.dev/blog/how-to-upgrade-to-sdk-58) for its store availability. Stop the old Metro server before starting the upgraded project. Native photo uploads use Expo File objects for compatibility with the fetch implementation.
+
+For Android, `npm run android` builds and installs the native app locally (requires Android SDK tools and a connected device/emulator). `npm run start:android` only opens an already compatible installed client. If local Android tools are unavailable, use `npx eas-cli build --platform android --profile development` and install the resulting APK. A missing `ExpoTopicSubscriptionModule` means the installed client lacks the notification module required by the JavaScript bundle; restarting Metro cannot add native modules.
 
 Web defaults to `http://localhost:8080/api`; Android emulators use `http://10.0.2.2:8080/api`. Use `EXPO_PUBLIC_WEB_API_URL` and `EXPO_PUBLIC_MOBILE_API_URL` when web and a physical phone need different addresses; the mobile value must use the computer's LAN address (see `frontend/.env.example`). `EXPO_PUBLIC_API_URL` remains the shared fallback. Both devices must be on the same network and port 8080 must be reachable. Restart Expo after changing environment settings.
 
@@ -47,14 +49,14 @@ Web defaults to `http://localhost:8080/api`; Android emulators use `http://10.0.
 - Meal photos, profile images, water logs, and timer sessions are stored in PostgreSQL. Image access requires the owner's, authorized viewer's, or admin's JWT.
 - Admin journals show posted food photos followed by movement. Adherence and meal-rhythm graphs use saved records, with explicit empty states.
 - Water, meal logs, activity sessions, and profile edits update locally while saving, with rollback/retry feedback on failure. Permission changes still require server confirmation.
-- Screen data loads when opened and when pulled to refresh. Admin screens and member details do not poll. Foreground presence and the notification badge sync every 45 seconds; simultaneous reads are shared. Successful saves update local state without reloading the full admin report.
+- Screen data loads when opened and when pulled to refresh. Live dashboards and member views refresh while focused; visible nudge screens refresh lightweight attention data every five seconds so admins and coaches share the same recipient cooldown. Background refresh pauses. Foreground presence and the notification badge sync every 45 seconds; simultaneous reads are shared. Successful saves update local state without reloading the full admin report.
 - Reminders and attention entries come from actual assigned schedules, not demo data.
 - Expired verification codes and push-delivery records are removed after a seven-day diagnostic window. Member history and notification inbox records are preserved.
 - Meal-photo journal retention is 21 days. Retention removes old posts/photos; consumed meal records remain for adherence reporting. Profile photos do not expire.
 
 ## Optional integrations
 
-Meal capture uses manual nutrition entry for every meal and product. It prepares the photo and opens editable serving values without an AI request. The existing optional model integration is retained for future work and is not used by the app.
+Meal photos use Gemini `gemini-3.1-flash-lite` to identify dishes and estimate visible portion sizes, using standard servings when size is unclear. Nutrition totals appear automatically without entering food weights. Set `app.gemini.api-key` in the Git-ignored `backend/application-local.properties` or set the backend environment variable `GEMINI_API_KEY`, then restart the API. Manual entry remains available when analysis fails. Selected Herbalife products bypass AI and use fixed calories. See [food photo analysis setup](docs/gemini-food-analysis.md).
 
 Google sign-in needs backend `GOOGLE_CLIENT_IDS` plus the matching client settings `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Gmail password recovery needs `SMTP_USERNAME`, `SMTP_APP_PASSWORD`, `SMTP_FROM`, and `SMTP_ENABLED=true`. Follow [the authentication setup guide](docs/authentication-setup.md) for credential placement and the end-to-end checklist.
 

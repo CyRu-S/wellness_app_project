@@ -16,15 +16,24 @@ export const getSharedMembers = (token) => request('/shared-members', {
   headers: authHeaders(token),
 });
 
-export const getSharedMemberToday = (token, memberId) => request(`/shared-members/${memberId}/today`, {
-  headers: authHeaders(token),
+export const getSharedMemberAttention = (token, memberId) => request(`/shared-members/${memberId}/attention`, {
+  headers: authHeaders(token), cachePolicy: 'network-only',
 });
+
+export const getSharedMemberToday = async (token, memberId) => {
+  const [today, nudges] = await Promise.all([
+    request(`/shared-members/${memberId}/today`, { headers: authHeaders(token) }),
+    getSharedMemberAttention(token, memberId),
+  ]);
+  return { ...today, nudges };
+};
 
 export const getSharedMemberJournal = (token, memberId) => request(`/shared-members/${memberId}/journal`, {
   headers: authHeaders(token),
 });
 
-export const nudgeSharedMember = (token, memberId, type) => request(`/shared-members/${memberId}/nudges/${type}`, {
+export const nudgeSharedMember = (token, memberId, type, attentionId) => request(attentionId != null
+  ? `/shared-members/${memberId}/attention/${attentionId}/nudge` : `/shared-members/${memberId}/nudges/${type}`, {
   method: 'POST', headers: authHeaders(token),
 });
 

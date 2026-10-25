@@ -20,7 +20,9 @@ export const loadAdminMembers = createAsyncThunk('admin/loadMembers', async (_, 
     && !Object.keys(getState().admin.writes).length,
 });
 export const loadAdminAttention = createAsyncThunk('admin/loadAttention', async (_, { getState }) =>
-  request('/admin/attention', { headers: headers(getState) }), pageReadOptions);
+  request('/admin/attention', { headers: headers(getState), cachePolicy: 'network-only' }), {
+  condition: (_, { getState }) => !Object.keys(getState().admin.writes).length && !getState().admin.pageReads?.attention,
+});
 export const loadAdminDirectory = createAsyncThunk('admin/loadDirectory', async (_, { getState }) =>
   request('/admin/members', { headers: headers(getState) }), pageReadOptions);
 export const loadAdminApprovals = createAsyncThunk('admin/loadApprovals', async (_, { getState }) =>
@@ -41,14 +43,20 @@ export const declineRequest = decision('admin/decline', 'DECLINE');
 const attentionAction = (name, action, method) => createAsyncThunk(name, async (id, { getState }) => {
   await request(`/admin/attention/${id}/${action}`, { method, headers: headers(getState) });
 });
-export const nudgeAttention = attentionAction('admin/nudge', 'nudge', 'POST');
+export const nudgeAttention = createAsyncThunk('admin/nudge', async (id, { getState }) => {
+  const memberId = getState().admin.attention.find((item) => item.id === id)?.memberId;
+  return { memberId, ...await request(`/admin/attention/${id}/nudge`, { method: 'POST', headers: headers(getState) }) };
+});
 export const resolveAttention = attentionAction('admin/resolve', 'resolve', 'PATCH');
 export const deleteMemberAccount = createAsyncThunk('admin/deleteMember', async (memberId, { getState }) => {
   await request(`/admin/users/${memberId}`, { method: 'DELETE', headers: headers(getState) });
   return memberId;
 });
 export const nudgePriorityAttention = createAsyncThunk('admin/nudgePriority', async (_, { getState, dispatch }) => {
-  const ids = getState().admin.attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN' && item.category !== 'Hydration').map((item) => item.id);
+  const members = new Map();
+  getState().admin.attention.filter((item) => item.severity === 'HIGH' && item.status === 'OPEN' && item.category !== 'Hydration')
+    .forEach((item) => { if (!members.has(item.memberId)) members.set(item.memberId, item.id); });
+  const ids = [...members.values()];
   await Promise.all(ids.map((id) => dispatch(nudgeAttention(id)).unwrap()));
 });
 export const nudgeClubHydration = createAsyncThunk('admin/nudgeClubHydration', async (_, { getState }) =>
@@ -168,13 +176,22 @@ const slice = createSlice({
       if (index < 0) return;
       const target = state.attention[index];
       const items = state.attention.map((item, itemIndex) => ({ item, itemIndex }))
-        .filter(({ item }) => item.status === 'OPEN' && item.memberId === target.memberId && item.category === target.category)
+        .filter(({ item }) => item.status !== 'RESOLVED' && item.memberId === target.memberId)
         .map(({ item, itemIndex }) => ({ index: itemIndex, item: { ...item } }));
       state.attentionRollbacks[action.meta.requestId] = { kind: 'nudge', items };
-      items.forEach(({ index: itemIndex }) => { state.attention[itemIndex].status = 'NUDGED'; });
+      const sentAt = new Date().toISOString();
+      const availableAt = new Date(Date.parse(sentAt) + 30 * 60000).toISOString();
+      items.forEach(({ index: itemIndex }) => {
+        Object.assign(state.attention[itemIndex], { status: 'NUDGED', lastSentAt: sentAt, availableAt });
+      });
       syncAttentionState(state);
     })
-    .addCase(nudgeAttention.fulfilled, (state, action) => { delete state.attentionRollbacks[action.meta.requestId]; })
+    .addCase(nudgeAttention.fulfilled, (state, action) => {
+      state.attention.filter((item) => item.memberId === action.payload.memberId && item.status !== 'RESOLVED')
+        .forEach((item) => Object.assign(item, { status: 'NUDGED', lastSentAt: action.payload.lastSentAt, availableAt: action.payload.availableAt }));
+      delete state.attentionRollbacks[action.meta.requestId];
+      syncAttentionState(state);
+    })
     .addCase(nudgeAttention.rejected, (state, action) => {
       const rollback = state.attentionRollbacks[action.meta.requestId];
       if (rollback) {
@@ -206,6 +223,7 @@ const slice = createSlice({
     })
     .addCase(nudgeClubHydration.pending, (state) => { state.hydrationNudge = { status: 'loading', notified: 0, error: null }; })
     .addCase(nudgeClubHydration.fulfilled, (state, action) => {
+      if (Array.isArray(action.payload.attention)) state.attention = action.payload.attention;
       state.hydrationNudge = { status: 'succeeded', notified: Number(action.payload?.notified || 0), error: null };
       state.attention.forEach((item) => { if (item.category === 'Hydration' && item.status === 'OPEN') item.status = 'NUDGED'; });
       syncAttentionState(state);

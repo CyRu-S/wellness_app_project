@@ -2,11 +2,12 @@ import { LocalizedText as Text } from '../../components/common/LocalizedText';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import MemberAttentionCard from '../../components/common/MemberAttentionCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import PageRefresh from '../../components/common/PageRefresh';
 import usePageRefresh from '../../hooks/usePageRefresh';
+import useNudgeSync from '../../hooks/useNudgeSync';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
 import { clearSharedMemberToday, loadSharedMemberToday, nudgeSharedMember } from '../../store/slices/memberAccessSlice';
 import Alert from '../../utils/appAlert';
@@ -48,6 +49,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   const payload = access.sharedToday;
   const journal = access.sharedJournal;
   const [section, setSection] = useState('Today');
+  useNudgeSync(memberId, section === 'Nudges' && memberId != null);
   const [now, setNow] = useState(0);
   const nudge = access.sharedNudge || { status: 'idle' };
   const today = useMemo(() => {
@@ -81,12 +83,12 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   const openPhoto = useCallback((post) => {
     navigation.navigate('SharedPhoto', { post, memberName });
   }, [memberName, navigation]);
-  const sendNudge = useCallback(async (type, title) => {
+  const sendNudge = useCallback(async (option) => {
     try {
-      const result = await dispatch(nudgeSharedMember({ memberId, type })).unwrap();
+      const result = await dispatch(nudgeSharedMember({ memberId, type: option.type, attentionId: option.id })).unwrap();
       setNow(Date.now());
       Alert.alert(result.sent ? 'Nudge sent' : 'Nudge already sent', result.sent
-        ? `${memberName} received the ${title.toLowerCase()} reminder.`
+        ? `${memberName} received the ${option.category.toLowerCase()} reminder.`
         : 'An administrator or assigned coach sent this nudge recently. It is locked for 30 minutes.');
     } catch (error) { Alert.alert('Nudge not sent', error.message || 'Please try again.'); }
   }, [dispatch, memberId, memberName]);
@@ -120,7 +122,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
           {['Today', 'Nudges', 'History', 'Reports'].map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: section === item }} onPress={() => setSection(item)} style={[styles.section, section === item && styles.sectionActive]}><Text style={[styles.sectionText, section === item && styles.sectionTextActive]}>{item}</Text></Pressable>)}
         </View>
         {section === 'Today' ? <MemberTodaySnapshot snapshot={today} token={token} onOpenPhoto={openPhoto} showAccessNote /> : null}
-        {section === 'Nudges' ? <SharedNudges memberName={memberName} options={today?.nudges || []} now={now} memberId={memberId} nudge={nudgeForMember ? nudge : null} onSend={sendNudge} /> : null}
+        {section === 'Nudges' ? <SharedNudges memberName={memberName} options={today?.nudges || []} now={now} token={token} onMember={() => setSection('Today')} nudge={nudgeForMember ? nudge : null} onSend={sendNudge} /> : null}
         {section === 'History' ? <SharedHistory days={journal?.history || []} retentionDays={journal?.retentionDays || 21} onOpenPhoto={openPhoto} /> : null}
         {section === 'Reports' ? <SharedReports reports={journal?.healthReports || []} memberName={today?.member?.name || fallbackName} /> : null}
       </ScrollView>
@@ -129,50 +131,18 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   );
 }
 
-const nudgeIcon = (type) => ({
-  MEALS: 'restaurant-outline',
-  HYDRATION: 'water-outline',
-  EXERCISE: 'walk-outline',
-  HABITS: 'checkbox-outline',
-}[type] || 'notifications-outline');
-
-function SharedNudges({ memberName, options, now, memberId, nudge, onSend }) {
-  const needed = options.filter((option) => option.needed).length;
-  const initial = memberName.trim().slice(0, 1).toUpperCase() || 'M';
+function SharedNudges({ memberName, options, now, token, onMember, nudge, onSend }) {
   return <View style={styles.detailSection}>
     <Text style={styles.detailEyebrow}>MEMBER REMINDERS</Text>
     <Text style={styles.detailTitle}>Nudges</Text>
-    <Text style={styles.detailCopy}>{needed ? `${needed} area${needed === 1 ? '' : 's'} may need a reminder.` : 'Everything assigned for today is complete.'} A sent nudge is locked for every admin and coach for 30 minutes.</Text>
+    <Text style={styles.detailCopy}>{options.length ? `${options.length} overdue item${options.length === 1 ? '' : 's'} may need a reminder.` : 'No overdue check-ins need a nudge right now.'} A sent nudge is locked for every admin and coach for 30 minutes.</Text>
     <View style={styles.nudgeList}>
-      {options.map((option) => {
-        const availableAt = option.availableAt ? Date.parse(option.availableAt) : 0;
-        const coolingDown = Number.isFinite(availableAt) && availableAt > 0 && (now === 0 || availableAt > now);
-        const minutes = coolingDown && now > 0 ? Math.max(1, Math.ceil((availableAt - now) / 60000)) : 0;
-        const sending = nudge?.status === 'loading' && nudge.type === option.type && Number(nudge.memberId) === Number(memberId);
-        const disabled = !option.needed || coolingDown || sending;
-        const status = sending ? 'Sending…' : coolingDown ? (minutes ? `Available in ${minutes} min` : 'Cooling down') : option.needed ? 'Send nudge' : 'Completed';
-        const stateLabel = coolingDown ? 'NUDGE SENT' : option.needed ? 'NEEDS ATTENTION' : 'COMPLETE';
-        return <View key={option.type} style={[styles.nudgeShell, option.needed && !coolingDown && styles.nudgeShellAttention]}>
-          <LinearGradient colors={option.needed && !coolingDown ? ['#FFFDFC', '#FBEDEA'] : ['#FFFFFF', '#EFF8F5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.nudgeCard}>
-            <View style={styles.nudgeIdentity}>
-              <View style={[styles.nudgeAvatar, option.needed && !coolingDown && styles.nudgeAvatarAttention]}><Text style={[styles.nudgeAvatarText, option.needed && !coolingDown && styles.nudgeAvatarTextAttention]}>{initial}</Text></View>
-              <View style={styles.nudgeIdentityCopy}><Text numberOfLines={1} style={styles.nudgeMemberName}>{memberName}</Text><Text style={[styles.nudgeState, option.needed && !coolingDown && styles.nudgeStateAttention]}>{stateLabel}</Text></View>
-              <Text style={styles.nudgeSharedLabel}>Shared member</Text>
-            </View>
-            <Text style={styles.nudgeItemTitle}>{option.detail}</Text>
-            <View style={styles.nudgeMetaRow}>
-              <View style={[styles.nudgeCategory, option.needed && !coolingDown && styles.nudgeCategoryAttention]}><Ionicons name={nudgeIcon(option.type)} size={14} color={option.needed && !coolingDown ? colors.danger : colors.tealDark} /><Text style={[styles.nudgeCategoryText, option.needed && !coolingDown && styles.nudgeCategoryTextAttention]}>{option.title}</Text></View>
-              <Text style={styles.nudgeCooldown}>{coolingDown ? (minutes ? `${minutes} min cooldown` : '30 min cooldown') : option.needed ? 'Ready to send' : 'Updated from activity'}</Text>
-            </View>
-            <View style={styles.nudgeActions}>
-              <Pressable accessibilityRole="button" accessibilityState={{ disabled, busy: sending }} accessibilityLabel={`${status} for ${memberName}, ${option.title}`} disabled={disabled} onPress={() => onSend(option.type, option.title)} style={({ pressed }) => [styles.nudgeButton, disabled && styles.nudgeButtonDisabled, pressed && !disabled && styles.pressed]}><Ionicons name={coolingDown || !option.needed ? 'checkmark-circle-outline' : 'notifications-outline'} size={17} color={disabled ? colors.tealDark : colors.white} /><Text style={[styles.nudgeButtonText, disabled && styles.nudgeButtonTextDisabled]}>{status}</Text></Pressable>
-              <Text style={styles.nudgeActionNote}>{coolingDown ? 'Sent by an admin or coach' : option.needed ? 'One reminder for this category' : 'No reminder needed'}</Text>
-            </View>
-          </LinearGradient>
-        </View>;
-      })}
+      {options.map((option) => <MemberAttentionCard key={option.id} item={option} token={token}
+        centralHydration={false} now={now} onMember={onMember}
+        busy={nudge?.status === 'loading'} sending={nudge?.status === 'loading' && nudge.attentionId === option.id}
+        onNudge={() => onSend(option)} />)}
     </View>
-    {!options.length ? <View style={styles.emptyDetail}><Ionicons name="notifications-off-outline" size={27} color={colors.tealMid} /><Text style={styles.emptyDetailTitle}>No nudge options available</Text><Text style={styles.detailCopy}>Refresh the profile to check today’s assigned items.</Text></View> : null}
+    {!options.length ? <View style={styles.emptyDetail}><Ionicons name="checkmark-circle-outline" size={27} color={colors.tealMid} /><Text style={styles.emptyDetailTitle}>No overdue items for {memberName}</Text><Text style={styles.detailCopy}>Refresh this profile to see the latest check-ins.</Text></View> : null}
   </View>;
 }
 
@@ -248,30 +218,5 @@ const styles = StyleSheet.create({
   emptyDetail: { alignItems: 'center', paddingVertical: 48 },
   emptyDetailTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 17, marginTop: 11 },
   nudgeList: { marginTop: 18, gap: 14 },
-  nudgeShell: { overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  nudgeShellAttention: { borderColor: '#F1C8C2' },
-  nudgeCard: { padding: 17 },
-  nudgeIdentity: { flexDirection: 'row', alignItems: 'center' },
-  nudgeAvatar: { width: 43, height: 43, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
-  nudgeAvatarAttention: { backgroundColor: colors.dangerSoft },
-  nudgeAvatarText: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 15 },
-  nudgeAvatarTextAttention: { color: colors.danger },
-  nudgeIdentityCopy: { flex: 1, minWidth: 0, marginLeft: 11 },
-  nudgeMemberName: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 15 },
-  nudgeState: { color: colors.tealMid, fontFamily: fonts.semibold, fontSize: 9, letterSpacing: 0.9, marginTop: 3 },
-  nudgeStateAttention: { color: colors.danger },
-  nudgeSharedLabel: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 10 },
-  nudgeItemTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22, marginTop: 16 },
-  nudgeMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 12 },
-  nudgeCategory: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: radius.pill, backgroundColor: colors.accentSoft, paddingHorizontal: 10 },
-  nudgeCategoryAttention: { backgroundColor: colors.dangerSoft },
-  nudgeCategoryText: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 10 },
-  nudgeCategoryTextAttention: { color: colors.danger },
-  nudgeCooldown: { flex: 1, color: colors.muted, fontFamily: fonts.medium, fontSize: 10, textAlign: 'right' },
-  nudgeActions: { minHeight: 55, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, marginTop: 14, paddingTop: 12 },
-  nudgeButton: { minWidth: 118, minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13, backgroundColor: colors.tealMid, paddingHorizontal: 12 },
-  nudgeButtonDisabled: { backgroundColor: colors.accentSoft },
-  nudgeButtonText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 10, textAlign: 'center' },
-  nudgeButtonTextDisabled: { color: colors.tealDark },
-  nudgeActionNote: { flex: 1, color: colors.muted, fontFamily: fonts.regular, fontSize: 9, lineHeight: 14, textAlign: 'right' },
+
 });

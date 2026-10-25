@@ -2,6 +2,23 @@ export function isManualProduct(value) {
   const category = typeof value === 'string' ? value : value?.type;
   return /^(product|herbalife|herbalife product)$/i.test(String(category || '').trim());
 }
+const herbalifeCalories = { afresh: 4, shake: 220, hydrate: 14, betaheart: 47.5, rebuild: 174.75, liftoff: 13.39 };
+export function fixedHerbalifeCalories(meal = {}) {
+  if (!isManualProduct(meal)) return null;
+  const name = String(meal.name || '').normalize('NFKC').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const matches = Object.entries(herbalifeCalories).filter(([key]) => name.includes(key));
+  return matches.length ? Math.round(matches.reduce((sum, [, value]) => sum + value, 0) * 100) / 100 : null;
+}
+export function isUnlistedHerbalife(meal = {}) {
+  return isManualProduct(meal) && fixedHerbalifeCalories(meal) === null;
+}
+export function herbalifeMealAnalysis(meal = {}) {
+  const calories = fixedHerbalifeCalories(meal);
+  return { name: meal.name || 'Herbalife product', calories: calories ?? 0, protein: 0, carbs: 0, fat: 0, confidence: 0, items: [],
+    source: 'fixed', nutritionSource: 'fixed-product', caloriesOnly: true,
+    nutritionOmitted: calories === null,
+    warning: calories === null ? null : 'Fixed calories for the selected product. Only calories are recorded.' };
+}
 const starterNutrition = {
   // Conservative single-serving starters for familiar Indian meals. These are deliberately
   // modest placeholders (for example idli/upma, rice-dal-sabzi, fruit/tea, or roti-sabzi),
@@ -11,11 +28,10 @@ const starterNutrition = {
   snack: { calories: 110, protein: 4, carbs: 18, fat: 3 },
   snacks: { calories: 110, protein: 4, carbs: 18, fat: 3 },
   dinner: { calories: 280, protein: 11, carbs: 42, fat: 8 },
-  'herbalife product': { calories: 180, protein: 15, carbs: 22, fat: 4 },
-  product: { calories: 180, protein: 15, carbs: 22, fat: 4 },
 };
 const positiveOr = (value, fallback) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
 export function manualMealAnalysis(meal = {}, warning) {
+  if (isManualProduct(meal)) return herbalifeMealAnalysis(meal);
   const type = String(meal.type || 'meal').trim().toLowerCase();
   const estimate = starterNutrition[type] || { calories: 260, protein: 10, carbs: 40, fat: 7 };
   return { name: meal.name || meal.type || 'Meal estimate', calories: positiveOr(meal.calories, estimate.calories),
@@ -38,15 +54,26 @@ export function portionWeight(value) {
 }
 export function hasValidFoodPortions(analysis) {
   const included = (analysis.items || []).filter((item) => !item.excluded);
-  return included.length > 0 && included.every((item) => hasFoodNutrition(item) && portionWeight(item.consumedGrams) !== null);
+  return included.length > 0 && included.every((item) => hasFoodNutrition(item)
+    && (analysis.portionBasis === 'ESTIMATED_PORTION' || portionWeight(item.consumedGrams) !== null));
 }
 function calculatePortions(analysis, items) {
   const included = items.filter((item) => !item.excluded);
-  const complete = hasValidFoodPortions({ items });
+  const complete = hasValidFoodPortions({ ...analysis, items });
   const total = (key) => !complete ? null : Math.round(included.reduce((sum, item) =>
-    sum + item[key] * (portionWeight(item.consumedGrams) ?? 0) / 100, 0) * 10) / 10;
-  return { ...analysis, items, name: included.map((item) => item.name).join(', ').slice(0, 200),
+    sum + item[key] * (analysis.portionBasis === 'ESTIMATED_PORTION' ? 1 : (portionWeight(item.consumedGrams) ?? 0) / 100), 0) * 10) / 10;
+  return { ...analysis, items, name: included.map((item) => item.name).join(', ').slice(0, 160),
     calories: total('calories'), protein: total('protein'), carbs: total('carbs'), fat: total('fat') };
+}
+export function withEstimatedPortions(analysis) {
+  if (analysis.portionBasis !== 'ESTIMATED_PORTION' || !analysis.items?.length)
+    throw new Error('Photo serving estimates are unavailable.');
+  const items = analysis.items.map((item) => ({ ...item, excluded: false,
+    ...(!hasFoodNutrition(item) ? { nutritionAvailable: false,
+      ...Object.fromEntries(nutrientKeys.map((key) => [key, null])),
+      referenceInputs: Object.fromEntries(nutrientKeys.map((key) => [key, ''])) } : {}),
+  }));
+  return calculatePortions(analysis, items);
 }
 export function withPortionInputs(analysis) {
   const items = (analysis.items || []).map((item) => {
@@ -76,16 +103,19 @@ export function toggleFoodExcluded(analysis, index) {
 }
 export function changeFoodReference(analysis, index, key, value) {
   if (!nutrientKeys.includes(key)) return analysis;
+  const estimated = analysis.portionBasis === 'ESTIMATED_PORTION';
+  const limits = estimated ? { calories: 10000, protein: 1000, carbs: 2000, fat: 1000 }
+    : { calories: 1000, protein: 100, carbs: 100, fat: 100 };
   const items = analysis.items.map((item, position) => {
     if (position !== index) return item;
     const referenceInputs = { ...item.referenceInputs, [key]: String(value) };
     const nutrition = Object.fromEntries(nutrientKeys.map((nutrient) => {
       const text = String(referenceInputs[nutrient] ?? '').trim();
       const number = /^\d+(?:[.,]\d{0,4})?$/.test(text) ? Number(text.replace(',', '.')) : NaN;
-      return [nutrient, Number.isFinite(number) && number >= 0 && number <= (nutrient === 'calories' ? 1000 : 100) ? number : null];
+      return [nutrient, Number.isFinite(number) && number >= 0 && number <= limits[nutrient] ? number : null];
     }));
     const nutritionAvailable = nutrientKeys.every((nutrient) => nutrition[nutrient] !== null)
-      && nutrition.protein + nutrition.carbs + nutrition.fat <= 115;
+      && nutrition.protein + nutrition.carbs + nutrition.fat <= (estimated ? (item.portionGrams || 2000) * 1.15 : 115);
     return { ...item, ...nutrition, referenceInputs, nutritionAvailable, nutritionSource: 'manual' };
   });
   return calculatePortions(analysis, items);

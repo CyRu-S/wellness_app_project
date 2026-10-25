@@ -169,10 +169,10 @@ public class MemberAccessService {
                 : date.atTime(entry.scheduledTime() == null ? LocalTime.MIDNIGHT : entry.scheduledTime()).atZone(applicationZoneId).toInstant()));
 
         int completed = (int) mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed).count();
-        int calories = mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed)
+        BigDecimal calories = mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed)
                 .map(SharedMemberTodayResponse.MealEntry::nutrition).filter(Objects::nonNull)
                 .map(SharedMemberTodayResponse.Nutrition::calories)
-                .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(0, RoundingMode.HALF_UP).intValueExact();
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         int protein = mealEntries.stream().filter(SharedMemberTodayResponse.MealEntry::completed)
                 .map(SharedMemberTodayResponse.MealEntry::nutrition).filter(Objects::nonNull)
                 .map(SharedMemberTodayResponse.Nutrition::proteinGrams)
@@ -242,8 +242,8 @@ public class MemberAccessService {
         Instant cutoff = clock.instant().minus(NUDGE_COOLDOWN);
         NotificationEvent recent = notifications
                 .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
-                        subject.getId(), ReminderService.nudgeSourcePrefix(type), cutoff)
-                .orElse(null);
+                        subject.getId(), "member-nudge-", cutoff)
+                .filter(event -> event.getScheduledAt().plus(NUDGE_COOLDOWN).isAfter(clock.instant())).orElse(null);
         Instant lastSentAt = recent == null ? null : recent.getScheduledAt();
         return new SharedMemberTodayResponse.NudgeOption(
                 type, title, detail, needed, lastSentAt,

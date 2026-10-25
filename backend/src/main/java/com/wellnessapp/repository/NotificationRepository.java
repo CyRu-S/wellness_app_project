@@ -20,6 +20,12 @@ public interface NotificationRepository extends JpaRepository<NotificationEvent,
     List<String> sourceKeysStartingWith(@Param("prefix") String prefix);
     @Query("select event.sourceKey from NotificationEvent event where event.sourceKey like concat(:prefix, '%') and event.scheduledAt >= :cutoff")
     List<String> sourceKeysStartingWithSince(@Param("prefix") String prefix, @Param("cutoff") Instant cutoff);
+    interface NudgeStamp {
+        String getSourceKey();
+        Instant getScheduledAt();
+    }
+    @Query("select event.sourceKey as sourceKey, event.scheduledAt as scheduledAt from NotificationEvent event where event.sourceKey like concat(:prefix, '%') and event.scheduledAt >= :cutoff")
+    List<NudgeStamp> nudgeStampsSince(@Param("prefix") String prefix, @Param("cutoff") Instant cutoff);
     Optional<NotificationEvent> findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
             Long userId, String sourceKeyPrefix, Instant cutoff);
     @Modifying(flushAutomatically = true, clearAutomatically = true)

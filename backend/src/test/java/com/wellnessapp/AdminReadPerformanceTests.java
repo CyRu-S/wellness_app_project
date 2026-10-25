@@ -40,9 +40,9 @@ class AdminReadPerformanceTests {
                 .startDate(date.minusDays(1)).endDate(date.plusDays(30)).build());
         var item = items.save(PlanItem.builder().plan(plan).type(PlanItem.Type.MEAL).mealType("Breakfast").title("Oats")
                 .detail("").scheduledTime(LocalTime.of(8, 0)).calories(300).proteinGrams(12).build());
-        meals.save(Meal.builder().user(user).planItem(item).mealDate(date).mealTime(LocalTime.of(8, 0))
+        var meal = meals.save(Meal.builder().user(user).planItem(item).mealDate(date).mealTime(LocalTime.of(8, 0))
                 .type("Breakfast").name("Oats").calories(300).proteinGrams(12).build());
-        missed.save(MissedEvent.builder().user(user).sourceKey("performance-" + index).itemType("Meals")
+        missed.save(MissedEvent.builder().user(user).sourceKey("meal-" + meal.getId()).itemType("Meals")
                 .itemTitle("Breakfast overdue").missedAt(Instant.now().minusSeconds(14400)).build());
     }
 

@@ -26,6 +26,8 @@ public class ReminderService {
     private final PlanService plans;
     private final UserProfileRepository profiles;
     private final WaterLogRepository water;
+    private final PlanItemRepository planItems;
+    private final PlanItemCompletionRepository completions;
     private final MemberAccessService memberAccess;
     @org.springframework.beans.factory.annotation.Value("${app.hydration.deadline:20:00}")
     private String hydrationDeadline;
@@ -141,54 +143,68 @@ public class ReminderService {
     }
 
     @Transactional(readOnly = true) public List<Map<String, Object>> attention() {
-        var events = missed.findByResolvedFalseOrderByMissedAtDesc();
-        Set<Long> nudgedIds = notifications.sourceKeysStartingWith("nudge-").stream().map(key -> {
-            try { return Long.parseLong(key.substring(6).split("-")[0]); }
-            catch (RuntimeException ignored) { return null; }
-        }).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
-        String dailyPrefix = "care-nudge-" + LocalDate.now(clock.withZone(applicationZoneId)) + "-to-";
-        Set<Long> nudgedMemberIds = notifications.sourceKeysStartingWith(dailyPrefix).stream().map(key -> {
-            try { return Long.parseLong(key.substring(dailyPrefix.length())); }
-            catch (RuntimeException ignored) { return null; }
-        }).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
-        Set<String> recentMemberNudges = notifications
-                .sourceKeysStartingWithSince("member-nudge-", clock.instant().minus(NUDGE_COOLDOWN)).stream()
-                .map(this::nudgeAudienceFromKey)
-                .filter(Objects::nonNull)
-                .collect(java.util.stream.Collectors.toSet());
-        return events.stream().filter(e -> e.getUser().getStatus() == User.Status.ACTIVE).map(e -> {
+        return attentionRows(missed.findByResolvedFalseOrderByMissedAtDesc());
+    }
+
+    @Transactional(readOnly = true) public List<Map<String, Object>> sharedAttention(String viewerEmail, Long memberId) {
+        requireSharedCoach(viewerEmail, memberId);
+        return attentionRows(missed.findByUserIdAndResolvedFalseOrderByMissedAtDesc(memberId));
+    }
+
+    private void requireSharedCoach(String viewerEmail, Long memberId) {
+        User viewer = users.findByEmailIgnoreCase(viewerEmail)
+                .orElseThrow(() -> new NotFoundException("Shared member not found"));
+        if (viewer.getRole() != User.Role.USER || Objects.equals(viewer.getId(), memberId)
+                || !memberAccess.canReadMember(viewer, memberId)) {
+            throw new NotFoundException("Shared member not found");
+        }
+    }
+
+    @Transactional public NudgeResult nudgeSharedAttention(String viewerEmail, Long memberId, Long attentionId) {
+        requireSharedCoach(viewerEmail, memberId);
+        var event = missed.findById(attentionId)
+                .filter(item -> Objects.equals(item.getUser().getId(), memberId))
+                .orElseThrow(() -> new NotFoundException("Attention item not found"));
+        return sendMemberNudge(event.getUser(), nudgeType(event), nudgeAction(event), event);
+    }
+
+    private List<Map<String, Object>> attentionRows(List<MissedEvent> events) {
+        Map<Long, Instant> recentMemberNudges = new HashMap<>();
+        for (var stamp : notifications.nudgeStampsSince("member-nudge-", clock.instant().minus(NUDGE_COOLDOWN))) {
+            if (!stamp.getScheduledAt().plus(NUDGE_COOLDOWN).isAfter(clock.instant())) continue;
+            Long audience = nudgeMemberFromKey(stamp.getSourceKey());
+            if (audience != null) recentMemberNudges.merge(audience, stamp.getScheduledAt(),
+                    (first, second) -> first.isAfter(second) ? first : second);
+        }
+        return incompleteItems(events).stream().filter(e -> e.getUser().getStatus() == User.Status.ACTIVE).map(e -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", e.getId()); row.put("memberId", e.getUser().getId()); row.put("memberName", e.getUser().getFullName());
             row.put("initials", AdminWorkspaceService.initials(e.getUser().getFullName())); row.put("category", e.getItemType()); row.put("title", e.getItemTitle());
             row.put("missedAt", e.getMissedAt().atZone(applicationZoneId).format(java.time.format.DateTimeFormatter.ofPattern("d MMM, h:mm a")));
             row.put("severity", e.getMissedAt().isBefore(clock.instant().minusSeconds(10800)) ? "HIGH" : "MEDIUM");
-            String audience = e.getUser().getId() + ":" + nudgeType(e).name();
-            row.put("status", nudgedIds.contains(e.getId()) || nudgedMemberIds.contains(e.getUser().getId())
-                    || recentMemberNudges.contains(audience) ? "NUDGED" : "OPEN"); return row;
+            Instant lastSentAt = recentMemberNudges.get(e.getUser().getId());
+            row.put("type", nudgeType(e).name());
+            row.put("lastSentAt", lastSentAt);
+            row.put("availableAt", lastSentAt == null ? null : lastSentAt.plus(NUDGE_COOLDOWN));
+            row.put("status", lastSentAt != null ? "NUDGED" : "OPEN"); return row;
         }).toList();
     }
     @Transactional public void resolve(Long id) {
         var event = missed.findById(id).orElseThrow(() -> new NotFoundException("Attention item not found"));
         event.setResolved(true); missed.save(event);
     }
-    @Transactional public void nudge(Long id) {
+    @Transactional public NudgeResult nudge(Long id) {
         var event = missed.findById(id).orElseThrow(() -> new NotFoundException("Attention item not found"));
         if ("Hydration".equalsIgnoreCase(event.getItemType())) {
             throw new com.wellnessapp.exception.BadRequestException("Use the club hydration reminder from the dashboard");
         }
-        if (event.isResolved()) return;
-        sendMemberNudge(event.getUser(), nudgeType(event), nudgeAction(event));
+        return sendMemberNudge(event.getUser(), nudgeType(event), nudgeAction(event), event);
     }
 
     @Transactional public int nudgeHydrationForAll() {
-        var today = LocalDate.now(clock.withZone(applicationZoneId));
         int notified = 0;
         for (var user : users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE)) {
-            String source = nudgeSourcePrefix(MemberNudgeType.HYDRATION) + "club-" + today;
-            boolean existed = notifications.existsBySourceKey(source + "-to-" + user.getId());
-            notices.notify(user, PushDelivery.Kind.NUDGE, source, firstName(user) + " · Hydration",
-                    "Drink water and log your intake.");
-            if (!existed) notified++;
+            if (sendMemberNudge(user, MemberNudgeType.HYDRATION, nudgeMessage(MemberNudgeType.HYDRATION)).sent()) notified++;
         }
         return notified;
     }
@@ -208,12 +224,19 @@ public class ReminderService {
     }
 
     private NudgeResult sendMemberNudge(User member, MemberNudgeType type, String body) {
+        return sendMemberNudge(member, type, body, null);
+    }
+
+    private NudgeResult sendMemberNudge(User member, MemberNudgeType type, String body, MissedEvent item) {
         User lockedMember = users.lockById(member.getId())
                 .orElseThrow(() -> new NotFoundException("Shared member not found"));
+        if (item != null && incompleteItems(List.of(item)).isEmpty())
+            throw new com.wellnessapp.exception.BadRequestException("This item is already completed or resolved. Refresh the view.");
         Instant now = clock.instant();
         var recent = notifications
                 .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
-                        lockedMember.getId(), nudgeSourcePrefix(type), now.minus(NUDGE_COOLDOWN));
+                        lockedMember.getId(), "member-nudge-", now.minus(NUDGE_COOLDOWN))
+                .filter(event -> event.getScheduledAt().plus(NUDGE_COOLDOWN).isAfter(now));
         if (recent.isPresent()) {
             Instant sentAt = recent.get().getScheduledAt();
             return new NudgeResult(false, type, sentAt, sentAt.plus(NUDGE_COOLDOWN));
@@ -222,7 +245,7 @@ public class ReminderService {
                 firstName(lockedMember) + " · " + nudgeTitle(type), body);
         Instant sentAt = notifications
                 .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
-                        lockedMember.getId(), nudgeSourcePrefix(type), now.minus(NUDGE_COOLDOWN))
+                        lockedMember.getId(), "member-nudge-", now.minus(NUDGE_COOLDOWN))
                 .map(NotificationEvent::getScheduledAt)
                 .orElse(now);
         return new NudgeResult(true, type, sentAt, sentAt.plus(NUDGE_COOLDOWN));
@@ -254,18 +277,63 @@ public class ReminderService {
         };
     }
 
-    private String nudgeAudienceFromKey(String key) {
-        try {
-            String prefix = "member-nudge-";
-            int typeEnd = key.indexOf('-', prefix.length());
-            String type = key.substring(prefix.length(), typeEnd);
-            Long memberId = Long.parseLong(key.substring(key.lastIndexOf("-to-") + 4));
-            return memberId + ":" + type;
-        }
+    private Long nudgeMemberFromKey(String key) {
+        try { return Long.parseLong(key.substring(key.lastIndexOf("-to-") + 4)); }
         catch (RuntimeException ignored) { return null; }
     }
 
+    /** Batch completion reads so an expired lock cannot resurrect a completed check-in. */
+    private List<MissedEvent> incompleteItems(List<MissedEvent> events) {
+        var mealIds = new HashSet<Long>();
+        var taskIds = new HashSet<Long>();
+        var taskDays = new HashSet<LocalDate>();
+        var hydrationDays = new HashSet<LocalDate>();
+        var hydrationMembers = new HashSet<Long>();
+        for (var event : events) {
+            String key = event.getSourceKey() == null ? "" : event.getSourceKey();
+            if (key.matches("meal-\\d+")) mealIds.add(Long.parseLong(key.substring(5)));
+            if (key.matches("habit-\\d+-\\d{4}-\\d{2}-\\d{2}")) {
+                int end = key.indexOf('-', 6);
+                taskIds.add(Long.parseLong(key.substring(6, end)));
+                taskDays.add(LocalDate.parse(key.substring(end + 1)));
+            }
+            if ("Hydration".equalsIgnoreCase(event.getItemType())) {
+                hydrationMembers.add(event.getUser().getId());
+                hydrationDays.add(event.getMissedAt().atZone(applicationZoneId).toLocalDate());
+            }
+        }
+        var remainingMeals = mealIds.isEmpty() ? Set.<Long>of() : new HashSet<>(meals.incompleteIds(mealIds));
+        var existingTasks = taskIds.isEmpty() ? Set.<Long>of() : new HashSet<>(planItems.existingIds(taskIds));
+        var completedTasks = new HashSet<String>();
+        var memberIds = events.stream().map(event -> event.getUser().getId()).distinct().toList();
+        for (var date : taskDays) for (var completion : completions.completedItemIds(memberIds, date))
+            completedTasks.add(completion[0] + ":" + completion[1] + ":" + date);
+        var waterGoals = new HashMap<Long, Integer>();
+        if (!hydrationMembers.isEmpty()) profiles.findByUserIdIn(hydrationMembers).forEach(profile ->
+                waterGoals.put(profile.getUser().getId(), profile.getWaterGoalMl() == null || profile.getWaterGoalMl() <= 0 ? 2000 : profile.getWaterGoalMl()));
+        var totals = new HashMap<String, Long>();
+        for (var date : hydrationDays) for (var total : water.totalsBetween(date.atStartOfDay(applicationZoneId).toInstant(),
+                date.plusDays(1).atStartOfDay(applicationZoneId).toInstant()))
+            totals.put(total[0] + ":" + date, ((Number) total[1]).longValue());
+        return events.stream().filter(event -> {
+            if (event.isResolved()) return false;
+            String key = event.getSourceKey() == null ? "" : event.getSourceKey();
+            if (key.matches("meal-\\d+")) return remainingMeals.contains(Long.parseLong(key.substring(5)));
+            if (key.matches("habit-\\d+-\\d{4}-\\d{2}-\\d{2}")) {
+                int end = key.indexOf('-', 6);
+                Long id = Long.parseLong(key.substring(6, end));
+                return existingTasks.contains(id) && !completedTasks.contains(event.getUser().getId() + ":" + id + ":" + key.substring(end + 1));
+            }
+            if ("Hydration".equalsIgnoreCase(event.getItemType())) {
+                String day = event.getUser().getId() + ":" + event.getMissedAt().atZone(applicationZoneId).toLocalDate();
+                return totals.getOrDefault(day, 0L) < Math.max(1, waterGoals.getOrDefault(event.getUser().getId(), 2000));
+            }
+            return true;
+        }).toList();
+    }
+
     private String nudgeAction(MissedEvent event) {
+        if ("Hydration".equalsIgnoreCase(event.getItemType())) return nudgeMessage(MemberNudgeType.HYDRATION);
         String item = event.getItemTitle().replaceAll("(?i)\\s+(check-in\\s+)?is overdue$", "")
                 .replaceAll("(?i)\\s+overdue$", "").trim();
         if ("Meals".equalsIgnoreCase(event.getItemType())) {

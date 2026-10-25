@@ -1,8 +1,8 @@
-import { isManualProduct, manualMealAnalysis } from '../../utils/mealAnalysis';
+import { herbalifeMealAnalysis, isManualProduct } from '../../utils/mealAnalysis';
 import { appendImage } from './imageUpload';
 import { request } from './client';
-export async function analyzeMealPhoto({ uri, category = 'meal', token }) {
-  if (isManualProduct(category)) return manualMealAnalysis({ type: category });
+export async function analyzeMealPhoto({ uri, category = 'meal', meal, token }) {
+  if (isManualProduct(category) || isManualProduct(meal)) return herbalifeMealAnalysis({ ...meal, type: 'product' });
   const form = new FormData();
   form.append('category', category);
   await appendImage(form, { uri, fileName: 'meal.jpg' });

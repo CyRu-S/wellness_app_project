@@ -166,7 +166,7 @@ class MemberAccessFeatureIntegrationTests {
     }
 
     @Test
-    void assignedCoachNudgesHaveAThirtyMinuteSharedCooldownPerType() {
+    void assignedCoachNudgesHaveAThirtyMinuteSharedCooldownPerRecipient() {
         User coach = user("user@mr-care.app");
         User secondCoach = user("rohan.das@example.com");
         User member = user("kavya.menon@example.com");
@@ -182,11 +182,11 @@ class MemberAccessFeatureIntegrationTests {
         assertThat(first.sent()).isTrue();
         assertThat(repeatedByAnotherCoach.sent()).isFalse();
         assertThat(repeatedByAnotherCoach.availableAt()).isEqualTo(first.availableAt());
-        assertThat(differentType.sent()).isTrue();
+        assertThat(differentType.sent()).isFalse();
         assertThat(memberAccess.sharedMembers(coach.getEmail()).members().getFirst().nudgedToday()).isTrue();
         assertThat(memberAccess.sharedMembers(secondCoach.getEmail()).members().getFirst().nudgedToday()).isTrue();
         assertThat(notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).stream()
-                .filter(event -> event.getKind() == com.wellnessapp.entity.PushDelivery.Kind.NUDGE)).hasSize(2);
+                .filter(event -> event.getKind() == com.wellnessapp.entity.PushDelivery.Kind.NUDGE)).hasSize(1);
         assertThat(memberAccess.sharedMemberToday(coach.getEmail(), member.getId()).nudges())
                 .filteredOn(option -> option.type() == MemberNudgeType.HABITS)
                 .singleElement().satisfies(option -> assertThat(option.availableAt()).isEqualTo(first.availableAt()));
@@ -210,7 +210,7 @@ class MemberAccessFeatureIntegrationTests {
     }
 
     @Test
-    void attentionCountsDropOnlyForTheMatchingNudgeType() {
+    void attentionCountsDropForEveryNudgeTypeOfTheRecipient() {
         User coach = user("user@mr-care.app");
         User member = user("kavya.menon@example.com");
         memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
@@ -230,11 +230,86 @@ class MemberAccessFeatureIntegrationTests {
             assertThat(item.get("status")).isEqualTo("NUDGED");
         }).anySatisfy(item -> {
             assertThat(item.get("title")).isEqualTo("Test walk is overdue");
-            assertThat(item.get("status")).isEqualTo("OPEN");
+            assertThat(item.get("status")).isEqualTo("NUDGED");
         });
         long openCount = reminders.attention().stream().filter(item -> "OPEN".equals(item.get("status"))).count();
         assertThat(((Number) ((java.util.Map<?, ?>) workspace.workspace().get("summary")).get("missedItems")).longValue())
                 .isEqualTo(openCount);
+    }
+
+    @Test
+    void sharedAttentionMatchesTheAdminsActualItemsAndMessagesForOnlyTheAssignedMember() {
+        User coach = user("user@mr-care.app");
+        User member = user("kavya.menon@example.com");
+        User other = user("rohan.das@example.com");
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+        var breakfast = missedEvents.saveAndFlush(MissedEvent.builder().user(member).sourceKey("shared-breakfast")
+                .itemType("Meals").itemTitle("Breakfast is overdue").missedAt(clock.instant().minusSeconds(14400)).build());
+        var lunch = missedEvents.saveAndFlush(MissedEvent.builder().user(member).sourceKey("shared-lunch")
+                .itemType("Meals").itemTitle("Lunch is overdue").missedAt(clock.instant().minusSeconds(4000)).build());
+        var sleep = missedEvents.saveAndFlush(MissedEvent.builder().user(member).sourceKey("shared-sleep")
+                .itemType("Sleep").itemTitle("Evening wind-down is overdue").missedAt(clock.instant().minusSeconds(3900)).build());
+        var resolved = missedEvents.saveAndFlush(MissedEvent.builder().user(member).sourceKey("shared-resolved")
+                .itemType("Activity").itemTitle("Completed exercise").missedAt(clock.instant()).resolved(true).build());
+        var otherItem = missedEvents.saveAndFlush(MissedEvent.builder().user(other).sourceKey("shared-other")
+                .itemType("Meals").itemTitle("Private lunch").missedAt(clock.instant()).build());
+
+        assertThat(reminders.sharedAttention(coach.getEmail(), member.getId()))
+                .isEqualTo(reminders.attention().stream().filter(row -> member.getId().equals(row.get("memberId"))).toList())
+                .extracting(row -> row.get("id")).contains(breakfast.getId(), lunch.getId(), sleep.getId())
+                .doesNotContain(resolved.getId(), otherItem.getId());
+        var sent = reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), breakfast.getId());
+        assertThat(sent.sent()).isTrue();
+        assertThat(notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()))
+                .anySatisfy(event -> assertThat(event.getBody()).isEqualTo("Take your scheduled breakfast and post the check-in."));
+        assertThat(reminders.sharedAttention(coach.getEmail(), member.getId()))
+                .filteredOn(row -> "MEALS".equals(row.get("type")))
+                .allSatisfy(row -> {
+                    assertThat(row.get("status")).isEqualTo("NUDGED");
+                    assertThat((java.time.Instant) row.get("availableAt"))
+                            .isCloseTo(sent.availableAt(), within(1, java.time.temporal.ChronoUnit.MILLIS));
+                });
+        assertThat(reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), lunch.getId()).sent()).isFalse();
+        assertThat(reminders.sharedAttention(coach.getEmail(), member.getId()))
+                .isEqualTo(reminders.attention().stream().filter(row -> member.getId().equals(row.get("memberId"))).toList());
+
+        notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).stream()
+                .filter(event -> event.getSourceKey() != null && event.getSourceKey().startsWith("member-nudge-MEALS-"))
+                .forEach(event -> { event.setScheduledAt(clock.instant().minusSeconds(1860)); notifications.saveAndFlush(event); });
+        assertThat(reminders.sharedAttention(coach.getEmail(), member.getId()))
+                .filteredOn(row -> "MEALS".equals(row.get("type")))
+                .allSatisfy(row -> assertThat(row.get("status")).isEqualTo("OPEN"));
+        reminders.nudge(lunch.getId());
+        assertThat(reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), breakfast.getId()).sent()).isFalse();
+        var hydration = missedEvents.saveAndFlush(MissedEvent.builder().user(member).sourceKey("shared-water")
+                .itemType("Hydration").itemTitle("Daily hydration goal is overdue").missedAt(clock.instant()).build());
+        assertThat(reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), hydration.getId()).sent()).isFalse();
+        notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).stream()
+                .filter(event -> event.getSourceKey() != null && event.getSourceKey().startsWith("member-nudge-"))
+                .forEach(event -> { event.setScheduledAt(clock.instant().minusSeconds(1860)); notifications.saveAndFlush(event); });
+        assertThat(reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), hydration.getId()).sent()).isTrue();
+        assertThat(notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()))
+                .anySatisfy(event -> assertThat(event.getBody()).isEqualTo("Drink water and log your intake."));
+    }
+
+    @Test
+    void sharedAttentionRejectsUnassignedMembersWrongItemOwnersResolvedItemsAndRevokedAccess() {
+        User coach = user("user@mr-care.app");
+        User member = user("kavya.menon@example.com");
+        User other = user("rohan.das@example.com");
+        var item = missedEvents.saveAndFlush(MissedEvent.builder().user(member).sourceKey("shared-permissions")
+                .itemType("Meals").itemTitle("Lunch is overdue").missedAt(clock.instant()).build());
+        var otherItem = missedEvents.saveAndFlush(MissedEvent.builder().user(other).sourceKey("shared-private")
+                .itemType("Meals").itemTitle("Dinner is overdue").missedAt(clock.instant()).build());
+        assertThatThrownBy(() -> reminders.sharedAttention(coach.getEmail(), member.getId())).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), item.getId())).isInstanceOf(NotFoundException.class);
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+        assertThatThrownBy(() -> reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), otherItem.getId())).isInstanceOf(NotFoundException.class);
+        item.setResolved(true); missedEvents.saveAndFlush(item);
+        assertThatThrownBy(() -> reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), item.getId())).isInstanceOf(BadRequestException.class);
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of()));
+        assertThatThrownBy(() -> reminders.sharedAttention(coach.getEmail(), member.getId())).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), item.getId())).isInstanceOf(NotFoundException.class);
     }
 
     @Test

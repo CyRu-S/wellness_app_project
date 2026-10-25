@@ -10,7 +10,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { analyzeCapturedMeal } from '../../services/api/capturedMealAnalysis';
-import { changeFoodPortion, changeFoodReference, editFoodReference, hasFoodNutrition, hasValidFoodPortions, isManualProduct, portionWeight, toggleFoodExcluded } from '../../utils/mealAnalysis';
+import { changeFoodReference, editFoodReference, hasFoodNutrition, hasValidFoodPortions, isManualProduct, toggleFoodExcluded } from '../../utils/mealAnalysis';
 import { formatNutrition } from '../../utils/formatNutrition';
 import { postMeal } from '../../store/slices/mealSlice';
 import { preparePhotoUpload } from '../../utils/preparePhotoUpload';
@@ -40,6 +40,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   const needsPortions = !!analysis?.items?.length;
   const portionsReady = !needsPortions || hasValidFoodPortions(analysis);
   const clientRequestId = useRef(null);
+  const submitting = useRef(false);
   const [scan] = useState(() => new Animated.Value(0));
   const [sheet] = useState(() => new Animated.Value(0));
 
@@ -57,10 +58,50 @@ export default function MealCaptureScreen({ navigation, route }) {
     if (analysis) Animated.spring(sheet, { toValue: 1, speed: 15, bounciness: 4, useNativeDriver: true }).start();
   }, [analysis, sheet]);
 
+  const submitPhoto = (result, imageUri) => {
+    if (submitting.current || pendingPost || !result || !imageUri) return;
+    if (!targetMeal || targetMeal.consumed) { Alert.alert('No meal available', 'Choose an unlogged meal from your assigned plan.'); return; }
+    if (result.items?.length && !hasValidFoodPortions(result)) { Alert.alert('Complete food details', 'Review missing nutrition values or remove any unidentified food.'); return; }
+    const nutritionLimits = { calories: 10000, protein: 1000, carbs: 2000, fat: 1000 };
+    const nutrition = Object.fromEntries(Object.keys(nutritionLimits).map((key) => [key, Number(String(result[key]).replace(',', '.'))]));
+    if (!result.name.trim() || Object.entries(nutrition).some(([key, value]) =>
+      !/^\d+(?:[.,]\d{1,4})?$/.test(String(result[key])) || !Number.isFinite(value) || value > nutritionLimits[key])) {
+      Alert.alert('Check meal details', 'Enter a meal name and nutrition values with up to four decimal places.'); return;
+    }
+    submitting.current = true;
+    setPosting(true);
+
+
+    const operation = dispatch(postMeal({
+      plannedMealId: Number(targetMealId),
+      mealType: targetMeal.type,
+      mealName: result.name,
+      calories: nutrition.calories,
+      proteinGrams: nutrition.protein,
+      carbsGrams: nutrition.carbs,
+      fatGrams: nutrition.fat,
+      clientRequestId: clientRequestId.current,
+      imageUri,
+      optimisticCompletion: Math.min(100, Math.round((allMeals.filter((meal) => meal.consumed).length + 1) * 100 / allMeals.length)),
+    }));
+    // The dashboard shows the local post immediately, and retains retry data.
+    operation.then((result) => {
+      if (postMeal.fulfilled.match(result)) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    });
+    const routeNames = navigation.getState().routeNames;
+    if (routeNames.includes('Dashboard')) navigation.navigate('Dashboard');
+    else {
+      const parent = navigation.getParent();
+      navigation.goBack();
+      parent?.navigate('Today');
+    }
+    return true;
+  };
+
   const processPhoto = async (source) => {
     const selectedPhoto = typeof source === 'string' ? { uri: source } : source;
     const uri = selectedPhoto?.uri;
-    if (!uri) return;
+    if (!uri || submitting.current) return;
     clientRequestId.current = `${userId || 'member'}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     setPhoto(uri);
     setAnalysis(null);
@@ -70,6 +111,7 @@ export default function MealCaptureScreen({ navigation, route }) {
       const prepared = await preparePhotoUpload(selectedPhoto);
       setPhoto(prepared.uri);
       const result = await analyzeCapturedMeal({ uri: prepared.uri, meal: targetMeal, category: analysisCategory, token });
+      if (manualProduct && result.nutritionOmitted && submitPhoto(result, prepared.uri)) return;
       setAnalysis(result);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (error) {
@@ -81,7 +123,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   };
 
   const capture = async () => {
-    if (!camera.current || analyzing) return;
+    if (!camera.current || analyzing || posting || submitting.current) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const result = await camera.current.takePictureAsync({ quality: 0.76, skipProcessing: false });
@@ -92,7 +134,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   };
 
   const choosePhoto = async () => {
-    if (analyzing || posting) return;
+    if (analyzing || posting || submitting.current) return;
     try {
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.78 });
       if (!result.canceled && result.assets?.[0]?.uri) await processPhoto(result.assets[0]);
@@ -107,43 +149,7 @@ export default function MealCaptureScreen({ navigation, route }) {
     sheet.setValue(0);
   };
 
-  const confirm = async () => {
-    if (posting || pendingPost || !analysis || !photo) return;
-    if (!targetMeal || targetMeal.consumed) { Alert.alert('No meal available', 'Choose an unlogged meal from your assigned plan.'); return; }
-    if (!portionsReady) { Alert.alert('Complete food details', 'Enter any missing per-100-g nutrition and the eaten weight of each included food, up to 2000 g each.'); return; }
-    const nutritionLimits = { calories: 10000, protein: 1000, carbs: 2000, fat: 1000 };
-    const nutrition = Object.fromEntries(Object.keys(nutritionLimits).map((key) => [key, Number(String(analysis[key]).replace(',', '.'))]));
-    if (!analysis.name.trim() || Object.entries(nutrition).some(([key, value]) =>
-      !/^\d+(?:[.,]\d{1,4})?$/.test(String(analysis[key])) || !Number.isFinite(value) || value > nutritionLimits[key])) {
-      Alert.alert('Check meal details', 'Enter a meal name and nutrition values with up to four decimal places.'); return;
-    }
-    setPosting(true);
-
-
-    const operation = dispatch(postMeal({
-      plannedMealId: Number(targetMealId),
-      mealType: targetMeal.type,
-      mealName: analysis.name,
-      calories: nutrition.calories,
-      proteinGrams: nutrition.protein,
-      carbsGrams: nutrition.carbs,
-      fatGrams: nutrition.fat,
-      clientRequestId: clientRequestId.current,
-      imageUri: photo,
-      optimisticCompletion: Math.min(100, Math.round((allMeals.filter((meal) => meal.consumed).length + 1) * 100 / allMeals.length)),
-    }));
-    // The dashboard shows the local post immediately, and retains retry data.
-    operation.then((result) => {
-      if (postMeal.fulfilled.match(result)) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    });
-    const routeNames = navigation.getState().routeNames;
-    if (routeNames.includes('Dashboard')) navigation.navigate('Dashboard');
-    else {
-      const parent = navigation.getParent();
-      navigation.goBack();
-      parent?.navigate('Today');
-    }
-  };
+  const confirm = () => submitPhoto(analysis, photo);
 
   if (!targetMeal) return <SafeAreaView style={styles.permission}><Text style={styles.permissionTitle}>No meal assigned</Text><Text style={styles.permissionCopy}>Your admin must assign a diet plan before you can post a meal.</Text><Pressable onPress={() => navigation.goBack()}><Text style={styles.libraryLink}>Go back</Text></Pressable></SafeAreaView>;
   if (Platform.OS === 'web' && !photo) return <SafeAreaView style={styles.webPicker} edges={['top', 'left', 'right', 'bottom']}>
@@ -157,7 +163,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   </SafeAreaView>;
   if (!permission && !photo) return <View style={styles.loading} />;
   if (!permission?.granted && !photo) {
-    return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Take a meal photo and enter the nutrition for your serving.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
+    return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Take a meal photo to estimate nutrition for your serving.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
   }
 
   return (
@@ -172,7 +178,7 @@ export default function MealCaptureScreen({ navigation, route }) {
           <Pressable accessibilityLabel="Toggle camera" onPress={() => setFacing((value) => value === 'back' ? 'front' : 'back')} style={styles.roundButton}><Ionicons name="camera-reverse-outline" size={20} color={colors.white} /></Pressable>
         </View>
 
-        <View style={styles.instruction}><Text style={styles.instructionTitle}>{analyzing ? 'Preparing your photo' : analysis ? 'Enter nutrition' : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Review the food and nutrition before saving.' : manualProduct ? 'You will enter product nutrition manually.' : 'Keep the complete meal inside the guides and hold steady.'}</Text></View>
+        <View style={styles.instruction}><Text style={styles.instructionTitle}>{analyzing ? 'Preparing your photo' : analysis ? 'Review nutrition' : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Review the food and nutrition before saving.' : manualProduct ? 'Listed products use fixed calories.' : 'Keep the complete meal inside the guides and hold steady.'}</Text></View>
 
         {!analysis ? <View pointerEvents="none" style={styles.frame}><View style={[styles.corner, styles.tl]} /><View style={[styles.corner, styles.tr]} /><View style={[styles.corner, styles.bl]} /><View style={[styles.corner, styles.br]} />{analyzing ? <Animated.View style={[styles.scan, { transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [0, 220] }) }] }]} /> : <View style={styles.centerTarget}><Ionicons name="scan-outline" size={27} color="rgba(255,255,255,0.75)" /></View>}</View> : null}
 
@@ -182,45 +188,38 @@ export default function MealCaptureScreen({ navigation, route }) {
       {analysis ? <Animated.View style={[styles.result, { maxHeight: height * 0.6, flexShrink: 1 }, { opacity: sheet, transform: [{ translateY: sheet.interpolate({ inputRange: [0, 1], outputRange: [70, 0] }) }] }]}>
         <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.resultHandle} />
-        <View style={styles.resultTop}><View><Text style={styles.resultLabel}>{analysis.source === 'live' ? 'MANUAL NUTRITION ENTRY' : manualProduct ? 'MANUAL PRODUCT ENTRY' : 'ENTER MEAL DETAILS'}</Text><Text style={styles.resultTitle}>{analysis.name}</Text></View></View>
+        <View style={styles.resultTop}><View><Text style={styles.resultLabel}>{analysis.nutritionOmitted ? 'PRODUCT CHECK-IN' : analysis.caloriesOnly ? 'PRODUCT CALORIES' : analysis.source === 'live' ? 'FOOD PHOTO ESTIMATE' : 'ENTER MEAL DETAILS'}</Text><Text style={styles.resultTitle}>{analysis.name}</Text></View></View>
         {analysis.items?.length ? <View style={styles.foodItems}>
-          <Text style={styles.servingTitle}>Detected foods & portion weights</Text>
-          <Text style={styles.demoText}>Nutrition is shown per 100 g. Enter how many grams you ate of each food. Remove any incorrectly detected food.</Text>
+          <Text style={styles.servingTitle}>Detected foods</Text>
+          <Text style={styles.demoText}>Nutrition uses the visible portions, with standard servings where size is unclear. Remove any incorrectly detected food.</Text>
           {analysis.items.map((item, index) => <View key={`${item.name}-${index}`} style={styles.foodItem}>
             <Text style={styles.foodName}>{item.name}</Text>
-            {hasFoodNutrition(item) ? <Text style={styles.demoText}>{formatNutrition(item.calories)} kcal | P {formatNutrition(item.protein)} g | C {formatNutrition(item.carbs)} g | F {formatNutrition(item.fat)} g per 100 g</Text> : <Text style={styles.portionError}>Nutrition unavailable. Enter all four values per 100 g below.</Text>}
-            {item.nutritionReference && item.nutritionSource !== 'manual' ? <Text style={styles.demoText}>{item.nutritionReference}</Text> : null}
+            {hasFoodNutrition(item) ? <Text style={styles.demoText}>{formatNutrition(item.calories)} kcal | P {formatNutrition(item.protein)} g | C {formatNutrition(item.carbs)} g | F {formatNutrition(item.fat)} g</Text> : <Text style={styles.portionError}>Nutrition unavailable. Enter serving values below or remove this food.</Text>}
             {!hasFoodNutrition(item) || item.nutritionSource === 'manual' ? <View style={styles.referenceFields}>
               {['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key} style={styles.referenceField}>
-                <Text style={styles.demoText}>{key === 'calories' ? 'Calories (kcal)' : `${key[0].toUpperCase()}${key.slice(1)} (g)`} / 100 g</Text>
-                <TextInput accessibilityLabel={`${item.name} ${key} per 100 grams`} keyboardType="decimal-pad" placeholder="Enter value" maxLength={10}
+                <Text style={styles.demoText}>{key === 'calories' ? 'Calories (kcal)' : `${key[0].toUpperCase()}${key.slice(1)} (g)`} / serving</Text>
+                <TextInput accessibilityLabel={`${item.name} ${key} per serving`} keyboardType="decimal-pad" placeholder="Enter value" maxLength={10}
                   editable={!item.excluded && !posting} value={item.referenceInputs?.[key] ?? ''} style={[styles.portionInput, item.excluded && styles.disabled]}
                   onChangeText={(value) => setAnalysis((current) => changeFoodReference(current, index, key, value))} />
               </View>)}
-              <Text style={styles.demoText}>Use recipe or label values: 0–1000 kcal and 0–100 g per nutrient, up to four decimal places.</Text>
-            </View> : <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name} nutrition per 100 grams`} disabled={posting || item.excluded}
-              onPress={() => setAnalysis((current) => editFoodReference(current, index))}><Text style={styles.editReference}>Edit per-100-g values</Text></Pressable>}
+              <Text style={styles.demoText}>Use nutrition values for the whole serving.</Text>
+            </View> : <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name} serving nutrition`} disabled={posting || item.excluded}
+              onPress={() => setAnalysis((current) => editFoodReference(current, index))}><Text style={styles.editReference}>Edit serving nutrition</Text></Pressable>}
             <View style={styles.servingControls}>
-              <View style={styles.portionField}><Text style={styles.demoText}>{item.excluded ? 'Excluded' : 'Portion eaten (g)'}</Text>
-                <TextInput accessibilityLabel={`${item.name} portion in grams`} keyboardType="decimal-pad" placeholder="Enter grams" maxLength={8}
-                  editable={!item.excluded && !posting} value={item.consumedGrams} style={[styles.portionInput, item.excluded && styles.disabled]}
-                  onChangeText={(value) => setAnalysis((current) => changeFoodPortion(current, index, value))} />
-              </View>
               <Pressable accessibilityRole="button" accessibilityLabel={`${item.excluded ? 'Include' : 'Remove'} ${item.name}`} disabled={posting}
                 style={styles.servingButton} onPress={() => setAnalysis((current) => toggleFoodExcluded(current, index))}><Text>{item.excluded ? 'Include' : 'Remove'}</Text></Pressable>
             </View>
-            {!item.excluded && item.consumedGrams && portionWeight(item.consumedGrams) === null ? <Text style={styles.portionError}>Enter a weight above 0 and up to 2000 g, with at most 2 decimal places.</Text> : null}
           </View>)}
         </View> : null}
-        {needsPortions ? <Text style={styles.totalLabel}>TOTAL FOR ENTERED PORTIONS</Text> : null}
-        <View style={styles.nutrition}>{['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key}>
+        {needsPortions ? <Text style={styles.totalLabel}>ESTIMATED MEAL TOTAL</Text> : null}
+        {!analysis.nutritionOmitted ? <View style={styles.nutrition}>{(analysis.caloriesOnly ? ['calories'] : ['calories', 'protein', 'carbs', 'fat']).map((key) => <View key={key}>
           <Text style={styles.value}>{!portionsReady ? '—' : `${formatNutrition(analysis[key])}${key === 'calories' ? '' : 'g'}`}</Text>
           <Text style={styles.valueLabel}>{key === 'calories' ? 'KCAL' : key.toUpperCase()}</Text>
-        </View>)}</View>
+        </View>)}</View> : null}
         {analysis.warning ? <View style={styles.demoNote}><Ionicons name="information-circle-outline" size={16} color={colors.tealDark} /><Text style={styles.demoText}>{analysis.warning}</Text></View> : null}
-        <TextInput accessibilityLabel="Meal name" value={analysis.name} onChangeText={(name) => setAnalysis((current) => ({ ...current, name }))} style={{ padding: 8, color: colors.ink }} />
-        {!needsPortions ? <View style={{ flexDirection: 'row', gap: 8 }}>{['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key} style={{ flex: 1 }}><Text>{key}</Text><TextInput accessibilityLabel={key} keyboardType="decimal-pad" value={String(analysis[key] ?? '')} onChangeText={(value) => setAnalysis((current) => ({ ...current, [key]: value }))} style={{ padding: 8, borderBottomWidth: 1, color: colors.ink }} /></View>)}</View> : null}
-        {needsPortions && !portionsReady ? <Text style={styles.demoText}>Include at least one food and complete its nutrition and eaten weight to save. Complete all included foods.</Text> : null}
+        {!manualProduct ? <TextInput accessibilityLabel="Meal name" editable={!analysis.caloriesOnly} value={analysis.name} maxLength={160} onChangeText={(name) => setAnalysis((current) => ({ ...current, name }))} style={{ padding: 8, color: colors.ink }} /> : null}
+        {!manualProduct && !needsPortions && !analysis.caloriesOnly ? <View style={{ flexDirection: 'row', gap: 8 }}>{['calories', 'protein', 'carbs', 'fat'].map((key) => <View key={key} style={{ flex: 1 }}><Text>{key}</Text><TextInput accessibilityLabel={key} keyboardType="decimal-pad" value={String(analysis[key] ?? '')} onChangeText={(value) => setAnalysis((current) => ({ ...current, [key]: value }))} style={{ padding: 8, borderBottomWidth: 1, color: colors.ink }} /></View>)}</View> : null}
+        {needsPortions && !portionsReady ? <Text style={styles.demoText}>Include at least one food and complete any missing nutrition values to save.</Text> : null}
         <View style={styles.resultActions}><Pressable onPress={retake} disabled={posting} style={[styles.retake, posting && styles.disabled]}><Text style={styles.retakeText}>Retake</Text></Pressable><Pressable accessibilityState={{ busy: posting, disabled: posting || !portionsReady }} onPress={confirm} disabled={posting || !portionsReady} style={[styles.confirm, (posting || !portionsReady) && styles.disabled]}><Text style={styles.confirmText}>{posting ? 'Saving meal…' : 'Add to dashboard'}</Text><Ionicons name={posting ? 'cloud-upload-outline' : 'arrow-forward'} size={17} color={colors.white} /></Pressable></View>
         </ScrollView>
       </Animated.View> : null}

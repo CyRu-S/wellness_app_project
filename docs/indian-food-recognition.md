@@ -1,5 +1,7 @@
 # Self-hosted Indian food recognition
 
+> Legacy local-model tooling: the app now uses [Gemini food photo analysis](gemini-food-analysis.md). The setup below applies only to the retained local scripts and smoke tests.
+
 Recognition runs in a downloaded Qwen3-VL vision model through **your own Ollama service**. There is no Gemini dependency, AI API key or external-provider fallback. Android and iOS PWA call the same authenticated backend endpoint, so model weights are not bundled into either app. Internet is needed for the initial runtime/model download; inference then runs on the machine hosting Ollama. The phone still needs access to the backend.
 
 ## Development on Windows

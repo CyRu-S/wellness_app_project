@@ -42,7 +42,7 @@ export default function usePageRefresh() {
     if (['ProfileHome', 'AdminProfile', 'EditProfile', 'BodyDetails', 'PrivacyData'].includes(name)) return { paths: ['/profile'], actions: [loadProfile(token)] };
     if (['MemberAccess', 'ManageMemberAccess'].includes(name)) return { paths: ['/admin/member-access'], actions: [loadAdminMemberAccess()] };
     if (name === 'SharedMembers') return { paths: ['/shared-members'], actions: [loadSharedMembers()] };
-    if (name === 'SharedMemberToday') return { paths: [`/shared-members/${memberId}/today`, `/shared-members/${memberId}/journal`], actions: [loadSharedMemberToday(memberId)] };
+    if (name === 'SharedMemberToday') return { paths: [`/shared-members/${memberId}/today`, `/shared-members/${memberId}/journal`, `/shared-members/${memberId}/attention`], actions: [loadSharedMemberToday(memberId)] };
     if (name === 'UserDetails') return { paths: [`/admin/users/${memberId}/journal`, `/admin/plans/members/${memberId}`, '/admin/members'], actions: [loadAdminMemberJournal({ memberId }), loadAdminMemberPlan(memberId), loadAdminDirectory()] };
     return null;
   }, [name, memberId, token]);

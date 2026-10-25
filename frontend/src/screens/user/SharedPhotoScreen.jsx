@@ -9,6 +9,7 @@ import { useSelector } from 'react-redux';
 import { colors, fonts, type } from '../../theme';
 
 import { API_URL } from '../../services/api/client';
+import { fixedHerbalifeCalories, isUnlistedHerbalife } from '../../utils/mealAnalysis';
 const EMPTY_POST = {};
 
 const imageUriFor = (post) => post?.imageUrl || post?.imageUri || (post?.postId ? `/api/meal-posts/${post.postId}/image` : null);
@@ -46,6 +47,7 @@ export default function SharedPhotoScreen({ navigation, route }) {
   const [failed, setFailed] = useState(false);
   const source = useMemo(() => resolveSource(post, token), [post, token]);
   const nutrition = post.nutrition || {};
+  const caloriesOnly = fixedHerbalifeCalories(post) !== null;
   const calories = Number(nutrition.calories ?? post.calories) || 0;
   const protein = Number(nutrition.proteinGrams ?? post.proteinGrams ?? post.protein) || 0;
   const carbs = Number(nutrition.carbsGrams ?? post.carbsGrams ?? post.carbs) || 0;
@@ -82,12 +84,14 @@ export default function SharedPhotoScreen({ navigation, route }) {
         <Text style={styles.captionLabel}>TODAY’S CHECK-IN</Text>
         <Text style={styles.captionTitle}>{post.name || 'Meal post'}</Text>
         <Text style={styles.captionMeta}>Posted {formatClock(post.postedAt || post.uploadedAt)}{post.scheduledTime ? ` · Planned ${formatClock(post.scheduledTime)}` : ''}</Text>
-        <View style={styles.nutrition}>
+        {!isUnlistedHerbalife(post) ? <View style={styles.nutrition}>
           <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{calories}</Text><Text style={styles.nutritionLabel}>KCAL</Text></View>
-          <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{protein}g</Text><Text style={styles.nutritionLabel}>PROTEIN</Text></View>
-          <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{carbs}g</Text><Text style={styles.nutritionLabel}>CARBS</Text></View>
-          <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{fat}g</Text><Text style={styles.nutritionLabel}>FAT</Text></View>
-        </View>
+          {!caloriesOnly ? <>
+            <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{protein}g</Text><Text style={styles.nutritionLabel}>PROTEIN</Text></View>
+            <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{carbs}g</Text><Text style={styles.nutritionLabel}>CARBS</Text></View>
+            <View style={styles.nutritionItem}><Text style={styles.nutritionValue}>{fat}g</Text><Text style={styles.nutritionLabel}>FAT</Text></View>
+          </> : null}
+        </View> : null}
         <View style={styles.privateNote}><Ionicons name="eye-outline" size={15} color="#B9D8D3" /><Text style={styles.privateText}>TODAY ONLY</Text></View>
       </View>
     </SafeAreaView>

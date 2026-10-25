@@ -5,6 +5,8 @@ import java.util.List;
 public interface MissedEventRepository extends JpaRepository<MissedEvent, Long> {
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "user")
     List<MissedEvent> findByResolvedFalseOrderByMissedAtDesc();
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "user")
+    List<MissedEvent> findByUserIdAndResolvedFalseOrderByMissedAtDesc(Long userId);
     long countByResolvedFalse();
     java.util.Optional<MissedEvent> findBySourceKey(String sourceKey);
 }

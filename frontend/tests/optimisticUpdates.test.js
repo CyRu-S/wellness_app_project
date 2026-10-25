@@ -139,8 +139,8 @@ test('attention nudges and resolves update immediately and return as actions aft
 
   const nudging = store.dispatch(admin.nudgeAttention(8));
   assert.equal(store.getState().admin.attention[0].status, 'NUDGED');
-  assert.equal(store.getState().admin.summary.missedItems, 1);
-  assert.equal(store.getState().admin.members[0].attentionReason, 'Water overdue');
+  assert.equal(store.getState().admin.summary.missedItems, 0);
+  assert.equal(store.getState().admin.members[0].attentionReason, '');
   nudge.reject(new Error('Offline')); await nudging;
   assert.equal(store.getState().admin.attention[0].status, 'OPEN');
   assert.equal(store.getState().admin.summary.missedItems, 2);
@@ -184,7 +184,7 @@ test('switching shared members ignores a late response for the previous member',
   assert.equal(store.getState().memberAccess.sharedToday.member.id, 2);
 });
 
-test('a coach nudge locks only that member and nudge type with the shared cooldown', async () => {
+test('a coach nudge locks every nudge type only for that recipient with the shared cooldown', async () => {
   const memberAccess = loadModule('../src/store/slices/memberAccessSlice.js', {
     '@reduxjs/toolkit': toolkit,
     '../../services/api/memberAccessApi': { nudgeSharedMember: async () => ({ sent: false, lastSentAt: '2026-10-25T04:00:00Z', availableAt: '2026-10-25T04:30:00Z' }) },
@@ -195,8 +195,8 @@ test('a coach nudge locks only that member and nudge type with the shared cooldo
     ...initial,
     shared: { total: 2, members: members.map((member) => ({ ...member })) },
     sharedMembers: { total: 2, members: members.map((member) => ({ ...member })) },
-    sharedToday: { member: { id: 2 }, nudges: [{ type: 'MEALS', availableAt: null }, { type: 'HYDRATION', availableAt: null }] },
-    todayByMemberId: { 2: { member: { id: 2 }, nudges: [{ type: 'MEALS', availableAt: null }, { type: 'HYDRATION', availableAt: null }] } },
+    sharedToday: { member: { id: 2 }, nudges: [{ id: 10, type: 'MEALS', availableAt: null }, { id: 11, type: 'HYDRATION', availableAt: null }, { id: 12, type: 'MEALS', availableAt: null }] },
+    todayByMemberId: { 2: { member: { id: 2 }, nudges: [{ id: 10, type: 'MEALS', availableAt: null }, { id: 11, type: 'HYDRATION', availableAt: null }, { id: 12, type: 'MEALS', availableAt: null }] } },
   } });
 
   const sending = store.dispatch(memberAccess.nudgeSharedMember({ memberId: 2, type: 'MEALS' }));
@@ -207,7 +207,75 @@ test('a coach nudge locks only that member and nudge type with the shared cooldo
   assert.equal(store.getState().memberAccess.sharedMembers.members[0].nudgedToday, true);
   assert.equal(store.getState().memberAccess.shared.members[1].nudgedToday, false);
   assert.equal(store.getState().memberAccess.sharedToday.nudges[0].availableAt, '2026-10-25T04:30:00Z');
-  assert.equal(store.getState().memberAccess.sharedToday.nudges[1].availableAt, null);
+  assert.equal(store.getState().memberAccess.sharedToday.nudges[1].availableAt, '2026-10-25T04:30:00Z');
+  assert.equal(store.getState().memberAccess.sharedToday.nudges[2].availableAt, '2026-10-25T04:30:00Z');
+  assert.equal(store.getState().memberAccess.todayByMemberId[2].nudges[2].status, 'NUDGED');
+});
+
+test('a late nudge response never locks cards for a different shared member', async () => {
+  const pending = deferred();
+  const memberAccess = loadModule('../src/store/slices/memberAccessSlice.js', {
+    '@reduxjs/toolkit': toolkit,
+    '../../services/api/memberAccessApi': {
+      nudgeSharedMember: () => pending.promise,
+      getSharedMemberToday: async () => ({ member: { id: 3 }, nudges: [{ id: 30, type: 'MEALS', availableAt: null }] }),
+    },
+  });
+  const initial = memberAccess.default(undefined, { type: 'init' });
+  const store = setup({ memberAccess }, { memberAccess: { ...initial,
+    sharedToday: { member: { id: 2 }, nudges: [{ id: 20, type: 'MEALS', availableAt: null }] },
+    todayByMemberId: { 2: { member: { id: 2 }, nudges: [{ id: 20, type: 'MEALS', availableAt: null }] } },
+  } });
+  const sending = store.dispatch(memberAccess.nudgeSharedMember({ memberId: 2, type: 'MEALS', attentionId: 20 }));
+  await store.dispatch(memberAccess.loadSharedMemberToday(3)).unwrap();
+  pending.resolve({ sent: true, availableAt: '2026-10-25T04:30:00Z' });
+  await sending.unwrap();
+  assert.equal(store.getState().memberAccess.sharedToday.member.id, 3);
+  assert.equal(store.getState().memberAccess.sharedToday.nudges[0].availableAt, null);
+  assert.equal(store.getState().memberAccess.todayByMemberId[2].nudges[0].availableAt, '2026-10-25T04:30:00Z');
+});
+
+test('an admin reconciles every recipient card with the winning senders server expiry', async () => {
+  const result = { sent: false, lastSentAt: '2026-10-25T04:00:00Z', availableAt: '2026-10-25T04:30:00Z' };
+  const admin = loadModule('../src/store/slices/adminSlice.js', {
+    '@reduxjs/toolkit': toolkit, './mealSlice': { normalizeMeal: (meal) => meal },
+    '../../services/api/client': { request: async () => result },
+  });
+  const initial = admin.default(undefined, { type: 'init' });
+  const store = setup({ admin }, { admin: { ...initial, attention: [
+    { id: 8, memberId: 2, category: 'Meals', status: 'OPEN' },
+    { id: 9, memberId: 2, category: 'Healthy habit', status: 'OPEN' },
+    { id: 10, memberId: 3, category: 'Meals', status: 'OPEN' },
+  ] } });
+  await store.dispatch(admin.nudgeAttention(8)).unwrap();
+  const attention = store.getState().admin.attention;
+  for (const card of attention.filter((item) => item.memberId === 2)) {
+    assert.equal(card.status, 'NUDGED'); assert.equal(card.availableAt, result.availableAt);
+  }
+  assert.equal(attention[2].status, 'OPEN');
+});
+
+test('shared nudge synchronization removes completed items and clears revoked member data', async () => {
+  let revoked = false;
+  const memberAccess = loadModule('../src/store/slices/memberAccessSlice.js', {
+    '@reduxjs/toolkit': toolkit,
+    '../../services/api/memberAccessApi': { getSharedMemberAttention: async () => {
+      if (revoked) throw Object.assign(new Error('Not found'), { status: 404 });
+      return [];
+    } },
+  });
+  const initial = memberAccess.default(undefined, { type: 'init' });
+  const store = setup({ memberAccess }, { memberAccess: { ...initial,
+    sharedToday: { member: { id: 2 }, nudges: [{ id: 20, status: 'NUDGED' }] },
+    todayByMemberId: { 2: { member: { id: 2 }, nudges: [{ id: 20, status: 'NUDGED' }] } },
+  } });
+  await store.dispatch(memberAccess.syncSharedMemberAttention(2)).unwrap();
+  assert.equal(store.getState().memberAccess.sharedToday.nudges.length, 0);
+  revoked = true;
+  await store.dispatch(memberAccess.syncSharedMemberAttention(2));
+  assert.equal(store.getState().memberAccess.sharedToday, null);
+  assert.equal(store.getState().memberAccess.todayByMemberId[2], undefined);
+  assert.equal(store.getState().memberAccess.sharedTodayError.status, 404);
 });
 
 test('an older admin journal read cannot undo a confirmed water goal change', async () => {

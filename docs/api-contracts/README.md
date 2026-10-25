@@ -16,7 +16,7 @@ Base URL: `http://localhost:8080/api`. Protected endpoints require `Authorizatio
 - `GET /profile`, `PATCH /profile`, `PATCH /profile/body-metrics`
 - `GET /profile/photo`, `PUT /profile/photo`
 - `GET /dashboard`, `GET /plans/today`, `GET /meals/today`
-- `POST /meals/analyze`: multipart image, optional configured analysis service
+- `POST /meals/analyze`: multipart image and category; Gemini photo-based serving estimates and nutrition totals (ESTIMATED_PORTION), requires backend `GEMINI_API_KEY`. Herbalife products bypass AI.
 - `GET /meal-posts`, `POST /meal-posts`: multipart metadata JSON text and image
 - `GET /meal-posts/{id}/image`: owner/admin/granted viewer only
 - `POST /water`: amountMl
@@ -28,6 +28,8 @@ Base URL: `http://localhost:8080/api`. Protected endpoints require `Authorizatio
 
 Push request shapes, credential setup, and delivery semantics are documented in [Android push notifications](../android-push-notifications.md).
 - `GET /shared-members`, `GET /shared-members/{memberId}/today`
+- `GET /shared-members/{memberId}/attention`: the same unresolved attention items, titles, categories, urgency and nudge cooldowns as the admin view, limited to a member assigned to the signed-in coach.
+- `POST /shared-members/{memberId}/attention/{attentionId}/nudge`: nudge the selected overdue item using the admin message and one shared 30-minute lock per recipient across all categories, admins, coaches and club hydration reminders. The first sender wins, including simultaneous requests. Returns `sent`, `lastSentAt` and `availableAt`. At expiry, only unfinished items are available again; completed/resolved items cannot be nudged. Resolving alerts remains admin-only. Unassigned/revoked access or an item belonging to another member returns 404.
 
 ## Admin workspace
 
@@ -41,5 +43,7 @@ Push request shapes, credential setup, and delivery semantics are documented in 
 - `GET /admin/plans/members/{memberId}`, `PUT /admin/plans/members/{memberId}`: recurring planName and items (type/name/time/calories/protein/ingredients)
 - `GET /admin/member-access`, `PUT /admin/member-access/{viewerId}`: memberIds
 - `POST /admin/attention/{id}/nudge`, `PATCH /admin/attention/{id}/resolve`
+
+The admin nudge POST returns the same timing result as shared access. Visible nudge screens refresh only their attention data every five seconds while focused and active, with a server-enforced lock on every send. The client displays the server expiry and removes completed items on synchronization.
 
 The generated OpenAPI UI at `http://localhost:8080/swagger-ui.html` is authoritative for validation fields and additional catalog/report endpoints. All dates follow the configured application timezone; timestamps use ISO-8601.

@@ -174,7 +174,9 @@ class ApiEndToEndTests {
         var attention = call("GET", "/admin/attention", null, admin, 200);
         assertThat(attention.size()).isEqualTo(1);
         long attentionId = attention.get(0).path("id").asLong();
-        call("POST", "/admin/attention/" + attentionId + "/nudge", null, admin, 204);
+        var nudge = call("POST", "/admin/attention/" + attentionId + "/nudge", null, admin, 200);
+        assertThat(nudge.path("sent").asBoolean()).isTrue();
+        assertThat(Instant.parse(nudge.path("availableAt").asText())).isEqualTo(clock.instant().plusSeconds(1800));
         assertThat(call("GET", "/admin/attention", null, admin, 200).get(0).path("status").asText()).isEqualTo("NUDGED");
         call("PATCH", "/admin/attention/" + attentionId + "/resolve", null, admin, 204);
         assertThat(call("GET", "/admin/attention", null, admin, 200).size()).isZero();
