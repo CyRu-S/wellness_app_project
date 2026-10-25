@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { request } from '../../services/api/client';
 
 export const loadLeaderboard = createAsyncThunk('leaderboard/load', async (_, { getState }) => (
-  request('/leaderboard', { headers: { Authorization: `Bearer ${getState().auth.token}` } })
+  request('/leaderboard', { cachePolicy: 'network-only', headers: { Authorization: `Bearer ${getState().auth.token}` } })
 ), {
   condition: (options, { getState }) => options?.force === true || !getState().leaderboard.readId,
 });

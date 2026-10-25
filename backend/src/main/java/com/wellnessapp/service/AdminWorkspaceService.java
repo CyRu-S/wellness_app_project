@@ -24,6 +24,7 @@ public class AdminWorkspaceService {
     private final ReminderService reminders;
     private final ProductRepository products;
     private final LeaderboardService leaderboards;
+    private final WeeklyAdherenceService adherence;
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> members() {
@@ -40,6 +41,7 @@ public class AdminWorkspaceService {
                 .collect(java.util.stream.Collectors.toMap(p -> p.getUser().getId(), p -> p));
         var historyByUser = meals.summaryBetween(date.minusDays(6), date).stream()
                 .collect(java.util.stream.Collectors.groupingBy(MealRepository.Summary::getMemberId));
+        var weekly = adherence.calculate(active, profileByUser, historyByUser);
         var attentionByUser = attention.stream()
                 .collect(java.util.stream.Collectors.groupingBy(a -> (Long) a.get("memberId")));
         Map<Long, Integer> hydrationByUser = new HashMap<>();
@@ -51,7 +53,6 @@ public class AdminWorkspaceService {
         return active.stream().map(user -> {
             var profile = profileByUser.get(user.getId());
             var plan = memberPlans.get(user.getId());
-            var memberHistory = historyByUser.getOrDefault(user.getId(), List.of());
             var alerts = attentionByUser.getOrDefault(user.getId(), List.of()).stream()
                     .filter(alert -> "OPEN".equals(alert.get("status"))).toList();
             Map<String, Object> row = new LinkedHashMap<>();
@@ -62,21 +63,16 @@ public class AdminWorkspaceService {
             row.put("profileImageUrl", profile == null || profile.getPhotoMediaKey() == null ? null
                     : "/api/admin/users/" + user.getId() + "/profile-photo?v=" + profile.getPhotoMediaKey());
             row.put("plan", ((String) plan.get("planName")).isBlank() ? "No plan assigned" : plan.get("planName"));
-            row.put("adherence", memberHistory.isEmpty() ? 0 : memberHistory.stream().filter(MealRepository.Summary::isConsumed).count() * 100 / memberHistory.size());
+            var progress = weekly.get(user.getId());
+            row.put("adherence", progress.percentage());
+            row.put("adherenceEstimatedHistory", progress.estimatedHistory());
             row.put("meals", postsByUser.getOrDefault(user.getId(), 0L));
             int goal = profile == null || profile.getWaterGoalMl() == null || profile.getWaterGoalMl() <= 0 ? 2000 : profile.getWaterGoalMl();
             row.put("hydration", Math.min(100, hydrationByUser.getOrDefault(user.getId(), 0) * 100 / goal));
             row.put("streak", streak(datesByUser.getOrDefault(user.getId(), Set.of()))); presence(row, user);
             row.put("attentionLevel", alerts.isEmpty() ? "NONE" : "NEEDS_ATTENTION");
             row.put("attentionReason", alerts.isEmpty() ? "" : alerts.getFirst().get("title"));
-            List<Map<String, Object>> series = new ArrayList<>();
-            if (!memberHistory.isEmpty()) for (int i = 6; i >= 0; i--) {
-                var day = date.minusDays(i);
-                var dayMeals = memberHistory.stream().filter(meal -> meal.getMealDate().equals(day)).toList();
-                series.add(Map.of("label", day.format(DateTimeFormatter.ofPattern("d MMM")), "value",
-                        dayMeals.isEmpty() ? 0 : dayMeals.stream().filter(MealRepository.Summary::isConsumed).count() * 100 / dayMeals.size()));
-            }
-            row.put("adherenceSeries", series);
+            row.put("adherenceSeries", progress.series());
             return row;
         }).toList();
     }
@@ -125,7 +121,9 @@ public class AdminWorkspaceService {
         summary.put("membersWithMealLogsToday", loggedMemberIds(todayMeals, todayPosts).size());
         summary.put("mealComparison", comparison(todayLogged, loggedCount(yesterdayMeals, yesterdayPosts)));
         summary.put("missedItems", attention.stream().filter(item -> "OPEN".equals(item.get("status"))).count());
-        summary.put("averageAdherence", rate); summary.put("onTrackPercentage", rate);
+        summary.put("averageAdherence", members.isEmpty() ? 0 : Math.round(members.stream()
+                .mapToInt(member -> ((Number) member.get("adherence")).intValue()).average().orElse(0)));
+        summary.put("onTrackPercentage", rate);
         summary.put("activePlans", memberPlans.values().stream().filter(p -> !((Map<?, ?>) p).get("planName").equals("")).count()); summary.put("products", products.countByActiveTrue());
         Map<String, Object> ranges = new LinkedHashMap<>();
         for (int days : new int[]{1, 7, 30}) {
@@ -192,6 +190,7 @@ public class AdminWorkspaceService {
         user.setFollowUpAt(user.getStatus() == User.Status.ACTIVE && followUpDays != null
                 ? clock.instant().plus(Duration.ofDays(followUpDays)) : null);
         users.save(user);
+        if (user.getStatus() == User.Status.ACTIVE) adherence.ensureToday(user.getId());
         if (user.getStatus() == User.Status.ACTIVE) notices.notify(user, PushDelivery.Kind.APPROVAL, "approval-" + user.getId(),
                 "Your membership is approved", "Your admin approved your registration. You can now use your member account.");
     }

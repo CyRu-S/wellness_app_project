@@ -25,7 +25,7 @@ export default function AdminLeaderboardScreen({ navigation }) {
       {rows.map((member) => (
         <Pressable key={member.memberId} accessibilityRole="button" accessibilityLabel={`${member.rank}. ${member.name}, ${member.score} percent. ${member.tasksCompleted} of ${member.tasksPlanned} to-dos completed.`} onPress={() => navigation.navigate('UserDetails', { id: member.memberId })} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
           <Text style={[styles.rank, member.rank <= 3 && styles.topRank]}>{String(member.rank).padStart(2, '0')}</Text>
-          <AdminMemberAvatar token={token} initials={member.initials} style={styles.avatar} imageStyle={styles.avatarImage} textStyle={styles.avatarText} />
+          <AdminMemberAvatar profileImageUrl={member.profileImageUrl} token={token} initials={member.initials} style={styles.avatar} imageStyle={styles.avatarImage} textStyle={styles.avatarText} />
           <View style={styles.copy}>
             <View style={styles.nameLine}><Text numberOfLines={1} style={styles.name}>{member.name}</Text><Text style={styles.score}>{member.score}%</Text></View>
             <Text style={styles.timing}>{member.score > 0 && member.percentageReachedAt ? `Reached ${member.score}% at ${new Date(member.percentageReachedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'No progress logged yet'}</Text>

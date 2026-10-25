@@ -61,6 +61,7 @@ public class WebPushClient {
         var encrypted = transport.encrypt(notification);
         var builder = HttpRequest.newBuilder(URI.create(encrypted.getUrl())).timeout(Duration.ofSeconds(10));
         encrypted.getHeaders().forEach(builder::header);
+        builder.setHeader("Urgency", "high");
         var result = http().send(builder.POST(HttpRequest.BodyPublishers.ofByteArray(encrypted.getBody())).build(),
                 HttpResponse.BodyHandlers.discarding());
         return result.statusCode();

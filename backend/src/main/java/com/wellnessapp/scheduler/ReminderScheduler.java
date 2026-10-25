@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
     private final com.wellnessapp.service.ReminderService reminders;
     private final com.wellnessapp.service.WorkflowNotificationService notices;
     private final com.wellnessapp.service.NotificationService notifications;
-    @Scheduled(cron = "0 * * * * *") public void queueDueReminders() {
+    @Scheduled(cron = "0 * * * * *", scheduler = "reminderTaskScheduler") public void queueDueReminders() {
         notifications.removeExpiredAdminNotifications();
         reminders.refresh();
         notices.adminCareReminder();

@@ -1,6 +1,6 @@
 import { LocalizedText as Text } from '../../components/common/LocalizedText';
 import React, { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -60,11 +60,6 @@ export default function AdminSettingsScreen({ navigation }) {
   };
 
   const confirmSignOut = () => {
-    if (Platform.OS === 'web') {
-      if (globalThis.confirm?.(`${t('signOutAdminQuestion')}\n\n${t('signOutAdminDetail')}`)) logout();
-      return;
-    }
-
     Alert.alert(
       t('signOutAdminQuestion'),
       t('signOutAdminDetail'),

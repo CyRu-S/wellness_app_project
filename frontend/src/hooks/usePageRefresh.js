@@ -4,6 +4,7 @@ import Alert from '../utils/appAlert';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { refreshPageResponses } from '../services/api/client';
+import { subscribeLiveUpdates } from '../services/api/liveUpdates';
 import { loadAdminMembers, loadAdminAttention, loadAdminDirectory, loadAdminApprovals, loadAdminMemberPlan, loadAdminProducts } from '../store/slices/adminSlice';
 import { refreshDashboard } from '../store/slices/dashboardSlice';
 import { loadMeals } from '../store/slices/mealSlice';
@@ -21,7 +22,8 @@ export default function usePageRefresh() {
   const route = useRoute();
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
-  const busy = useRef(false);
+  const busy = useRef(null);
+  const rerun = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const name = route.name;
   const memberId = route.params?.memberId ?? route.params?.id;
@@ -46,16 +48,23 @@ export default function usePageRefresh() {
     if (name === 'UserDetails') return { paths: [`/admin/users/${memberId}/journal`, `/admin/plans/members/${memberId}`, '/admin/members'], actions: [loadAdminMemberJournal({ memberId }), loadAdminMemberPlan(memberId), loadAdminDirectory()] };
     return null;
   }, [name, memberId, token]);
-  const load = useCallback(async (force = false) => {
-    if (!token || busy.current || (AppState.currentState && AppState.currentState !== 'active')
+  const load = useCallback(async function refreshPage(force = false) {
+    if (!token || (AppState.currentState && AppState.currentState !== 'active')
       || (typeof document !== 'undefined' && document.hidden)) return;
+    if (busy.current) {
+      if (!force) { rerun.current = true; return; }
+      // A real pull must wait for the current load and then fetch fresh data;
+      // previously it silently did nothing while focus/live loading was busy.
+      setRefreshing(true);
+      await busy.current;
+      return refreshPage(true);
+    }
     const page = config(force);
     if (!page) return;
-    busy.current = true;
     // Opening a page and pulling to refresh both read current server data.
     refreshPageResponses(page.paths);
     if (force) setRefreshing(true);
-    try {
+    const operation = (async () => {
       const results = await Promise.all(page.actions.map(async (action) => {
         let result = await dispatch(action);
         // Wait for an existing read/write before forcing a new read of this page.
@@ -72,15 +81,36 @@ export default function usePageRefresh() {
         if (failed.meta?.condition) Alert.alert('Refresh pending', 'Updates are still syncing. Please try again shortly.');
         else Alert.alert('Refresh failed', failed.payload?.message || failed.error?.message || 'Please try again.');
       }
-    } finally { busy.current = false; if (force) setRefreshing(false); }
+    })();
+    busy.current = operation;
+    try { await operation; }
+    finally {
+      busy.current = null;
+      if (force) setRefreshing(false);
+      if (rerun.current) { rerun.current = false; refreshPage(); }
+    }
   }, [token, config, dispatch]);
   useFocusEffect(useCallback(() => {
     load();
-    if (!LIVE_SYNC_PAGES.has(name)) return undefined;
-    // Keep installed PWAs and the Android app consistent when another device
-    // posts a meal, completes a task, or logs water while this page stays open.
-    const timer = setInterval(() => load(), name === 'Leaderboard' ? 15000 : 30000);
-    return () => clearInterval(timer);
-  }, [load, name]));
+    let stopped = false, unsubscribe = null;
+    const active = () => (!AppState.currentState || AppState.currentState === 'active')
+      && (typeof document === 'undefined' || !document.hidden);
+    const syncConnection = () => {
+      unsubscribe?.(); unsubscribe = null;
+      if (!stopped && active()) {
+        if (LIVE_SYNC_PAGES.has(name)) unsubscribe = subscribeLiveUpdates(token, () => load());
+        load();
+      }
+    };
+    if (LIVE_SYNC_PAGES.has(name) && active()) unsubscribe = subscribeLiveUpdates(token, () => load());
+    const subscription = AppState.addEventListener?.('change', syncConnection);
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', syncConnection);
+    return () => {
+      stopped = true; rerun.current = false;
+      unsubscribe?.();
+      subscription?.remove();
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', syncConnection);
+    };
+  }, [load, name, token]));
   return { refreshing, onRefresh: useCallback(() => load(true), [load]), enabled: !!token && !!config() };
 }

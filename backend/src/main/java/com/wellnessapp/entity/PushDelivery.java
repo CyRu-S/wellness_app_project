@@ -20,4 +20,7 @@ public class PushDelivery {
     @Column(length = 100) private String lastError;
     @Column(nullable = false) private Instant nextAttemptAt;
     @Column(nullable = false) private Instant expiresAt;
+    @Column(name = "queued_at") private Instant queuedAt;
+    @Column(name = "last_attempt_at") private Instant lastAttemptAt;
+    @Column(name = "accepted_at") private Instant acceptedAt;
 }

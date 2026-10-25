@@ -26,6 +26,7 @@ function details() {
     '../../utils/appAlert': { alert: () => {} },
     '../../store/slices/mealSlice': { deleteMealPost: () => {} },
     '../../components/common/ProtectedImage': 'ProtectedImage',
+    '../../components/common/AppModal': 'Modal',
     '../../components/common/PrimaryButton': 'PrimaryButton',
     '../../components/common/Screen': 'Screen',
     '../../components/user/UserHeader': 'UserHeader',

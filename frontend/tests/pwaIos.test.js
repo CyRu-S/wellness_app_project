@@ -18,31 +18,16 @@ test('iOS home screen detection works with navigator.standalone and iPad desktop
   assert.equal(module.isIOS(), true);
 });
 
-test('web confirmation performs decline or shared access removal only after acceptance', () => {
-  let accepted = false, acted = 0, cancelled = 0;
+test('web alerts use the shared in-app feedback instead of browser dialogs', () => {
+  const calls = [];
   const { default: Alert } = loadModule('../src/utils/appAlert.web.js', {
-    '../i18n/LanguageContext': { getActiveLanguage: () => 'en' },
-    '../i18n/displayTranslations': { translateUiText: (_, value) => value },
-  }, {
-    confirm: () => accepted, alert: () => {},
-  });
-  const buttons = [{ text: 'Keep access', style: 'cancel', onPress: () => cancelled++ },
-    { text: 'Remove and save', style: 'destructive', onPress: () => acted++ }];
+    './appFeedback': { presentAppAlert: (...args) => calls.push(args) },
+  }, { confirm: () => { throw new Error('Browser confirmation is forbidden'); },
+    alert: () => { throw new Error('Browser alert is forbidden'); } });
+  const buttons = [{ text: 'Keep access', style: 'cancel' }, { text: 'Remove and save', style: 'destructive' }];
   Alert.alert('Remove shared access?', 'Member will lose access.', buttons);
-  assert.equal(acted, 0); assert.equal(cancelled, 1);
-  accepted = true;
-  Alert.alert('Remove shared access?', 'Member will lose access.', buttons);
-  assert.equal(acted, 1);
-});
-
-test('web success alerts run the sign in or return navigation callback after dismissal', () => {
-  let dismissed = false, navigated = false;
-  const { default: Alert } = loadModule('../src/utils/appAlert.web.js', {
-    '../i18n/LanguageContext': { getActiveLanguage: () => 'en' },
-    '../i18n/displayTranslations': { translateUiText: (_, value) => value },
-  }, { alert: () => { dismissed = true; } });
-  Alert.alert('Password reset', 'Saved', [{ text: 'Sign in', onPress: () => { assert.equal(dismissed, true); navigated = true; } }]);
-  assert.equal(navigated, true);
+  assert.equal(calls[0][0], 'Remove shared access?');
+  assert.equal(calls[0][2], buttons);
 });
 
 test('web meal photos are resized and encoded as JPEG before upload', async () => {

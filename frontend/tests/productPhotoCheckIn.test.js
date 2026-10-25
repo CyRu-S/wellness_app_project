@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { loadModule } from './loadModule.js';
 import * as mealAnalysis from '../src/utils/mealAnalysis.js';
 
-function captureScreen(meal, result, { cameraSupported = true, grantPermission = true, outsideFood = false } = {}) {
+function captureScreen(meal, result, { cameraSupported = true, grantPermission = true, outsideFood = false, platform = 'web' } = {}) {
   const values = [], refs = [], posts = [], visits = [], alerts = [];
   let permissionRequests = 0, captures = 0;
   const permission = { granted: false };
@@ -25,9 +25,10 @@ function captureScreen(meal, result, { cameraSupported = true, grantPermission =
   const Screen = loadModule('../src/screens/user/MealCaptureScreen.jsx', {
     react: { ...react, default: react, __esModule: true },
     'react-native': { Animated: { Value }, Image: 'Image', KeyboardAvoidingView: 'KeyboardAvoidingView',
-      Platform: { OS: 'web' }, Pressable: 'Pressable', ScrollView: 'ScrollView',
+      Platform: { OS: platform }, Pressable: 'Pressable', ScrollView: 'ScrollView',
       StyleSheet: { create: (value) => value }, useWindowDimensions: () => ({ height: 900 }), View: 'View' },
     '../../utils/appAlert': { alert: (...args) => alerts.push(args) },
+    '../../components/common/InAppToast': 'InAppToast',
     'expo-camera': { CameraView: 'CameraView', useCameraPermissions: () => [permission, async () => {
       permissionRequests++; permission.granted = grantPermission; return permission;
     }] },
@@ -177,4 +178,9 @@ test('outside food uses normal photo review without requiring or completing an a
   assert.equal(ui.posts[0].calories, 450);
   assert.equal(ui.posts[0].optimisticCompletion, undefined);
   assert.deepEqual(ui.alerts, []);
+});
+
+test('native full-screen capture can show feedback above the permission screen', () => {
+  const ui = captureScreen({ id: 11, type: 'Lunch', name: 'Lunch' }, {}, { platform: 'android' });
+  assert.ok(elements(ui.render()).some((item) => item.type === 'InAppToast'));
 });

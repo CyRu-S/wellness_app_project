@@ -1,7 +1,8 @@
 import { LocalizedText as Text, LocalizedTextInput as TextInput } from '../../components/common/LocalizedText';
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from '../../components/common/ProtectedImage';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Modal from '../../components/common/AppModal';
 import Alert from '../../utils/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -86,7 +87,7 @@ function Overview({ member, plan, snapshot }) {
       <LinearGradient colors={['#FFFFFF', '#F0FAF7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.chartCard}>
         <View pointerEvents="none" style={styles.chartGlow} />
         <View style={styles.cardHeading}>
-          <View><Text style={styles.cardEyebrow}>SEVEN-DAY ADHERENCE</Text><Text style={styles.cardTitle}>{member.adherence}% average</Text></View>
+          <View><Text style={styles.cardEyebrow}>SEVEN-DAY ADHERENCE</Text><Text style={styles.cardTitle}>{member.adherence}% complete</Text></View>
           <Text style={styles.chartTrend}>{!series.length ? 'No plan data yet' : member.adherence >= 75 ? 'On track' : 'Needs care'}</Text>
         </View>
         <AdminBarChart maxValue={100} data={series} label={`${member.name} seven day adherence`} />

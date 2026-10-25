@@ -5,10 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearToast } from '../../store/slices/toastSlice';
+import { chooseAppDialog } from '../../utils/appFeedback';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import { colors, fonts, radius, shadows } from '../../theme';
 
-const icons = { water: 'water', activity: 'walk', meal: 'camera' };
+const icons = { water: 'water', activity: 'walk', meal: 'camera', error: 'alert-circle', info: 'information-circle', success: 'checkmark' };
 const confettiColors = ['#F4B942', '#24B9AD', '#FF746C', '#6FD4C9', '#F6CA65', '#0F8F91', '#FF9A72'];
 const confettiPieces = Array.from({ length: 72 }, (_, index) => {
   const fromLeft = index % 2 === 0;
@@ -77,7 +78,9 @@ function Confetti({ progress, screenWidth, screenHeight, topOffset }) {
 }
 
 export default function InAppToast() {
-  const toast = useSelector((state) => state.toast.current);
+  const current = useSelector((state) => state.toast.current);
+  const dialog = useSelector((state) => state.toast.dialog);
+  const toast = dialog || current;
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -89,6 +92,7 @@ export default function InAppToast() {
 
   const dismiss = useCallback((id) => {
     if (!id || closingRef.current === id) return;
+    if (toast?.confirmation) { chooseAppDialog(id); return; }
     closingRef.current = id;
     clearTimeout(timerRef.current);
     if (reduceMotion) {
@@ -104,7 +108,7 @@ export default function InAppToast() {
       if (finished) dispatch(clearToast(id));
       else closingRef.current = null;
     });
-  }, [dispatch, reduceMotion, visibility]);
+  }, [dispatch, reduceMotion, toast?.confirmation, visibility]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -116,13 +120,13 @@ export default function InAppToast() {
     celebration.setValue(reduceMotion ? 1 : 0);
     const entrance = reduceMotion ? null : Animated.parallel([
       Animated.spring(visibility, { toValue: 1, speed: 16, bounciness: 3, useNativeDriver: true }),
-      Animated.sequence([
+      ...(toast.celebrate ? [Animated.sequence([
         Animated.delay(90),
         Animated.timing(celebration, { toValue: 1, duration: 3600, easing: Easing.linear, useNativeDriver: true }),
-      ]),
+      ])] : []),
     ]);
     entrance?.start();
-    timerRef.current = setTimeout(() => dismiss(toast.id), reduceMotion ? 5000 : 4640);
+    if (!toast.confirmation) timerRef.current = setTimeout(() => dismiss(toast.id), toast.kind === 'error' ? 6500 : reduceMotion ? 5000 : 4640);
     return () => {
       clearTimeout(timerRef.current);
       entrance?.stop();
@@ -135,6 +139,7 @@ export default function InAppToast() {
   const topOffset = Math.max(insets.top, 10) + 8;
   return (
     <Animated.View
+      pointerEvents="box-none"
       accessibilityRole="alert"
       style={[
         styles.position,
@@ -148,10 +153,16 @@ export default function InAppToast() {
         },
       ]}
     >
-      <Confetti progress={celebration} screenWidth={screenWidth} screenHeight={screenHeight} topOffset={topOffset} />
+      {toast.celebrate && !reduceMotion ? <Confetti progress={celebration} screenWidth={screenWidth} screenHeight={screenHeight} topOffset={topOffset} /> : null}
       <View style={styles.toast}>
-        <View style={styles.icon}><Ionicons name={icons[toast.kind] || 'checkmark'} size={19} color={colors.white} /></View>
-        <View style={styles.copy}><Text style={styles.title}>{toast.title}</Text>{toast.message ? <Text style={styles.message}>{toast.message}</Text> : null}</View>
+        <View style={[styles.icon, toast.kind === 'error' && styles.errorIcon]}><Ionicons name={toast.confirmation ? 'help-circle' : icons[toast.kind] || 'checkmark'} size={19} color={colors.white} /></View>
+        <View style={styles.copy}>
+          <Text style={styles.title}>{toast.title}</Text>{toast.message ? <Text style={styles.message}>{toast.message}</Text> : null}
+          {toast.confirmation ? <View style={styles.actions}>{toast.buttons.map((button, index) => <Pressable
+            key={`${index}-${button.text}`} accessibilityRole="button" onPress={() => chooseAppDialog(toast.id, index)}
+            style={({ pressed }) => [styles.action, button.style === 'destructive' && styles.destructive, pressed && styles.pressed]}
+          ><Text style={[styles.actionText, button.style === 'destructive' && styles.destructiveText]}>{button.text}</Text></Pressable>)}</View> : null}
+        </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Dismiss notification" hitSlop={10} onPress={() => dismiss(toast.id)} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
           <Ionicons name="close" size={19} color={colors.tealDark} />
         </Pressable>
@@ -166,6 +177,12 @@ const styles = StyleSheet.create({
   confetti: { position: 'absolute', top: 0 },
   toast: { zIndex: 1, width: '100%', maxWidth: 410, minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...shadows.raised },
   icon: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.tealMid },
+  errorIcon: { backgroundColor: colors.danger },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  action: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.accentSoft },
+  destructive: { backgroundColor: colors.danger },
+  actionText: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 12 },
+  destructiveText: { color: colors.white },
   copy: { flex: 1, minWidth: 0 },
   title: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14, lineHeight: 19 },
   message: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, marginTop: 2 },

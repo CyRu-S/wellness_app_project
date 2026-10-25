@@ -24,6 +24,7 @@ public class PlanService {
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final WorkflowNotificationService notices;
+    private final WeeklyAdherenceService adherence;
     @Value("${app.admin.email:admin@mr-care.app}")
     private String adminEmail;
 
@@ -94,6 +95,7 @@ public class PlanService {
     public Map<String, Object> save(Long memberId, SaveMealPlanRequest request) {
         User user = users.lockById(memberId).filter(u -> u.getRole() == User.Role.USER && u.getStatus() == User.Status.ACTIVE)
                 .orElseThrow(() -> new BadRequestException("Approve this member before assigning a plan"));
+        adherence.captureToday(memberId);
         Plan previous = current(memberId);
         var previousItems = previous == null ? List.<PlanItem>of() : items.findByPlanIdOrderBySortOrder(previous.getId());
         var previousIds = new HashSet<Long>();
@@ -130,6 +132,16 @@ public class PlanService {
                     });
         }
         meals.flush();
+        var removedIds = previousItems.stream().map(PlanItem::getId).filter(id -> !retainedIds.contains(id)).toList();
+        // Today's completed evidence is already archived above. Delete managed
+        // completion rows explicitly before their items; database-only cascades
+        // leave Hibernate holding references to the removed plan items.
+        if (!removedIds.isEmpty()) {
+            // Past daily meals remain part of their original day's history.
+            for (var historicalMeal : meals.findByPlanItemIdIn(removedIds)) historicalMeal.setPlanItem(null);
+            completions.deleteAll(completions.findByPlanItemIdIn(removedIds));
+            meals.flush();
+        }
         for (PlanItem item : previousItems) if (!retainedIds.contains(item.getId())) items.delete(item);
 
         Map<Long, PlanItem> existingItems = previousItems.stream()
@@ -184,6 +196,7 @@ public class PlanService {
                     });
         }
         ensureDailyMeals(memberId);
+        adherence.captureToday(memberId);
         notices.notify(user, PushDelivery.Kind.PLAN, "plan-" + plan.getId() + "-" + UUID.randomUUID(), "Your meal plan was updated", "Your coach has assigned an updated meal plan. Open your daily plan to review it.");
         return memberPlan(memberId);
     }
@@ -251,13 +264,15 @@ public class PlanService {
 
     @Transactional
     public PlanResponse completeTask(String email, Long itemId) {
-        User user = users.findByEmailIgnoreCase(email).orElseThrow(() -> new NotFoundException("Member not found"));
+        User account = users.findByEmailIgnoreCase(email).orElseThrow(() -> new NotFoundException("Member not found"));
+        User user = users.lockById(account.getId()).orElseThrow(() -> new NotFoundException("Member not found"));
         PlanItem item = items.findById(itemId).filter(value -> value.getPlan().getUser().getId().equals(user.getId())
                 && isDailyTask(value)).orElseThrow(() -> new NotFoundException("Daily task not found"));
         LocalDate date = today();
         completions.findByPlanItemIdAndUserIdAndCompletedDate(itemId, user.getId(), date).orElseGet(() ->
                 completions.save(PlanItemCompletion.builder().planItem(item).user(user).completedDate(date).completedAt(clock.instant()).build()));
         missed.findBySourceKey("habit-" + itemId + "-" + date).ifPresent(event -> { event.setResolved(true); missed.save(event); });
+        adherence.captureToday(user.getId());
         return today(email);
     }
 

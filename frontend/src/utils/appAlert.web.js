@@ -1,20 +1,7 @@
-import { getActiveLanguage } from '../i18n/LanguageContext';
-import { translateUiText } from '../i18n/displayTranslations';
+import { presentAppAlert } from './appFeedback';
 
-// React Native Web's Alert is a no-op. Preserve the app's one- and two-button flows.
+// Browser dialogs block the PWA. Use the same top notification on every platform.
 const Alert = {
-  alert(title, message = '', buttons = []) {
-    const language = getActiveLanguage();
-    const text = [title, message].filter(Boolean).map((value) => translateUiText(language, value)).join('\n\n');
-    const action = buttons.find((button) => button.style !== 'cancel');
-    const cancel = buttons.find((button) => button.style === 'cancel');
-    if (cancel) {
-      if (globalThis.confirm(text)) action?.onPress?.();
-      else cancel.onPress?.();
-    } else {
-      globalThis.alert(text);
-      action?.onPress?.();
-    }
-  },
+  alert: presentAppAlert,
 };
 export default Alert;

@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import PageRefresh from '../../components/common/PageRefresh';
 import usePageRefresh from '../../hooks/usePageRefresh';
-import useNudgeSync from '../../hooks/useNudgeSync';
 import MemberTodaySnapshot from '../../components/member/MemberTodaySnapshot';
 import { clearSharedMemberToday, loadSharedMemberToday, nudgeSharedMember } from '../../store/slices/memberAccessSlice';
 import Alert from '../../utils/appAlert';
@@ -49,7 +48,6 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   const payload = access.sharedToday;
   const journal = access.sharedJournal;
   const [section, setSection] = useState('Today');
-  useNudgeSync(memberId, section === 'Nudges' && memberId != null);
   const [now, setNow] = useState(0);
   const nudge = access.sharedNudge || { status: 'idle' };
   const today = useMemo(() => {

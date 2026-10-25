@@ -190,6 +190,7 @@ test('web pull to refresh only fires for a vertical pull from the top of a page'
   handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(0, 150)); handlers.touchend();
   assert.equal(refreshed, 0, 'scrolling partway down must not refresh');
   target.scrollTop = 0;
+  target.closest = (selector) => selector.includes('button') ? {} : null;
   handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(150, 20)); handlers.touchend();
   assert.equal(refreshed, 0, 'horizontal gestures must not refresh');
   handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(0, 80)); handlers.touchend();
@@ -201,4 +202,8 @@ test('web pull to refresh only fires for a vertical pull from the top of a page'
   assert.equal(refreshed, 0, 'adding a second finger must cancel the pull');
   handlers.touchstart(touch(0, 0)); handlers.touchmove(touch(0, 150)); handlers.touchend();
   assert.equal(refreshed, 1);
+  let prevented = false, stopped = false;
+  handlers.click({ preventDefault: () => { prevented = true; }, stopPropagation: () => { stopped = true; } });
+  assert.equal(prevented, true, 'pulling from a card must not activate its click');
+  assert.equal(stopped, true);
 });

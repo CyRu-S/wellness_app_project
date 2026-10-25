@@ -2,10 +2,11 @@ import { LocalizedText as Text } from '../../components/common/LocalizedText';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import AdminMemberAvatar from '../../components/admin/AdminMemberAvatar';
 import Screen from '../../components/common/Screen';
 import UserHeader from '../../components/user/UserHeader';
-import { selectLeaderboardState } from '../../store/slices/leaderboardSlice';
+import { loadLeaderboard, selectLeaderboardState } from '../../store/slices/leaderboardSlice';
 import { colors, fonts, radius, type } from '../../theme';
 
 const reachedLabel = (row) => row.score > 0 && row.percentageReachedAt
@@ -14,6 +15,8 @@ const reachedLabel = (row) => row.score > 0 && row.percentageReachedAt
 
 export default function LeaderboardScreen({ navigation }) {
   const leaderboard = useSelector(selectLeaderboardState);
+  const token = useSelector((state) => state.auth.token);
+  const dispatch = useDispatch();
   const rows = leaderboard.rows;
   return <Screen>
     <UserHeader navigation={navigation} title="Live leaderboard" />
@@ -25,6 +28,7 @@ export default function LeaderboardScreen({ navigation }) {
     <View style={styles.rule} />
     {rows.map((member) => <View key={member.memberId} style={[styles.row, member.viewer && styles.viewerRow]}>
       <View style={[styles.rank, member.rank <= 3 && styles.topRank]}><Text style={[styles.rankText, member.rank <= 3 && styles.topRankText]}>{member.rank}</Text></View>
+      <AdminMemberAvatar profileImageUrl={member.profileImageUrl} token={token} initials={member.initials} style={styles.avatar} textStyle={styles.avatarText} />
       <View style={styles.copy}>
         <View style={styles.nameLine}><Text numberOfLines={1} style={styles.name}>{member.name}{member.viewer ? ' · You' : ''}</Text><Text style={styles.score}>{member.score}%</Text></View>
         <Text style={styles.timing}>{reachedLabel(member)}</Text>
@@ -32,7 +36,7 @@ export default function LeaderboardScreen({ navigation }) {
       </View>
     </View>)}
     {!rows.length && leaderboard.status !== 'loading' ? <View style={styles.empty}><Ionicons name="trophy-outline" size={30} color={colors.tealMid} /><Text style={styles.emptyTitle}>No members ranked yet</Text><Text style={styles.emptyText}>Today’s standings appear as soon as members start logging.</Text></View> : null}
-    {leaderboard.error ? <Pressable accessibilityRole="button" onPress={() => navigation.goBack()} style={styles.error}><Text style={styles.errorText}>Live update unavailable. Pull down to retry.</Text></Pressable> : null}
+    {leaderboard.error ? <Pressable accessibilityRole="button" onPress={() => dispatch(loadLeaderboard({ force: true }))} style={styles.error}><Text style={styles.errorText}>Live update unavailable. Tap to retry.</Text></Pressable> : null}
   </Screen>;
 }
 
@@ -51,6 +55,8 @@ const styles = StyleSheet.create({
   rankText: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 12 },
   topRankText: { color: colors.white },
   copy: { flex: 1, minWidth: 0 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accentSoft },
+  avatarText: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 12 },
   nameLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   name: { flex: 1, color: colors.ink, fontFamily: fonts.semibold, fontSize: 15 },
   score: { color: colors.tealDark, fontFamily: fonts.semibold, fontSize: 18 },

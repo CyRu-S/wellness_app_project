@@ -33,6 +33,7 @@ public class AdminMemberJournalService {
     private final MemberAccessService memberAccess;
     private final Clock clock;
     private final ZoneId applicationZoneId;
+    private final WeeklyAdherenceService adherence;
 
     @Transactional
     public AdminMemberJournalResponse get(Long memberId) {
@@ -81,7 +82,7 @@ public class AdminMemberJournalService {
 
     @Transactional
     public AdminMemberJournalResponse.Member updateWaterGoal(Long memberId, UpdateMemberWaterGoalRequest request) {
-        User member = users.findById(memberId)
+        User member = users.lockById(memberId)
                 .filter(user -> user.getRole() == User.Role.USER)
                 .orElseThrow(() -> new NotFoundException("Member not found"));
         if (request.waterGoalMl() % 250 != 0) {
@@ -90,7 +91,9 @@ public class AdminMemberJournalService {
         UserProfile profile = profiles.findByUserId(memberId)
                 .orElseGet(() -> UserProfile.builder().user(member).build());
         profile.setWaterGoalMl(request.waterGoalMl());
-        return member(member, profiles.save(profile));
+        profile = profiles.save(profile);
+        adherence.captureToday(memberId);
+        return member(member, profile);
     }
 
     private AdminMemberJournalResponse.Member member(User user, UserProfile profile) {

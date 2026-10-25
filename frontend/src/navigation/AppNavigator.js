@@ -17,5 +17,5 @@ export default function AppNavigator() {
   const navigationRef = useNavigationContainerRef();
   const onReady = usePushNotifications(navigationRef);
   const user = useSelector((state) => state.auth.user);
-  return <View style={{ flex: 1 }}><Suspense fallback={<ActivityIndicator accessibilityLabel="Loading your workspace" style={{ flex: 1 }} color={colors.accent} />}><NavigationContainer ref={navigationRef} onReady={onReady} onStateChange={onReady} theme={theme}>{!user ? <AuthNavigator /> : user.role === 'ADMIN' ? <AdminNavigator /> : <UserNavigator />}</NavigationContainer></Suspense>{user ? <InAppToast /> : null}</View>;
+  return <View style={{ flex: 1 }}><Suspense fallback={<ActivityIndicator accessibilityLabel="Loading your workspace" style={{ flex: 1 }} color={colors.accent} />}><NavigationContainer ref={navigationRef} onReady={onReady} onStateChange={onReady} theme={theme}>{!user ? <AuthNavigator /> : user.role === 'ADMIN' ? <AdminNavigator /> : <UserNavigator />}</NavigationContainer></Suspense><InAppToast /></View>;
 }

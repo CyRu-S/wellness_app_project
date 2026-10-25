@@ -450,9 +450,9 @@ class PersistentWorkflowIntegrationTests {
         reminders.refresh();
         mvc.perform(get("/api/admin/workspace").header("Authorization", admin())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.members[0].adherenceSeries.length()").value(7))
-                .andExpect(jsonPath("$.members[0].adherenceSeries[5].value").value(100))
+                .andExpect(jsonPath("$.members[0].adherenceSeries[5].value").value(50))
                 .andExpect(jsonPath("$.members[0].adherenceSeries[6].value").value(0))
-                .andExpect(jsonPath("$.members[0].adherence").value(50))
+                .andExpect(jsonPath("$.members[0].adherence").value(33))
                 .andExpect(jsonPath("$.mealInsights.ranges['7D'].totalLogs").value(1))
                 .andExpect(jsonPath("$.mealInsights.ranges['7D'].completionRate").value(50))
                 .andExpect(jsonPath("$.mealInsights.ranges['7D'].series.length()").value(7))
@@ -509,6 +509,53 @@ class PersistentWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.rows[1].score").value(0));
     }
 
+    @Test void leaderboardUpdatesImmediatelyAfterMealAndHabitCheckins() throws Exception {
+        var member = approve("live-checkins@example.com");
+        plans.save(member.getId(), new SaveMealPlanRequest("Daily", List.of(
+                new SaveMealPlanRequest.Item("Breakfast", "Oats", LocalTime.of(8, 0), 400, 20, List.of(), null),
+                new SaveMealPlanRequest.Item("Habit", "Stretch", LocalTime.of(9, 0), 0, 0, List.of(), null, "HEALTHY_HABIT", "Wellness"))));
+        mvc.perform(get("/api/leaderboard").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.rows[0].score").value(0));
+        var meal = meals.findByUserIdAndMealDateOrderByMealTime(member.getId(), LocalDate.of(2026, 9, 5)).getFirst();
+        var metadata = new MockMultipartFile("metadata", "", "text/plain", json.writeValueAsBytes(Map.of(
+                "plannedMealId", meal.getId(), "mealType", "Breakfast", "mealName", "Oats", "calories", 400,
+                "proteinGrams", 20, "carbsGrams", 50, "fatGrams", 10, "clientRequestId", "leaderboard-checkin")));
+        mvc.perform(multipart("/api/meal-posts").file(metadata).file(new MockMultipartFile("image", "meal.png", "image/png", png))
+                .header("Authorization", token(member))).andExpect(status().isCreated());
+        mvc.perform(get("/api/leaderboard").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows[0].mealsCompleted").value(1))
+                .andExpect(jsonPath("$.rows[0].score").value(25));
+        var habit = planItems.findByPlanIdOrderBySortOrder(planRepository.findFirstByUserIdAndActiveTrueOrderByStartDateDesc(member.getId()).orElseThrow().getId())
+                .stream().filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).findFirst().orElseThrow();
+        mvc.perform(post("/api/plans/items/{id}/complete", habit.getId()).header("Authorization", token(member)))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/leaderboard").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows[0].tasksCompleted").value(1))
+                .andExpect(jsonPath("$.rows[0].score").value(50));
+    }
+
+    @Test void leaderboardPhotosAreVersionedAuthenticatedAndLimitedToActiveMembers() throws Exception {
+        var owner = approve("leader-photo@example.com");
+        var viewer = approve("leader-viewer@example.com");
+        mvc.perform(multipart("/api/profile/photo").file(new MockMultipartFile("image", "profile.png", "image/png", png))
+                .with(request -> { request.setMethod("PUT"); return request; }).header("Authorization", token(owner)))
+                .andExpect(status().isOk());
+        var rows = json.readTree(mvc.perform(get("/api/leaderboard").header("Authorization", token(viewer)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("rows");
+        var row = java.util.stream.StreamSupport.stream(rows.spliterator(), false)
+                .filter(value -> value.path("memberId").asLong() == owner.getId()).findFirst().orElseThrow();
+        String url = row.path("profileImageUrl").asText();
+        assertThat(url).startsWith("/api/leaderboard/members/" + owner.getId() + "/photo?v=");
+        mvc.perform(get(url).header("Authorization", token(viewer))).andExpect(status().isOk()).andExpect(content().bytes(png));
+        mvc.perform(get(url).header("Authorization", admin())).andExpect(status().isOk());
+        mvc.perform(get(url)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/users/{id}/profile-photo", owner.getId()).header("Authorization", token(viewer)))
+                .andExpect(status().isForbidden());
+        owner.setStatus(User.Status.PENDING); users.saveAndFlush(owner);
+        mvc.perform(get(url).header("Authorization", token(viewer))).andExpect(status().isNotFound());
+    }
+
     private int leaderboardScore(com.fasterxml.jackson.databind.JsonNode rows, Long memberId) {
         return java.util.stream.StreamSupport.stream(rows.spliterator(), false)
                 .filter(row -> row.path("memberId").asLong() == memberId).findFirst().orElseThrow().path("score").asInt();
@@ -530,9 +577,9 @@ class PersistentWorkflowIntegrationTests {
     }
     @Test void scheduledMealDeadlineAppearsInAttentionWithoutImmediateAdminPush() throws Exception {
         var user = approve("deadline@example.com"); plan(user);
-        setTime("2026-09-05T02:30:00Z");
+        setTime("2026-09-05T02:29:59Z");
         reminders.refresh(); assertThat(reminders.attention()).isEmpty();
-        setTime("2026-09-05T02:30:01Z");
+        setTime("2026-09-05T02:30:00Z");
         reminders.refresh();
         mvc.perform(get("/api/admin/attention").header("Authorization", admin()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].memberId").value(user.getId()))
@@ -541,6 +588,8 @@ class PersistentWorkflowIntegrationTests {
         assertThat(notifications.findAll().stream().filter(event -> event.getUser().getRole() == User.Role.ADMIN
                 && event.getKind() == PushDelivery.Kind.DEADLINE).toList())
                 .isEmpty();
+        assertThat(notifications.findAll().stream().filter(event -> event.getUser().getId().equals(user.getId())
+                && event.getKind() == PushDelivery.Kind.DEADLINE).toList()).hasSize(1);
     }
 
     @Test void hydrationDeadlineUsesLocalDayGoalAndResolvesWhenGoalIsMet() throws Exception {

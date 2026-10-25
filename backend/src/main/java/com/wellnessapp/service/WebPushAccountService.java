@@ -22,9 +22,8 @@ public class WebPushAccountService {
     private final WebPushClient web;
     private final PushQueueService queue;
     private final Clock clock;
-    @Value("${app.push.enabled:false}") private boolean pushEnabled;
     @Value("${app.schedulers.enabled:true}") private boolean schedulersEnabled;
-    public boolean available() { return pushEnabled && schedulersEnabled && web.available(); }
+    public boolean available() { return schedulersEnabled && web.available(); }
     public Map<String, Object> config() { return Map.of("available", available(), "publicKey", available() ? web.publicKey() : ""); }
     public static void validateEndpoint(String endpoint) {
         try {

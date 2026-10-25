@@ -131,13 +131,18 @@ public class LeaderboardService {
         for (int index = 0; index < ranked.size(); index++) {
             RankedRow row = ranked.get(index);
             result.add(new LeaderboardResponse.Row(row.member().getId(), row.member().getFullName(),
-                    AdminWorkspaceService.initials(row.member().getFullName()), index + 1, row.score(),
+                    AdminWorkspaceService.initials(row.member().getFullName()), photoUrl(profileByUser.get(row.member().getId())), index + 1, row.score(),
                     row.completionScore(), row.timingScore(), row.mealsCompleted(), row.mealsPlanned(),
                     row.postedMeals(), row.onTimePosts(), row.averageTimingMinutes(), row.tasksCompleted(),
                     row.tasksPlanned(), row.hydrationMl(), row.hydrationGoalMl(), row.activityMinutes(),
                     row.percentageReachedAt(), Objects.equals(viewerId, row.member().getId())));
         }
         return List.copyOf(result);
+    }
+
+    private String photoUrl(UserProfile profile) {
+        return profile == null || profile.getPhotoMediaKey() == null ? null
+                : "/api/leaderboard/members/" + profile.getUser().getId() + "/photo?v=" + profile.getPhotoMediaKey();
     }
 
     private long timingDifferenceMinutes(Meal meal, MealPost post) {

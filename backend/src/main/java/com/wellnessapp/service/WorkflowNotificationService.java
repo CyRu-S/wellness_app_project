@@ -21,7 +21,8 @@ public class WorkflowNotificationService {
         if (events.existsBySourceKey(key)) return;
         var event = events.save(NotificationEvent.builder().user(recipient).kind(kind).sourceKey(key)
                 .title(title).body(body).scheduledAt(clock.instant()).build());
-        push.enqueue(event, kind, clock.instant().plusSeconds(kind == PushDelivery.Kind.DIGEST ? 14400 : 86400));
+        push.enqueue(event, kind, clock.instant().plusSeconds(kind == PushDelivery.Kind.DIGEST ? 14400
+                : kind == PushDelivery.Kind.NUDGE ? 1800 : 86400));
     }
     @Transactional public void admins(PushDelivery.Kind kind, String source, String title, String body) {
         // Admin push is intentionally centralized into the two-hour care reminder below.

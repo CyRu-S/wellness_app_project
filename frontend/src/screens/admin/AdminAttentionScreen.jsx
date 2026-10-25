@@ -18,8 +18,12 @@ import {
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 
 const defaultFilters = ['Meals', 'Hydration', 'Activity', 'Supplements', 'Mindfulness', 'Sleep', 'Follow-up'];
-const saveAttention = async (dispatch, action) => {
-  try { await dispatch(action).unwrap(); }
+const saveAttention = async (dispatch, action, title = 'Attention updated') => {
+  try {
+    const result = await dispatch(action).unwrap();
+    Alert.alert(result?.sent === false ? 'Nudge already sent' : title, result?.sent === false
+      ? 'This member is on a 30-minute nudge cooldown.' : 'Your update has been saved.');
+  }
   catch (error) { Alert.alert('Could not update attention', error.message || 'Check your connection and try again.'); }
 };
 
@@ -43,8 +47,8 @@ function Group({ eyebrow, title, description, items, token, navigation, dispatch
             token={token}
             now={now}
             onMember={() => navigation.navigate('UserDetails', { id: item.memberId })}
-            onNudge={() => saveAttention(dispatch, nudgeAttention(item.id))}
-            onResolve={() => saveAttention(dispatch, resolveAttention(item.id))}
+            onNudge={() => saveAttention(dispatch, nudgeAttention(item.id), 'Nudge sent')}
+            onResolve={() => saveAttention(dispatch, resolveAttention(item.id), 'Alert resolved')}
           />
         ))}
       </View>

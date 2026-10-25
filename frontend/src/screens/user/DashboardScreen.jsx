@@ -1,6 +1,6 @@
 import { LocalizedText as Text } from '../../components/common/LocalizedText';
-import React, { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import StaggeredView from '../../components/auth/StaggeredView';
@@ -34,8 +34,6 @@ export default function DashboardScreen({ navigation }) {
   const plan = useSelector((state) => state.plan);
   const leaderboard = useSelector(selectLeaderboard);
   const dispatch = useDispatch();
-  const [waterComplete, setWaterComplete] = useState(false);
-  const previousWater = useRef(null);
   const firstName = user?.name?.split(' ')[0] || 'there';
   const overdue = meals.items.filter((meal) => getMealStatus(meal) === 'overdue');
   const nextMeal = meals.items.find((meal) => !meal.consumed);
@@ -44,11 +42,6 @@ export default function DashboardScreen({ navigation }) {
   const assignedCount = meals.items.length + plan.tasks.filter((task) => task.type === 'HEALTHY_HABIT').length;
   const hydration = dashboard.waterTarget ? Math.min(100, Math.round((dashboard.waterGlasses / dashboard.waterTarget) * 100)) : 0;
   const healthyHabits = plan.tasks.filter((task) => task.type === 'HEALTHY_HABIT');
-  useEffect(() => {
-    const previous = previousWater.current;
-    if (previous != null && previous < dashboard.waterTarget && dashboard.waterGlasses >= dashboard.waterTarget) setWaterComplete(true);
-    previousWater.current = dashboard.waterGlasses;
-  }, [dashboard.waterGlasses, dashboard.waterTarget]);
   const latestActivity = dashboard.lastActivity;
   const addWater = () => {
     const save = () => dispatch(drinkWater());
@@ -114,9 +107,6 @@ export default function DashboardScreen({ navigation }) {
         <SyncFeedback label="Activity" pending={!!activity.pendingSession} error={activity.error} onRetry={() => activity.failedSession ? confirmRetry('Activity', () => dispatch(completeActivity(activity.failedSession))) : dispatch(loadActivities())} />
         <View style={styles.activitySummary}><View style={styles.activityIcon}><Ionicons name="walk" size={24} color={colors.tealDark} /></View><View style={styles.activityCopy}><Text style={styles.activityName}>{latestActivity?.activity || 'No activity logged'}</Text><Text style={styles.activityMeta}>{latestActivity ? `${latestActivity.minutes} min · ${latestActivity.calories} kcal burned` : 'Start a guided activity to update this section'}</Text></View><View><AnimatedNumber value={dashboard.activeMinutes} style={styles.activityValue} suffix="m" /><Text style={styles.activityLabel}>TODAY</Text></View></View>
       </StaggeredView>
-      <Modal visible={waterComplete} transparent animationType="fade" onRequestClose={() => setWaterComplete(false)}>
-        <View style={styles.waterModalBackdrop}><View style={styles.waterModal}><View style={styles.waterDrop}><Ionicons name="water" size={36} color={colors.white} /></View><Text style={styles.waterModalTitle}>Hydration goal complete</Text><Text style={styles.waterModalText}>You reached today’s water target.</Text><Pressable accessibilityRole="button" onPress={() => setWaterComplete(false)} style={styles.waterModalButton}><Text style={styles.waterModalButtonText}>Done</Text></Pressable></View></View>
-      </Modal>
     </Screen>
   );
 }
@@ -146,11 +136,4 @@ const styles = StyleSheet.create({
   habitRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   habitCheck: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
   habitCheckDone: { backgroundColor: colors.tealMid }, habitDone: { color: colors.muted, textDecorationLine: 'line-through' },
-  waterModalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,35,40,0.58)' },
-  waterModal: { width: '100%', maxWidth: 360, alignItems: 'center', padding: 26, borderRadius: radius.xl, backgroundColor: colors.surface },
-  waterDrop: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.tealMid },
-  waterModalTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 22, marginTop: 17 },
-  waterModalText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, marginTop: 6 },
-  waterModalButton: { minWidth: 130, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.tealMid, marginTop: 20 },
-  waterModalButtonText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 14 },
 });

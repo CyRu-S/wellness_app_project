@@ -50,6 +50,7 @@ class WebPushEncryptionTests {
         assertEquals("aes128gcm", request.getValue().headers().firstValue("Content-Encoding").orElseThrow());
         assertTrue(request.getValue().headers().firstValue("Authorization").orElseThrow().startsWith("vapid "));
         assertEquals("120", request.getValue().headers().firstValue("TTL").orElseThrow());
+        assertEquals("high", request.getValue().headers().firstValue("Urgency").orElseThrow());
         var body = new java.io.ByteArrayOutputStream();
         request.getValue().bodyPublisher().orElseThrow().subscribe(new java.util.concurrent.Flow.Subscriber<java.nio.ByteBuffer>() {
             public void onSubscribe(java.util.concurrent.Flow.Subscription subscription) { subscription.request(Long.MAX_VALUE); }

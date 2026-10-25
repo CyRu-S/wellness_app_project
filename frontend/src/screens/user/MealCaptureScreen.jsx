@@ -2,6 +2,7 @@ import { LocalizedText as Text, LocalizedTextInput as TextInput } from '../../co
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Alert from '../../utils/appAlert';
+import InAppToast from '../../components/common/InAppToast';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -185,7 +186,7 @@ export default function MealCaptureScreen({ navigation, route }) {
   </SafeAreaView>;
   if (!permission && !photo) return <View style={styles.loading} />;
   if (!permission?.granted && !photo) {
-    return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Take a meal photo to estimate nutrition for your serving.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Choose from photo library" onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable></SafeAreaView>;
+    return <SafeAreaView style={styles.permission}><Ionicons name="camera-outline" size={42} color={colors.accent} /><Text style={styles.permissionTitle}>Camera access is needed</Text><Text style={styles.permissionCopy}>Take a meal photo to estimate nutrition for your serving.</Text><Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Allow camera</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Choose from photo library" onPress={choosePhoto}><Text style={styles.libraryLink}>Choose from photo library</Text></Pressable>{Platform.OS !== 'web' ? <InAppToast /> : null}</SafeAreaView>;
   }
 
   return (
@@ -249,6 +250,7 @@ export default function MealCaptureScreen({ navigation, route }) {
         </ScrollView>
       </Animated.View> : null}
       </KeyboardAvoidingView>
+      {Platform.OS !== 'web' ? <InAppToast /> : null}
     </SafeAreaView>
   );
 }

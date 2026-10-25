@@ -84,6 +84,7 @@ class PushNotificationIntegrationTests {
         return meals.saveAndFlush(Meal.builder().user(member).planItem(item).type(type).name(name)
                 .mealDate(date).mealTime(time).build());
     }
+    void deliver() { worker.sendExpoPending(); worker.sendWebPending(); }
     PushDelivery queuedTest() {
         accounts.register(member.getEmail(), pushToken, registration);
         var event = events.save(NotificationEvent.builder().user(member).title("Test").body("Private detail").scheduledAt(now).build());
@@ -120,7 +121,7 @@ class PushNotificationIntegrationTests {
                     .doesNotContain("Private detail", member.getEmail());
             return json.readTree("[{\"status\":\"ok\",\"id\":\"receipt-1\"}]");
         });
-        worker.sendPending(); worker.sendPending();
+        deliver(); deliver();
         assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.RECEIPT);
         verify(expo, times(1)).send(anyList());
         advance(901);
@@ -129,15 +130,15 @@ class PushNotificationIntegrationTests {
     }
     @Test void retriesTransportFailureWithBackoffAndExpiresOldMessages() throws Exception {
         var row = queuedTest(); when(expo.send(anyList())).thenThrow(new IOException("offline"));
-        worker.sendPending(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.QUEUED);
+        deliver(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.QUEUED);
         assertThat(row.getAttempts()).isEqualTo(1); assertThat(row.getNextAttemptAt()).isAfter(now);
-        worker.sendPending(); verify(expo, times(1)).send(anyList());
-        advance(3601); worker.sendPending(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
+        deliver(); verify(expo, times(1)).send(anyList());
+        advance(3601); deliver(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
     }
     @Test void invalidDeviceIsDisabled() throws Exception {
         var row = queuedTest();
         when(expo.send(anyList())).thenReturn(json.readTree("[{\"status\":\"error\",\"details\":{\"error\":\"DeviceNotRegistered\"}}]"));
-        worker.sendPending(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.FAILED); assertThat(row.getDevice().isEnabled()).isFalse();
+        deliver(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.FAILED); assertThat(row.getDevice().isEnabled()).isFalse();
     }
     @Test void logoutAndAccountSwitchCancelPreviouslyQueuedMessages() {
         var row = queuedTest();
@@ -146,13 +147,13 @@ class PushNotificationIntegrationTests {
         accounts.register(other.getEmail(), pushToken, newRegistration);
         accounts.unregister(member.getEmail(), pushToken, registration);
         assertThat(row.getDevice().isEnabled()).isTrue();
-        worker.sendPending(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED); verifyNoInteractions(expo);
+        deliver(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED); verifyNoInteractions(expo);
         accounts.unregister(other.getEmail(), pushToken, newRegistration); assertThat(row.getDevice().isEnabled()).isFalse();
     }
     @Test void staleUnregisterCannotDisableNewSessionForSameUser() {
         var row = queuedTest(); accounts.register(member.getEmail(), pushToken, UUID.randomUUID().toString());
         accounts.unregister(member.getEmail(), pushToken, registration); assertThat(row.getDevice().isEnabled()).isTrue();
-        worker.sendPending(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
+        deliver(); assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
     }
     @Test void requiredCoachNudgeCannotBeDisabled() throws Exception {
         accounts.register(member.getEmail(), pushToken, registration);
@@ -161,7 +162,7 @@ class PushNotificationIntegrationTests {
         assertThat(deliveries.count()).isEqualTo(1);
         accounts.savePreferences(member.getEmail(), true, false);
         when(expo.send(anyList())).thenReturn(json.readTree("[{\"status\":\"ok\",\"id\":\"required-nudge\"}]"));
-        worker.sendPending(); assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.RECEIPT);
+        deliver(); assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.RECEIPT);
         assertThat(accounts.preferences(member.getEmail()).coachNudges()).isTrue();
     }
     @Test void mealReminderQueuedOnceAndCancelledAfterLogging() {
@@ -169,22 +170,124 @@ class PushNotificationIntegrationTests {
         var meal = scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
         advance(1500);
         reminders.refresh(); reminders.refresh(); assertThat(deliveries.count()).isEqualTo(1);
-        meal.setConsumed(true); meals.saveAndFlush(meal); worker.sendPending();
+        meal.setConsumed(true); meals.saveAndFlush(meal); deliver();
         assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED); verifyNoInteractions(expo);
     }
-    @Test void missedFiveMinuteWindowDoesNotCreateALateReminder() {
+    @Test void aDelayedSchedulerCatchesTheReminderWhileTheMealIsStillUpcoming() {
         accounts.register(member.getEmail(), pushToken, registration);
         scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
         advance(1561);
         reminders.refresh();
+        assertThat(count(PushDelivery.Kind.MEAL, member)).isEqualTo(1);
+        assertThat(deliveries.count()).isEqualTo(1);
+    }
+
+    @Test void oneReminderFiveMinutesBeforeAndOneAtDeadlineOnlyWhileUnposted() throws Exception {
+        accounts.register(member.getEmail(), pushToken, registration);
+        scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
+        advance(1499); reminders.refresh();
         assertThat(count(PushDelivery.Kind.MEAL, member)).isZero();
-        assertThat(deliveries.count()).isZero();
+        advance(1);
+        reminders.refresh(); reminders.refresh();
+        assertThat(count(PushDelivery.Kind.MEAL, member)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
+        var before = deliveries.findAll().getFirst();
+        assertThat(before.getNotification().getScheduledAt()).isEqualTo(now);
+        assertThat(before.getExpiresAt()).isEqualTo(now.plusSeconds(300));
+        assertThat(before.getQueuedAt()).isEqualTo(now);
+        advance(300);
+        reminders.refresh(); reminders.refresh();
+        assertThat(count(PushDelivery.Kind.MEAL, member)).isEqualTo(1);
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isEqualTo(1);
+        var overdue = deliveries.findAll().stream().filter(row -> row.getKind() == PushDelivery.Kind.DEADLINE).findFirst().orElseThrow();
+        assertThat(overdue.getNotification().getScheduledAt()).isEqualTo(now);
+        assertThat(overdue.getExpiresAt()).isEqualTo(now.plusSeconds(1800));
+        when(expo.send(anyList())).thenReturn(json.readTree("[{\"status\":\"ok\",\"id\":\"overdue-ticket\"}]"));
+        worker.sendExpoPending();
+        assertThat(before.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
+        assertThat(overdue.getStatus()).isEqualTo(PushDelivery.Status.RECEIPT);
+        assertThat(overdue.getLastAttemptAt()).isEqualTo(now);
+        assertThat(overdue.getAcceptedAt()).isEqualTo(now);
+    }
+
+    @Test void postingBeforeDeadlinePreventsTheOverdueNotice() {
+        accounts.register(member.getEmail(), pushToken, registration);
+        var meal = scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
+        meal.setConsumed(true); meals.saveAndFlush(meal);
+        advance(1800); reminders.refresh();
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
+    }
+
+    @Test void postingAfterDeadlineCancelsQueuedOverdueNoticeWithoutWaitingForTheNextRefresh() {
+        accounts.register(member.getEmail(), pushToken, registration);
+        var meal = scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
+        advance(1800); reminders.refresh();
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isEqualTo(1);
+        meal.setConsumed(true); meals.saveAndFlush(meal);
+        worker.sendExpoPending();
+        assertThat(deliveries.findAll()).allSatisfy(row -> assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED));
+        verifyNoInteractions(expo);
+    }
+
+    @Test void aLongOutageDoesNotGenerateYesterdayOrExpiredMemberAlerts() {
+        accounts.register(member.getEmail(), pushToken, registration);
+        scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
+        advance(3601); reminders.refresh();
+        assertThat(count(PushDelivery.Kind.MEAL, member)).isZero();
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
+    }
+
+    @Test void habitReminderAndOverdueNoticeStopImmediatelyAfterCompletion() {
+        accounts.register(member.getEmail(), pushToken, registration);
+        var meal = scheduledMeal("Lunch", "Rice", LocalTime.NOON);
+        var habit = planItems.saveAndFlush(PlanItem.builder().plan(meal.getPlanItem().getPlan())
+                .type(PlanItem.Type.HEALTHY_HABIT).title("Stretch").detail("Activity")
+                .scheduledTime(LocalTime.of(8, 0)).build());
+        advance(1500); reminders.refresh();
+        assertThat(count(PushDelivery.Kind.HABIT, member)).isEqualTo(1);
+        advance(300); reminders.refresh(); reminders.refresh();
+        assertThat(count(PushDelivery.Kind.DEADLINE, member)).isEqualTo(1);
+        plans.completeTask(member.getEmail(), habit.getId());
+        worker.sendExpoPending();
+        assertThat(deliveries.findAll()).allSatisfy(row -> assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED));
+        verifyNoInteractions(expo);
+    }
+
+    @Test void expoDeliveryDoesNotWaitForWebDeliveryAndBothRecordProviderAcceptance() throws Exception {
+        var nativeDelivery = queuedTest();
+        enableWeb(); webAccounts.register(member.getEmail(), webEndpoint, browserKey(), browserAuth(), registration);
+        when(expo.send(anyList())).thenReturn(json.readTree("[{\"status\":\"ok\",\"id\":\"native-ticket\"}]"));
+        worker.sendExpoPending();
+        verify(web, never()).send(any(), anyMap(), anyInt());
+        assertThat(nativeDelivery.getAcceptedAt()).isEqualTo(now);
+        var browserDelivery = deliveries.findAll().stream().filter(row -> row.getDevice().getProvider() == PushDevice.Provider.WEB).findFirst().orElseThrow();
+        assertThat(browserDelivery.getStatus()).isEqualTo(PushDelivery.Status.QUEUED);
+        when(web.send(any(), anyMap(), anyInt())).thenReturn(201);
+        worker.sendWebPending();
+        assertThat(browserDelivery.getAcceptedAt()).isEqualTo(now);
+        assertThat(browserDelivery.getStatus()).isEqualTo(PushDelivery.Status.DELIVERED);
+    }
+
+    @Test void anUnconfiguredWebBackendDoesNotStealOrFailBrowserDeliveries() throws Exception {
+        enableWeb(); webAccounts.register(member.getEmail(), webEndpoint, browserKey(), browserAuth(), registration);
+        var event = events.save(NotificationEvent.builder().user(member).title("Test").body("Test").scheduledAt(now).build());
+        queue.enqueue(event, PushDelivery.Kind.TEST, now.plusSeconds(3600));
+        var delivery = deliveries.findAll().getFirst();
+        when(web.available()).thenReturn(false);
+        worker.sendWebPending();
+        assertThat(delivery.getStatus()).isEqualTo(PushDelivery.Status.QUEUED);
+        assertThat(delivery.getAttempts()).isZero();
+        verify(web, never()).send(any(), anyMap(), anyInt());
+        when(web.available()).thenReturn(true);
+        when(web.send(any(), anyMap(), anyInt())).thenReturn(201);
+        worker.sendWebPending();
+        assertThat(delivery.getStatus()).isEqualTo(PushDelivery.Status.DELIVERED);
     }
     @Test void rescheduledMealCancelsOldReminder() {
         accounts.register(member.getEmail(), pushToken, registration);
         var meal = scheduledMeal("Breakfast", "Oats", LocalTime.of(8, 0));
         advance(1500);
-        reminders.refresh(); meal.setMealTime(LocalTime.of(9, 0)); meals.saveAndFlush(meal); worker.sendPending();
+        reminders.refresh(); meal.setMealTime(LocalTime.of(9, 0)); meals.saveAndFlush(meal); deliver();
         assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
         advance(3600); reminders.refresh(); assertThat(deliveries.count()).isEqualTo(2);
     }
@@ -218,7 +321,7 @@ class PushNotificationIntegrationTests {
         assertThat(count(PushDelivery.Kind.SIGNUP, admin)).isZero();
         workspace.decide(applicant.getId(), "APPROVE");
         assertThat(count(PushDelivery.Kind.APPROVAL, applicant)).isEqualTo(1);
-        worker.sendPending();
+        deliver();
         assertThat(deliveries.findAll()).isEmpty();
         verifyNoInteractions(expo);
     }
@@ -230,7 +333,7 @@ class PushNotificationIntegrationTests {
         assertThat(count(PushDelivery.Kind.DEADLINE, admin)).isZero();
         assertThat(count(PushDelivery.Kind.DEADLINE, member)).isZero();
         assertThat(missed.findByResolvedFalseOrderByMissedAtDesc()).hasSize(1);
-        meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); worker.sendPending();
+        meal.setConsumed(true); meals.saveAndFlush(meal); reminders.refresh(); deliver();
         assertThat(deliveries.findAll()).isEmpty();
         verifyNoInteractions(expo);
     }
@@ -243,7 +346,7 @@ class PushNotificationIntegrationTests {
             return json.readTree("[{\"status\":\"ok\",\"id\":\"specific-admin-alert\"}]");
         });
         advance(1800); notices.adminCareReminder();
-        worker.sendPending();
+        deliver();
         verify(expo).send(anyList());
     }
     @Test void clubHydrationReminderSharesTheRecipientCooldown() {
@@ -353,7 +456,7 @@ class PushNotificationIntegrationTests {
         mvc.perform(put("/api/notifications/preferences").header("Authorization", auth(member)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"mealReminders\":true,\"coachNudges\":true,\"notificationsEnabled\":false}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.notificationsEnabled").value(false));
-        worker.sendPending();
+        deliver();
         assertThat(row.getStatus()).isEqualTo(PushDelivery.Status.CANCELLED);
         notices.notify(member, PushDelivery.Kind.NUDGE, "disabled-push", "Push · Reminder", "Complete today's task.");
         assertThat(deliveries.count()).isEqualTo(1);
@@ -410,7 +513,7 @@ class PushNotificationIntegrationTests {
             assertThat(messages).hasSize(1); assertThat(json.writeValueAsString(messages)).contains(pushToken).doesNotContain("web:");
             return json.readTree("[{\"status\":\"ok\",\"id\":\"android-receipt\"}]");
         });
-        worker.sendPending();
+        deliver();
         assertThat(deliveries.findAll()).anyMatch(delivery -> delivery.getDevice().getProvider() == PushDevice.Provider.WEB && delivery.getStatus() == PushDelivery.Status.DELIVERED)
                 .anyMatch(delivery -> delivery.getDevice().getProvider() == PushDevice.Provider.EXPO && delivery.getStatus() == PushDelivery.Status.RECEIPT);
     }
@@ -419,7 +522,7 @@ class PushNotificationIntegrationTests {
         var event = events.save(NotificationEvent.builder().user(member).title("Test").body("Test").scheduledAt(now).build());
         queue.enqueue(event, PushDelivery.Kind.TEST, now.plusSeconds(3600));
         when(web.send(any(), anyMap(), anyInt())).thenReturn(410);
-        worker.sendPending();
+        deliver();
         assertThat(devices.findAll().getFirst().isEnabled()).isFalse();
         assertThat(deliveries.findAll().getFirst().getStatus()).isEqualTo(PushDelivery.Status.FAILED);
         verifyNoInteractions(expo);

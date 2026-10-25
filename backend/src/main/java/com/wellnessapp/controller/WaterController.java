@@ -16,10 +16,13 @@ public class WaterController {
     private final WaterLogRepository water;
     private final Clock clock;
     private final java.time.ZoneId applicationZoneId;
+    private final com.wellnessapp.service.WeeklyAdherenceService adherence;
     public record WaterRequest(@Min(1) @Max(2000) int amountMl) {}
-    @PostMapping @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    @PostMapping @ResponseStatus(org.springframework.http.HttpStatus.CREATED) @org.springframework.transaction.annotation.Transactional
     Map<String, Object> log(Authentication auth, @Valid @RequestBody WaterRequest request) {
-        var user = users.findByEmailIgnoreCase(auth.getName()).orElseThrow();
+        var account = users.findByEmailIgnoreCase(auth.getName()).orElseThrow();
+        var user = users.lockById(account.getId()).orElseThrow();
+        adherence.ensureToday(user.getId());
         var saved = water.save(WaterLog.builder().user(user).amountMl(request.amountMl()).loggedAt(clock.instant()).build());
         return Map.of("id", saved.getId(), "amountMl", saved.getAmountMl(), "loggedAt", saved.getLoggedAt());
     }

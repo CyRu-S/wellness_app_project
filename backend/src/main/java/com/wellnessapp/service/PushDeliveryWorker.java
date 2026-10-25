@@ -6,10 +6,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.PageRequest;
 import java.time.*;
 import java.util.*;
 
+@lombok.extern.slf4j.Slf4j
 @Service @RequiredArgsConstructor
 public class PushDeliveryWorker {
     private final PushDeliveryRepository deliveries;
@@ -24,11 +24,11 @@ public class PushDeliveryWorker {
     private final Clock clock;
     private final ZoneId applicationZoneId;
 
-    private boolean valid(PushDelivery d) {
+    private boolean valid(PushDelivery d, PushQueueService.Settings settings) {
         var device = d.getDevice(); var event = d.getNotification();
         if (!device.isEnabled() || !device.getRegistrationId().equals(d.getRegistrationId()) ||
                 !device.getUser().getId().equals(event.getUser().getId()) || event.getUser().getStatus() != User.Status.ACTIVE ||
-                !queue.allowed(event.getUser().getId(), d.getKind())) return false;
+                !settings.enabled()) return false;
         String key = event.getSourceKey();
         try {
             if (d.getKind() == PushDelivery.Kind.MEAL) {
@@ -66,17 +66,35 @@ public class PushDeliveryWorker {
                 String prefix = key.startsWith("member-deadline-") ? "member-deadline-" : "deadline-";
                 if (!key.startsWith(prefix)) return false;
                 return missed.findById(Long.parseLong(key.substring(prefix.length()).split("-")[0]))
-                        .map(m -> !m.isResolved() && (prefix.equals("deadline-") || m.getUser().getId().equals(event.getUser().getId()))).orElse(false);
+                        .map(m -> !m.isResolved() && (prefix.equals("deadline-") || m.getUser().getId().equals(event.getUser().getId()))
+                                && deadlineStillNeeded(m)).orElse(false);
             }
         } catch (NumberFormatException ignored) { return false; }
         return true;
     }
-    private Map<String, Object> message(PushDelivery d) {
+
+    private boolean deadlineStillNeeded(MissedEvent event) {
+        String source = event.getSourceKey() == null ? "" : event.getSourceKey();
+        if (source.matches("meal-\\d+")) return meals.findById(Long.parseLong(source.substring(5)))
+                .map(meal -> !meal.isConsumed() && meal.getUser().getId().equals(event.getUser().getId())
+                        && meal.getMealDate().atTime(meal.getMealTime()).atZone(applicationZoneId).toInstant().equals(event.getMissedAt()))
+                .orElse(false);
+        if (source.matches("habit-\\d+-\\d{4}-\\d{2}-\\d{2}")) {
+            int end = source.indexOf('-', 6);
+            Long id = Long.parseLong(source.substring(6, end));
+            var date = LocalDate.parse(source.substring(end + 1));
+            return planItems.findById(id).map(item -> item.getPlan().isActive()
+                    && date.atTime(item.getScheduledTime()).atZone(applicationZoneId).toInstant().equals(event.getMissedAt())
+                    && !completions.existsByPlanItemIdAndUserIdAndCompletedDate(id, event.getUser().getId(), date)).orElse(false);
+        }
+        return true;
+    }
+    private Map<String, Object> message(PushDelivery d, PushQueueService.Settings settings) {
         var event = d.getNotification();
-        boolean customSound = queue.customSound(event.getUser().getId());
+        boolean customSound = settings.customSound();
         String channel = Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT).contains(d.getKind())
                 ? "meal-reminders" : "coach-nudges";
-        boolean personalisedReminder = Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT, PushDelivery.Kind.NUDGE).contains(d.getKind());
+        boolean personalisedReminder = Set.of(PushDelivery.Kind.MEAL, PushDelivery.Kind.HABIT, PushDelivery.Kind.NUDGE, PushDelivery.Kind.DEADLINE).contains(d.getKind());
         boolean adminOperationalAlert = event.getUser().getRole() == User.Role.ADMIN
                 && Set.of(PushDelivery.Kind.SIGNUP, PushDelivery.Kind.DEADLINE, PushDelivery.Kind.DIGEST,
                         PushDelivery.Kind.MEAL_POST, PushDelivery.Kind.ACTIVITY).contains(d.getKind());
@@ -137,6 +155,7 @@ public class PushDeliveryWorker {
         if ("ok".equals(result.path("status").asText())) {
             if (receipt) { d.setStatus(PushDelivery.Status.DELIVERED); d.setLastError(null); }
             else if (!result.path("id").asText().isBlank()) {
+                d.setAcceptedAt(clock.instant());
                 d.setReceiptId(result.path("id").asText()); d.setStatus(PushDelivery.Status.RECEIPT);
                 d.setNextAttemptAt(clock.instant().plusSeconds(900)); d.setLastError(null);
             } else fail(d, "InvalidTicket", false);
@@ -152,24 +171,36 @@ public class PushDeliveryWorker {
         else fail(d, "ProviderError", false);
     }
     /** Bounded batches and row locks prevent concurrent backend instances from sending the same queued row. */
-    @Transactional public void sendPending() {
-        var rows = deliveries.ready(PushDelivery.Status.QUEUED, clock.instant(), PageRequest.of(0, 25));
+    @Transactional public void sendExpoPending() { sendPending(PushDevice.Provider.EXPO, 25); }
+    @Transactional public void sendWebPending() {
+        // Another backend instance may have working web credentials. Do not
+        // consume its browser queue when this instance is unconfigured.
+        if (web.available()) sendPending(PushDevice.Provider.WEB, 5);
+    }
+
+    private void sendPending(PushDevice.Provider provider, int batchSize) {
+        var rows = lockedBatch(provider, PushDelivery.Status.QUEUED, batchSize);
+        if (rows.isEmpty()) return;
+        var settings = queue.settingsFor(rows.stream().map(row -> row.getNotification().getUser().getId()).distinct().toList());
+        long lagMs = rows.stream().mapToLong(row -> Math.max(0,
+                Duration.between(row.getNotification().getScheduledAt(), clock.instant()).toMillis())).max().orElse(0);
+        log.info("Push batch provider={} selected={} oldestScheduledLagMs={}", provider, rows.size(), lagMs);
         var ready = new ArrayList<PushDelivery>();
         for (var d : rows) {
-            if (!clock.instant().isBefore(d.getExpiresAt()) || !valid(d)) d.setStatus(PushDelivery.Status.CANCELLED);
+            if (!clock.instant().isBefore(d.getExpiresAt()) || !valid(d, settings.getOrDefault(d.getNotification().getUser().getId(), PushQueueService.DEFAULT_SETTINGS))) d.setStatus(PushDelivery.Status.CANCELLED);
             else { d.setAttempts(d.getAttempts() + 1); ready.add(d); }
         }
         // Only explicitly registered WEB devices use the optional browser transport.
         for (var delivery : ready.stream().filter(d -> d.getDevice().getProvider() == PushDevice.Provider.WEB).toList()) {
-            if (!web.available()) { fail(delivery, "WebPushUnavailable", false); continue; }
             try {
-                var original = message(delivery);
+                var original = message(delivery, settings.getOrDefault(delivery.getNotification().getUser().getId(), PushQueueService.DEFAULT_SETTINGS));
                 var data = new LinkedHashMap<>((Map<String, Object>) original.get("data"));
                 data.put("registrationId", delivery.getRegistrationId());
+                delivery.setLastAttemptAt(clock.instant());
                 int status = web.send(delivery.getDevice(), Map.of("title", original.get("title"),
                         "body", original.get("body"), "data", data),
                         (int) Math.max(1, Duration.between(clock.instant(), delivery.getExpiresAt()).getSeconds()));
-                if (status >= 200 && status < 300) { delivery.setStatus(PushDelivery.Status.DELIVERED); delivery.setLastError(null); }
+                if (status >= 200 && status < 300) { delivery.setStatus(PushDelivery.Status.DELIVERED); delivery.setAcceptedAt(clock.instant()); delivery.setLastError(null); }
                 else if (status == 404 || status == 410) {
                     if (delivery.getDevice().getRegistrationId().equals(delivery.getRegistrationId())) delivery.getDevice().setEnabled(false);
                     fail(delivery, "DeviceNotRegistered", false);
@@ -182,7 +213,9 @@ public class PushDeliveryWorker {
         ready.removeIf(d -> d.getDevice().getProvider() == PushDevice.Provider.WEB);
         if (ready.isEmpty()) return;
         try {
-            var results = expo.send(ready.stream().map(this::message).toList());
+            var messages = ready.stream().map(row -> message(row, settings.getOrDefault(row.getNotification().getUser().getId(), PushQueueService.DEFAULT_SETTINGS))).toList();
+            ready.forEach(row -> row.setLastAttemptAt(clock.instant()));
+            var results = expo.send(messages);
             if (!results.isArray() || results.size() != ready.size()) throw new ExpoPushClient.ProviderException(false);
             for (int i = 0; i < ready.size(); i++) result(ready.get(i), results.get(i), false);
         } catch (Exception e) {
@@ -192,7 +225,7 @@ public class PushDeliveryWorker {
         }
     }
     @Transactional public void checkReceipts() {
-        var rows = deliveries.ready(PushDelivery.Status.RECEIPT, clock.instant(), PageRequest.of(0, 25));
+        var rows = lockedBatch(PushDevice.Provider.EXPO, PushDelivery.Status.RECEIPT, 25);
         if (rows.isEmpty()) return;
         try {
             var results = expo.receipts(rows.stream().map(PushDelivery::getReceiptId).toList());
@@ -204,6 +237,10 @@ public class PushDeliveryWorker {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             rows.forEach(this::waitForReceipt);
         }
+    }
+    private List<PushDelivery> lockedBatch(PushDevice.Provider provider, PushDelivery.Status status, int limit) {
+        var ids = deliveries.lockReadyIds(provider.name(), status.name(), clock.instant(), limit);
+        return ids.isEmpty() ? List.of() : deliveries.findByIdInOrderByNextAttemptAtAscIdAsc(ids);
     }
     private void waitForReceipt(PushDelivery d) {
         if (clock.instant().isAfter(d.getExpiresAt().plusSeconds(86400))) {

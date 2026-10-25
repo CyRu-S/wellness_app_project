@@ -24,6 +24,7 @@ public interface MealRepository extends JpaRepository<Meal, Long> {
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user", "planItem", "planItem.plan", "planItem.plan.user"})
     List<Meal> findByMealDateBetween(LocalDate start, LocalDate end);
     List<Meal> findByUserIdAndMealDateOrderByMealTime(Long userId, LocalDate mealDate);
+    List<Meal> findByPlanItemIdIn(java.util.Collection<Long> planItemIds);
     java.util.Optional<Meal> findByIdAndUserId(Long id, Long userId);
 }
 

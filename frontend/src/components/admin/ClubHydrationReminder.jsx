@@ -6,19 +6,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { LocalizedText as Text } from '../common/LocalizedText';
 import { loadHydrationStatus, nudgeClubHydration } from '../../store/slices/adminSlice';
 import { adminColors, adminFonts } from '../../theme/admin';
+import Alert from '../../utils/appAlert';
+import { subscribeLiveUpdates } from '../../services/api/liveUpdates';
 
 // Keep the countdown local so charts and member lists do not render each second.
 export default function ClubHydrationReminder() {
   const dispatch = useDispatch();
+  const token = useSelector((state) => state.auth.token);
   const hydrationNudge = useSelector((state) => state.admin.hydrationNudge);
   const [now, setNow] = useState(Date.now);
   useFocusEffect(useCallback(() => {
     if (hydrationNudge.status === 'loading') return undefined;
     const sync = () => { if ((!AppState.currentState || AppState.currentState === 'active') && (typeof document === 'undefined' || !document.hidden)) dispatch(loadHydrationStatus()); };
-    sync();
-    const timer = setInterval(sync, 30000);
-    return () => clearInterval(timer);
-  }, [dispatch, hydrationNudge.status]));
+    let unsubscribe = null;
+    const connect = () => {
+      unsubscribe?.(); unsubscribe = null;
+      if ((!AppState.currentState || AppState.currentState === 'active') && (typeof document === 'undefined' || !document.hidden)) {
+        sync(); unsubscribe = subscribeLiveUpdates(token, sync);
+      }
+    };
+    connect();
+    const foreground = AppState.addEventListener?.('change', connect);
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', connect);
+    return () => {
+      unsubscribe?.(); foreground?.remove();
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', connect);
+    };
+  }, [dispatch, token, hydrationNudge.status]));
   useFocusEffect(useCallback(() => {
     if (!hydrationNudge.availableAt) return undefined;
     setNow(Date.now());
@@ -32,7 +46,16 @@ export default function ClubHydrationReminder() {
   const remaining = Math.max(0, Math.ceil((Date.parse(hydrationNudge.availableAt) - now) / 1000)) || 0;
   const hydrationDisabled = hydrationNudge.status === 'loading' || remaining > 0;
   const countdown = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
-  const sendHydrationReminder = () => dispatch(nudgeClubHydration());
+  const sendHydrationReminder = async () => {
+    try {
+      const result = await dispatch(nudgeClubHydration()).unwrap();
+      Alert.alert(result.notified > 0 ? 'Hydration reminder sent' : 'No new reminders', result.notified > 0
+        ? `${result.notified} members have been sent a water reminder.`
+        : 'No members are eligible for another nudge right now. Check the countdown on the button.');
+    } catch (error) {
+      if (error.name !== 'ConditionError') Alert.alert('Reminder not sent', error.message || 'Check your connection and try again.');
+    }
+  };
   return (
         <Pressable
           accessibilityRole="button"

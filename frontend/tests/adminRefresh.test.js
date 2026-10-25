@@ -18,6 +18,7 @@ function harness(request) {
     '@react-navigation/native': { useRoute: () => ({ name: 'AdminDashboard' }), useFocusEffect: () => {} },
     'react-redux': { useDispatch: () => store.dispatch, useSelector: (selector) => selector(store.getState()) },
     '../services/api/client': { refreshPageResponses: (paths) => invalidated.push(paths) },
+    '../services/api/liveUpdates': { subscribeLiveUpdates: () => () => {} },
     '../store/slices/adminSlice': admin,
     '../store/slices/dashboardSlice': {}, '../store/slices/mealSlice': {}, '../store/slices/planSlice': {},
     '../store/slices/activitySlice': {}, '../store/slices/profileSlice': {}, '../store/slices/notificationSlice': {},
@@ -47,6 +48,21 @@ test('admin refresh still reports a real server failure', async () => {
   assert.equal(app.alerts[0][1], 'Server unavailable');
 });
 
+test('pulling during a running page refresh waits and then fetches fresh data', async () => {
+  const first = deferred(); let calls = 0;
+  const app = harness(async () => {
+    calls++;
+    return calls === 1 ? first.promise : { members: [{ id: 2, name: 'Fresh after pull' }] };
+  });
+  const loading = app.refresh();
+  const pulled = app.refresh();
+  assert.equal(calls, 1);
+  first.resolve({ members: [] });
+  await Promise.all([loading, pulled]);
+  assert.equal(calls, 2);
+  assert.equal(app.store.getState().admin.members[0].name, 'Fresh after pull');
+});
+
 test('admin refresh keeps the save guard and explains a busy sync without internal Redux errors', async () => {
   const saving = deferred(); let calls = 0;
   const app = harness(async () => { calls += 1; return saving.promise; });
@@ -61,8 +77,8 @@ test('admin refresh keeps the save guard and explains a busy sync without intern
   saving.resolve({ items: [] }); await write;
 });
 
-test('opening admin home reads immediately and polls for cross-device PWA updates', async () => {
-  let focus, poll, requests = 0;
+test('opening admin home reads immediately and reacts to cross-device changes without polling', async () => {
+  let focus, changed, requests = 0;
   const invalidated = [];
   const admin = loadModule('../src/store/slices/adminSlice.js', {
     '@reduxjs/toolkit': toolkit, '../../services/api/client': { request: async () => { requests++; return {}; } },
@@ -72,20 +88,21 @@ test('opening admin home reads immediately and polls for cross-device PWA update
   const module = loadModule('../src/hooks/usePageRefresh.js', {
     react: { useCallback: (callback) => callback, useRef: (current) => ({ current }), useState: (value) => [value, () => {}] },
     '../utils/appAlert': { __esModule: true, default: {} },
-    'react-native': { AppState: { currentState: 'active', addEventListener: () => { throw new Error('Page data must not refresh on foreground'); } } },
+    'react-native': { AppState: { currentState: 'active' } },
     '@react-navigation/native': { useRoute: () => ({ name: 'AdminDashboard' }), useFocusEffect: (callback) => { focus = callback; } },
     'react-redux': { useDispatch: () => store.dispatch, useSelector: (selector) => selector(store.getState()) },
     '../services/api/client': { refreshPageResponses: (paths) => invalidated.push(paths) },
+    '../services/api/liveUpdates': { subscribeLiveUpdates: (_, callback) => { changed = callback; return () => {}; } },
     '../store/slices/adminSlice': admin,
     '../store/slices/dashboardSlice': {}, '../store/slices/mealSlice': {}, '../store/slices/planSlice': {},
     '../store/slices/activitySlice': {}, '../store/slices/profileSlice': {}, '../store/slices/notificationSlice': {},
     '../store/slices/memberAccessSlice': {}, '../store/slices/adminMemberJournalSlice': {},
     '../store/slices/leaderboardSlice': { loadLeaderboard: () => ({ type: 'test/leaderboard' }) },
-  }, { setInterval: (callback, delay) => { assert.equal(delay, 30000); poll = callback; return 1; }, clearInterval: () => {} });
+  }, { setInterval: () => { throw new Error('Page reads must not poll'); } });
   module.default(); focus();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(requests, 1); assert.equal(invalidated.length, 1);
-  poll(); await new Promise((resolve) => setImmediate(resolve));
+  changed(); await new Promise((resolve) => setImmediate(resolve));
   assert.equal(requests, 2); assert.equal(invalidated.length, 2);
 });
 

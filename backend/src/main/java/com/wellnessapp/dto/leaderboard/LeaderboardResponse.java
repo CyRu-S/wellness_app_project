@@ -9,6 +9,7 @@ public record LeaderboardResponse(LocalDate date, Instant generatedAt, Long view
             Long memberId,
             String name,
             String initials,
+            String profileImageUrl,
             int rank,
             int score,
             int adherenceScore,

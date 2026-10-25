@@ -24,6 +24,7 @@ public class ReminderService {
     private final PushQueueService push;
     private final WorkflowNotificationService notices;
     private final PlanService plans;
+    private final WeeklyAdherenceService adherence;
     private final UserProfileRepository profiles;
     private final WaterLogRepository water;
     private final PlanItemRepository planItems;
@@ -53,6 +54,7 @@ public class ReminderService {
             var user = users.lockById(memberId).orElseThrow();
             if (user.getStatus() != User.Status.ACTIVE) return;
             plans.ensureDailyMeals(user.getId());
+            adherence.ensureToday(memberId);
             var today = LocalDate.now(clock.withZone(applicationZoneId));
             var dueMeals = new ArrayList<Meal>();
             dueMeals.addAll(meals.findByUserIdAndMealDateOrderByMealTime(user.getId(), today.minusDays(1)));
@@ -66,17 +68,18 @@ public class ReminderService {
                     continue;
                 }
                 Instant reminderAt = due.minusSeconds(300);
-                if (!clock.instant().isBefore(reminderAt) && clock.instant().isBefore(reminderAt.plusSeconds(60))
+                if (!clock.instant().isBefore(reminderAt) && clock.instant().isBefore(due)
                         && !notifications.existsBySourceKey(notificationKey)) {
                     var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(notificationKey)
                             .title(firstName(user) + " · " + meal.getName())
-                            .body("Log " + meal.getName() + " in 5 minutes.")
+                            .body("Log " + meal.getName() + " in " + minutesUntil(due) + " minutes.")
                             .scheduledAt(reminderAt).build());
                     push.enqueue(notification, PushDelivery.Kind.MEAL, due);
                 }
-                if (clock.instant().isAfter(due)) {
+                if (!clock.instant().isBefore(due)) {
                     var attention = missed.findBySourceKey(key).orElseGet(() -> missed.save(MissedEvent.builder().user(user).sourceKey(key)
                             .itemType("Meals").itemTitle(meal.getType() + " check-in is overdue").missedAt(due).build()));
+                    queueMissedNotice(user, attention, due, meal.getName() + " has not been posted. Open Log to add your meal photo.");
                 }
             }
             for (var habit : plans.scheduledTasks(user.getId())) {
@@ -88,18 +91,19 @@ public class ReminderService {
                     continue;
                 }
                 Instant reminderAt = due.minusSeconds(300);
-                if (!clock.instant().isBefore(reminderAt) && clock.instant().isBefore(reminderAt.plusSeconds(60))
+                if (!clock.instant().isBefore(reminderAt) && clock.instant().isBefore(due)
                         && !notifications.existsBySourceKey(reminderKey)) {
                     var notification = notifications.save(NotificationEvent.builder().user(user).sourceKey(reminderKey)
                             .title(firstName(user) + " · " + habit.getTitle())
-                            .body("Complete this daily task in 5 minutes.")
+                            .body("Complete this daily task in " + minutesUntil(due) + " minutes.")
                             .scheduledAt(reminderAt).build());
                     push.enqueue(notification, PushDelivery.Kind.HABIT, due);
                 }
-                if (clock.instant().isAfter(due)) {
+                if (!clock.instant().isBefore(due)) {
                     var attention = missed.findBySourceKey(dayKey).orElseGet(() -> missed.save(MissedEvent.builder().user(user)
                             .sourceKey(dayKey).itemType(habit.getDetail()).itemTitle(habit.getTitle() + " is overdue")
                             .missedAt(due).build()));
+                    queueMissedNotice(user, attention, due, habit.getTitle() + " is still incomplete. Open your checklist to log it.");
                 }
             }
             if (user.getFollowUpAt() != null && !clock.instant().isBefore(user.getFollowUpAt())) {
@@ -132,6 +136,20 @@ public class ReminderService {
                         .sourceKey(key).itemType("Hydration").itemTitle("Daily hydration goal is overdue")
                         .missedAt(deadline).build()));
             }
+    }
+
+    private long minutesUntil(Instant due) {
+        return Math.max(1, (Duration.between(clock.instant(), due).toSeconds() + 59) / 60);
+    }
+
+    private void queueMissedNotice(User user, MissedEvent attention, Instant due, String body) {
+        Instant expiresAt = due.plusSeconds(1800);
+        if (!clock.instant().isBefore(expiresAt)) return;
+        String source = "member-deadline-" + attention.getId() + "-to-" + user.getId();
+        if (notifications.existsBySourceKey(source)) return;
+        var event = notifications.save(NotificationEvent.builder().user(user).sourceKey(source)
+                .title(firstName(user) + " · Check-in overdue").body(body).scheduledAt(due).build());
+        push.enqueue(event, PushDelivery.Kind.DEADLINE, expiresAt);
     }
 
     private void resolveCompletedMeals() {

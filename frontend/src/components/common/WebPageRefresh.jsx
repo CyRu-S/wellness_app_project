@@ -9,6 +9,7 @@ export default function WebPageRefresh({ children, enabled, refreshing, onRefres
   const gesture = useRef(null);
   const pending = useRef(false);
   const activeRefresh = useRef(refreshing);
+  const suppressClickUntil = useRef(0);
   const [progress] = useState(() => new Animated.Value(0));
   const [distance, setDistance] = useState(0);
   useEffect(() => {
@@ -24,7 +25,7 @@ export default function WebPageRefresh({ children, enabled, refreshing, onRefres
     if (!enabled || !element) return undefined;
     const start = (event) => {
       gesture.current = null;
-      if (refreshing || pending.current || event.touches.length !== 1 || event.target.closest?.('input,textarea,button,[role="button"],[contenteditable="true"]')) return;
+      if (refreshing || pending.current || event.touches.length !== 1 || event.target.closest?.('input,textarea,select,[contenteditable="true"]')) return;
       // All enclosing scrollers must be at the top, including lists nested in Screen.
       let node = event.target;
       while (node && element.contains(node)) {
@@ -44,7 +45,10 @@ export default function WebPageRefresh({ children, enabled, refreshing, onRefres
         gesture.current = null; setDistance(0); progress.setValue(0); return;
       }
       current.distance = Math.min(100, dy * 0.5);
-      if (dy > 8 && event.cancelable) event.preventDefault();
+      if (dy > 8) {
+        suppressClickUntil.current = Date.now() + 600;
+        if (event.cancelable) event.preventDefault();
+      }
       setDistance(current.distance);
       progress.setValue(current.distance);
     };
@@ -71,12 +75,19 @@ export default function WebPageRefresh({ children, enabled, refreshing, onRefres
       gesture.current = null; setDistance(0);
       Animated.timing(progress, { toValue: 0, duration: 180, useNativeDriver: false }).start();
     };
+    const click = (event) => {
+      // Pulling from a tappable meal/member card must refresh without opening
+      // or submitting the card after the finger is released.
+      if (Date.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); }
+    };
     element.addEventListener('touchstart', start, { passive: true });
-    element.addEventListener('touchmove', move, { passive: false });
+    element.addEventListener('touchmove', move, { passive: false, capture: true });
+    element.addEventListener('click', click, true);
     element.addEventListener('touchend', finish);
     element.addEventListener('touchcancel', cancel);
     return () => {
-      element.removeEventListener('touchstart', start); element.removeEventListener('touchmove', move);
+      element.removeEventListener('touchstart', start); element.removeEventListener('touchmove', move, true);
+      element.removeEventListener('click', click, true);
       element.removeEventListener('touchend', finish); element.removeEventListener('touchcancel', cancel);
     };
   }, [enabled, refreshing, onRefresh, progress]);

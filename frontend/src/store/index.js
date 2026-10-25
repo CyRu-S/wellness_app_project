@@ -73,6 +73,7 @@ refreshLiveLeaderboard.startListening({
     'dashboard/drinkWater/fulfilled', 'dashboard/clearWater/fulfilled',
     'activity/complete/fulfilled', 'activity/clear/fulfilled',
     'meals/post/fulfilled', 'meals/deletePost/fulfilled', 'plan/completeHabit/fulfilled',
+    'profile/savePhoto/fulfilled', 'profile/saveDetails/fulfilled',
   ].includes(action.type),
   effect: (_, api) => {
     if (api.getState().auth.token) api.dispatch(loadLeaderboard({ force: true }));

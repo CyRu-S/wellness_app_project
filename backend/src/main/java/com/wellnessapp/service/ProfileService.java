@@ -89,6 +89,16 @@ import java.time.Instant;
     }
 
     @Transactional(readOnly = true)
+    public MediaDownload leaderboardPhoto(String viewerEmail, Long memberId) {
+        User viewer = user(viewerEmail);
+        if (viewer.getStatus() != User.Status.ACTIVE) throw new NotFoundException("Profile photo not found");
+        users.findById(memberId)
+                .filter(member -> member.getRole() == User.Role.USER && member.getStatus() == User.Status.ACTIVE)
+                .orElseThrow(() -> new NotFoundException("Profile photo not found"));
+        return photo(memberId);
+    }
+
+    @Transactional(readOnly = true)
     public String adminPhotoUrl(Long memberId) {
         return profiles.findByUserId(memberId)
                 .filter(profile -> profile.getPhotoMediaKey() != null)
