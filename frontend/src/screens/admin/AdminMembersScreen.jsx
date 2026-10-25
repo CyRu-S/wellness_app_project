@@ -1,5 +1,5 @@
 import { LocalizedText as Text, LocalizedTextInput as TextInput } from '../../components/common/LocalizedText';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import Image from '../../components/common/ProtectedImage';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -100,18 +100,19 @@ export default function AdminMembersScreen({ navigation }) {
     return () => clearInterval(timer);
   }, []));
   const [query, setQuery] = useState('');
+  const searchQuery = useDeferredValue(query);
   const [filter, setFilter] = useState('All');
 
 
   const visibleMembers = useMemo(() => {
     return members.filter((member) => {
-      const matchesQuery = matchesSearch(query, member.name, member.email, member.plan, member.goal, member.attentionReason);
+      const matchesQuery = matchesSearch(searchQuery, member.name, member.email, member.plan, member.goal, member.attentionReason);
       const matchesFilter = filter === 'All'
         || (filter === 'Active' && isOnline(member, now))
         || (filter === 'Needs attention' && member.attentionLevel === 'NEEDS_ATTENTION');
       return matchesQuery && matchesFilter;
     });
-  }, [filter, members, query, now]);
+  }, [filter, members, searchQuery, now]);
 
   const attentionCount = members.filter((member) => member.attentionLevel === 'NEEDS_ATTENTION').length;
   const stackedPulse = width < 340 || fontScale > 1.35;

@@ -32,7 +32,6 @@ public class MemberAccessService {
     private final ActivitySessionRepository activities;
     private final PlanItemCompletionRepository completions;
     private final UserProfileRepository profiles;
-    private final NotificationRepository notifications;
     private final Clock clock;
     private final ZoneId applicationZoneId;
     private final PlanService plans;
@@ -197,8 +196,7 @@ public class MemberAccessService {
                 date,
                 applicationZoneId.getId(),
                 summary,
-                notifications.existsBySourceKey("care-nudge-" + date + "-to-" + subject.getId())
-                        || nudges.stream().anyMatch(option -> option.lastSentAt() != null),
+                nudges.stream().anyMatch(option -> option.lastSentAt() != null),
                 nudges,
                 List.copyOf(mealEntries),
                 tasks,
@@ -239,12 +237,8 @@ public class MemberAccessService {
 
     private SharedMemberTodayResponse.NudgeOption nudgeOption(
             User subject, MemberNudgeType type, String title, String detail, boolean needed) {
-        Instant cutoff = clock.instant().minus(NUDGE_COOLDOWN);
-        NotificationEvent recent = notifications
-                .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
-                        subject.getId(), "member-nudge-", cutoff)
-                .filter(event -> event.getScheduledAt().plus(NUDGE_COOLDOWN).isAfter(clock.instant())).orElse(null);
-        Instant lastSentAt = recent == null ? null : recent.getScheduledAt();
+        Instant lastSentAt = subject.getLastNudgedAt();
+        if (lastSentAt != null && !lastSentAt.plus(NUDGE_COOLDOWN).isAfter(clock.instant())) lastSentAt = null;
         return new SharedMemberTodayResponse.NudgeOption(
                 type, title, detail, needed, lastSentAt,
                 lastSentAt == null ? null : lastSentAt.plus(NUDGE_COOLDOWN));

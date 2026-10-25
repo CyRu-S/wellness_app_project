@@ -29,6 +29,10 @@ export const loadAdminApprovals = createAsyncThunk('admin/loadApprovals', async 
   request('/admin/approvals', { headers: headers(getState) }), pageReadOptions);
 export const loadAdminProducts = createAsyncThunk('admin/loadProducts', async (_, { getState }) =>
   request('/admin/products', { headers: headers(getState) }), pageReadOptions);
+export const loadHydrationStatus = createAsyncThunk('admin/loadHydrationStatus', async (_, { getState }) =>
+  request('/admin/hydration/nudge-all', { headers: headers(getState), cachePolicy: 'network-only' }), {
+  condition: (_, { getState }) => getState().admin.hydrationNudge.status !== 'loading',
+});
 export const loadAdminMemberPlan = createAsyncThunk('admin/loadMemberPlan', async (memberId, { getState }) =>
   request(`/admin/plans/members/${memberId}`, { headers: headers(getState) }), pageReadOptions);
 const decision = (name, value) => createAsyncThunk(name, async (input, { getState }) => {
@@ -60,7 +64,10 @@ export const nudgePriorityAttention = createAsyncThunk('admin/nudgePriority', as
   await Promise.all(ids.map((id) => dispatch(nudgeAttention(id)).unwrap()));
 });
 export const nudgeClubHydration = createAsyncThunk('admin/nudgeClubHydration', async (_, { getState }) =>
-  request('/admin/hydration/nudge-all', { method: 'POST', headers: headers(getState) }));
+  request('/admin/hydration/nudge-all', { method: 'POST', headers: headers(getState) }), {
+  condition: (_, { getState }) => getState().admin.hydrationNudge.status !== 'loading'
+    && !(Date.parse(getState().admin.hydrationNudge.availableAt) > Date.now()),
+});
 export const updateMemberMealPlan = createAsyncThunk('admin/savePlan', async ({ memberId, planName, items }, { getState }) => {
   const body = { planName, items: items.map((item) => {
     const minutes = Math.round(item.hour * 60);
@@ -221,11 +228,16 @@ const slice = createSlice({
       delete state.attentionRollbacks[action.meta.requestId];
       syncAttentionState(state);
     })
-    .addCase(nudgeClubHydration.pending, (state) => { state.hydrationNudge = { status: 'loading', notified: 0, error: null }; })
+    .addCase(loadHydrationStatus.pending, (state, action) => { state.pageReads.hydration = action.meta.requestId; })
+    .addCase(loadHydrationStatus.fulfilled, (state, action) => {
+      if (state.pageReads.hydration !== action.meta.requestId || state.hydrationNudge.status === 'loading') return;
+      delete state.pageReads.hydration;
+      state.hydrationNudge.availableAt = action.payload.availableAt;
+    })
+    .addCase(nudgeClubHydration.pending, (state) => { state.hydrationNudge = { status: 'loading', notified: 0, error: null, availableAt: null }; })
     .addCase(nudgeClubHydration.fulfilled, (state, action) => {
       if (Array.isArray(action.payload.attention)) state.attention = action.payload.attention;
-      state.hydrationNudge = { status: 'succeeded', notified: Number(action.payload?.notified || 0), error: null };
-      state.attention.forEach((item) => { if (item.category === 'Hydration' && item.status === 'OPEN') item.status = 'NUDGED'; });
+      state.hydrationNudge = { status: 'succeeded', notified: Number(action.payload?.notified || 0), error: null, availableAt: action.payload.availableAt };
       syncAttentionState(state);
     })
     .addCase(nudgeClubHydration.rejected, (state, action) => {

@@ -40,12 +40,14 @@ const API_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout >
 const inFlightReads = new Map();
 let readGeneration = 0;
 const freshPaths = new Set();
+const pathGenerations = new Map();
 
 // Invalidate only this page's reads. Keep other pages available offline.
 export function refreshPageResponses(paths) {
-  readGeneration += 1;
-  inFlightReads.clear();
-  paths.forEach((path) => freshPaths.add(path));
+  paths.forEach((path) => {
+    freshPaths.add(path);
+    pathGenerations.set(path, (pathGenerations.get(path) || 0) + 1);
+  });
 }
 
 
@@ -55,20 +57,22 @@ export function request(path, options = {}) {
   const mutatesData = !isRead && path !== '/meals/analyze' && path !== '/presence';
   const forceFresh = isRead && freshPaths.has(path);
   const generation = readGeneration;
-  const cacheable = isRead && !options.signal && options.cachePolicy !== 'network-only';
+  const pathGeneration = pathGenerations.get(path) || 0;
+  const cacheable = isRead && !options.signal;
+  const networkOnly = options.cachePolicy === 'network-only';
   if (mutatesData) { readGeneration += 1; inFlightReads.clear(); invalidateCachedResponses(); }
   if (cacheable) {
-    const key = JSON.stringify([readGeneration, path, options.headers || {}, options.cachePolicy || 'default']);
+    const key = JSON.stringify([readGeneration, pathGeneration, path, options.headers || {}, options.cachePolicy || 'default', options.timeoutMs || API_TIMEOUT_MS]);
     if (inFlightReads.has(key)) return inFlightReads.get(key);
     const promise = (async () => {
       const version = cacheVersion();
       const authorization = options.headers?.Authorization;
-      const cached = await readCachedResponse(path, authorization);
+      const cached = networkOnly ? { hit: false } : await readCachedResponse(path, authorization);
       if (!forceFresh && version === cacheVersion() && cached.hit && (options.cachePolicy === 'stale-ok' || !cached.stale)) return cached.value;
       try {
-        const value = await performRequest(path, options);
-        if (generation === readGeneration) {
-          await saveCachedResponse(path, authorization, value, version);
+        const value = await performRequest(path, { ...options, retry: !(cached.hit && !forceFresh) });
+        if (generation === readGeneration && pathGeneration === (pathGenerations.get(path) || 0)) {
+          if (!networkOnly) await saveCachedResponse(path, authorization, value, version);
           freshPaths.delete(path);
         }
         return value;
@@ -93,13 +97,14 @@ export { invalidateCachedResponses };
 
 async function performRequest(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
-  for (let attempt = 0; attempt < (method === 'GET' ? 2 : 1); attempt += 1) {
+  const attempts = method === 'GET' && options.retry !== false ? 2 : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     try { return await performOnce(path, options); }
     catch (error) {
       // A request that already spent its timeout must not repeat the same expensive read.
       const retryable = !error.message?.startsWith('Request timed out') && (error.name === 'TypeError'
         || [429, 502, 503, 504].includes(error.status));
-      if (attempt > 0 || method !== 'GET' || !retryable || options.signal?.aborted) throw error;
+      if (attempt + 1 >= attempts || !retryable || options.signal?.aborted) throw error;
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
   }
@@ -125,6 +130,7 @@ async function performOnce(path, options = {}) {
     const fetchOptions = { ...options };
     delete fetchOptions.cachePolicy;
     delete fetchOptions.timeoutMs;
+    delete fetchOptions.retry;
     const response = await fetch(`${API_URL}${path}`, {
       ...fetchOptions,
       signal: controller.signal,

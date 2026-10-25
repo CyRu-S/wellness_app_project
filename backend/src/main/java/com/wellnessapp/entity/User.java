@@ -38,5 +38,7 @@ public class User {
     @Column(name = "phone_number", length = 30) private String phoneNumber;
     @Column(name = "club_name", length = 120) private String clubName;
     @Column(name = "follow_up_at") private Instant followUpAt;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(name = "last_nudged_at") private Instant lastNudgedAt;
 }
 

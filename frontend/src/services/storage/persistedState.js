@@ -65,10 +65,10 @@ export function schedulePersistedState(state) {
   const userId = state.auth.user?.id;
   if (!token || !userId || state.dashboard.optimistic.water || state.meals.pendingPost || state.activity.pendingSession ||
       Object.keys(state.admin.writes).length || Object.keys(state.profile.writes).length) return;
-  const snapshot = { userId, savedOn: new Date().toDateString(), data: snapshotData(state) };
   const started = generation;
   clearTimeout(timer);
   timer = setTimeout(() => {
+    const snapshot = { userId, savedOn: new Date().toDateString(), data: snapshotData(state) };
     pendingSave = pendingSave.then(async () => {
       if (started !== generation) return;
       await writeEncryptedJson(await snapshotKey(token), snapshot);

@@ -29,6 +29,7 @@ public class ReminderService {
     private final PlanItemRepository planItems;
     private final PlanItemCompletionRepository completions;
     private final MemberAccessService memberAccess;
+    private final jakarta.persistence.EntityManager entities;
     @org.springframework.beans.factory.annotation.Value("${app.hydration.deadline:20:00}")
     private String hydrationDeadline;
     private final Clock clock;
@@ -134,11 +135,13 @@ public class ReminderService {
     }
 
     private void resolveCompletedMeals() {
-        for (var event : missed.findByResolvedFalseOrderByMissedAtDesc()) {
-            if (event.getSourceKey() != null && event.getSourceKey().startsWith("meal-") &&
-                    meals.findById(Long.parseLong(event.getSourceKey().substring(5))).map(Meal::isConsumed).orElse(true)) {
-                event.setResolved(true); missed.save(event);
-            }
+        var events = missed.findByResolvedFalseOrderByMissedAtDesc().stream()
+                .filter(event -> event.getSourceKey() != null && event.getSourceKey().matches("meal-\\d+")).toList();
+        if (events.isEmpty()) return;
+        var ids = events.stream().map(event -> Long.parseLong(event.getSourceKey().substring(5))).toList();
+        var incomplete = new HashSet<>(meals.incompleteIds(ids));
+        for (var event : events) {
+            if (!incomplete.contains(Long.parseLong(event.getSourceKey().substring(5)))) event.setResolved(true);
         }
     }
 
@@ -169,13 +172,7 @@ public class ReminderService {
     }
 
     private List<Map<String, Object>> attentionRows(List<MissedEvent> events) {
-        Map<Long, Instant> recentMemberNudges = new HashMap<>();
-        for (var stamp : notifications.nudgeStampsSince("member-nudge-", clock.instant().minus(NUDGE_COOLDOWN))) {
-            if (!stamp.getScheduledAt().plus(NUDGE_COOLDOWN).isAfter(clock.instant())) continue;
-            Long audience = nudgeMemberFromKey(stamp.getSourceKey());
-            if (audience != null) recentMemberNudges.merge(audience, stamp.getScheduledAt(),
-                    (first, second) -> first.isAfter(second) ? first : second);
-        }
+        Map<Long, Instant> recentMemberNudges = recentMemberNudges();
         return incompleteItems(events).stream().filter(e -> e.getUser().getStatus() == User.Status.ACTIVE).map(e -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", e.getId()); row.put("memberId", e.getUser().getId()); row.put("memberName", e.getUser().getFullName());
@@ -189,6 +186,13 @@ public class ReminderService {
             row.put("status", lastSentAt != null ? "NUDGED" : "OPEN"); return row;
         }).toList();
     }
+
+    private Map<Long, Instant> recentMemberNudges() {
+        Map<Long, Instant> recentMemberNudges = new HashMap<>();
+        for (var stamp : users.recentNudges(clock.instant().minus(NUDGE_COOLDOWN)))
+            recentMemberNudges.put(stamp.getMemberId(), stamp.getSentAt());
+        return recentMemberNudges;
+    }
     @Transactional public void resolve(Long id) {
         var event = missed.findById(id).orElseThrow(() -> new NotFoundException("Attention item not found"));
         event.setResolved(true); missed.save(event);
@@ -201,10 +205,33 @@ public class ReminderService {
         return sendMemberNudge(event.getUser(), nudgeType(event), nudgeAction(event), event);
     }
 
-    @Transactional public int nudgeHydrationForAll() {
+    public record HydrationStatus(int notified, Instant availableAt) {}
+
+    @Transactional(readOnly = true)
+    public HydrationStatus hydrationStatus() {
+        var active = users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE);
+        Instant next = null;
+        for (var member : active) {
+            var sentAt = member.getLastNudgedAt();
+            // A new member or an expired lock makes the button available.
+            if (sentAt == null || !sentAt.plus(NUDGE_COOLDOWN).isAfter(clock.instant())) return new HydrationStatus(0, null);
+            var available = sentAt.plus(NUDGE_COOLDOWN);
+            if (next == null || available.isBefore(next)) next = available;
+        }
+        return new HydrationStatus(0, next);
+    }
+
+    public int nudgeHydrationForAll() {
         int notified = 0;
-        for (var user : users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE)) {
-            if (sendMemberNudge(user, MemberNudgeType.HYDRATION, nudgeMessage(MemberNudgeType.HYDRATION)).sent()) notified++;
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactions);
+        var recent = recentMemberNudges();
+        for (var user : users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE).stream()
+                .sorted(Comparator.comparing(User::getId)).toList()) {
+            if (recent.containsKey(user.getId())) continue;
+            // Commit each recipient before moving on; never hold the whole club's locks.
+            var sent = transaction.execute(status -> sendMemberNudge(user, MemberNudgeType.HYDRATION,
+                    nudgeMessage(MemberNudgeType.HYDRATION)).sent());
+            if (Boolean.TRUE.equals(sent)) notified++;
         }
         return notified;
     }
@@ -230,25 +257,23 @@ public class ReminderService {
     private NudgeResult sendMemberNudge(User member, MemberNudgeType type, String body, MissedEvent item) {
         User lockedMember = users.lockById(member.getId())
                 .orElseThrow(() -> new NotFoundException("Shared member not found"));
+        // The event may have loaded this entity before a competing transaction.
+        // Refresh after locking so status and cooldown both reflect its committed changes.
+        entities.refresh(lockedMember);
+        if (lockedMember.getStatus() != User.Status.ACTIVE)
+            throw new com.wellnessapp.exception.BadRequestException("This member is no longer active. Refresh the view.");
         if (item != null && incompleteItems(List.of(item)).isEmpty())
             throw new com.wellnessapp.exception.BadRequestException("This item is already completed or resolved. Refresh the view.");
-        Instant now = clock.instant();
-        var recent = notifications
-                .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
-                        lockedMember.getId(), "member-nudge-", now.minus(NUDGE_COOLDOWN))
-                .filter(event -> event.getScheduledAt().plus(NUDGE_COOLDOWN).isAfter(now));
-        if (recent.isPresent()) {
-            Instant sentAt = recent.get().getScheduledAt();
+        Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        Instant previous = lockedMember.getLastNudgedAt();
+        if (previous != null && previous.plus(NUDGE_COOLDOWN).isAfter(now)) {
+            Instant sentAt = previous;
             return new NudgeResult(false, type, sentAt, sentAt.plus(NUDGE_COOLDOWN));
         }
         notices.notify(lockedMember, PushDelivery.Kind.NUDGE, nudgeSourcePrefix(type) + now.toEpochMilli(),
                 firstName(lockedMember) + " · " + nudgeTitle(type), body);
-        Instant sentAt = notifications
-                .findFirstByUserIdAndSourceKeyStartingWithAndScheduledAtGreaterThanEqualOrderByScheduledAtDesc(
-                        lockedMember.getId(), "member-nudge-", now.minus(NUDGE_COOLDOWN))
-                .map(NotificationEvent::getScheduledAt)
-                .orElse(now);
-        return new NudgeResult(true, type, sentAt, sentAt.plus(NUDGE_COOLDOWN));
+        lockedMember.setLastNudgedAt(now);
+        return new NudgeResult(true, type, now, now.plus(NUDGE_COOLDOWN));
     }
 
     private MemberNudgeType nudgeType(MissedEvent event) {
@@ -275,11 +300,6 @@ public class ReminderService {
             case EXERCISE -> "Complete your movement and log it.";
             case HABITS -> "Complete your assigned to-do items.";
         };
-    }
-
-    private Long nudgeMemberFromKey(String key) {
-        try { return Long.parseLong(key.substring(key.lastIndexOf("-to-") + 4)); }
-        catch (RuntimeException ignored) { return null; }
     }
 
     /** Batch completion reads so an expired lock cannot resurrect a completed check-in. */

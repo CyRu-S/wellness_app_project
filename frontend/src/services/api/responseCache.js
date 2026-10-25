@@ -4,6 +4,7 @@ import { clearEncryptedData, readEncryptedJson, removeEncryptedPrefix, writeEncr
 const PREFIX = 'mr-care.api-cache.v2:';
 const memory = new Map();
 const tokenHashes = new Map();
+const MAX_MEMORY_ENTRIES = 100;
 let generation = 0;
 let pendingClear = Promise.resolve();
 
@@ -24,11 +25,18 @@ async function keyFor(path, authorization) {
   if (!hash) {
     hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, token);
     tokenHashes.set(token, hash);
+    if (tokenHashes.size > 2) tokenHashes.delete(tokenHashes.keys().next().value);
   }
   return `${PREFIX}${hash}:${encodeURIComponent(path)}`;
 }
 
 export function cacheVersion() { return generation; }
+
+function remember(key, entry) {
+  memory.delete(key);
+  memory.set(key, entry);
+  if (memory.size > MAX_MEMORY_ENTRIES) memory.delete(memory.keys().next().value);
+}
 
 export async function readCachedResponse(path, authorization) {
   await pendingClear;
@@ -37,7 +45,7 @@ export async function readCachedResponse(path, authorization) {
   try {
     const entry = memory.has(key) ? memory.get(key) : await readEncryptedJson(key);
     if (!entry) return { hit: false };
-    memory.set(key, entry);
+    remember(key, entry);
     return { hit: true, value: entry.value, stale: entry.expiresAt <= Date.now() };
   } catch {
     // Storage errors must never block the API or display corrupted cached data.
@@ -53,7 +61,7 @@ export async function saveCachedResponse(path, authorization, value, version) {
   if (!key || version !== generation) return;
   try {
     const entry = { expiresAt: Date.now() + lifetime(path), value };
-    memory.set(key, entry);
+    remember(key, entry);
     await writeEncryptedJson(key, entry);
   } catch {
     memory.delete(key);

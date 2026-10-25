@@ -49,6 +49,14 @@ public class JwtTokenProvider {
         return claims(token).getSubject();
     }
 
+    public record VerifiedToken(String username, long version) {}
+
+    public VerifiedToken verify(String token) {
+        var verified = claims(token);
+        Number version = verified.get("ver", Number.class);
+        return new VerifiedToken(verified.getSubject(), version == null ? 0L : version.longValue());
+    }
+
     public boolean isValid(String token) {
         try { claims(token); return true; } catch (JwtException | IllegalArgumentException ex) { return false; }
     }

@@ -8,6 +8,14 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MealPostRepository extends JpaRepository<MealPost, Long> {
+    interface Summary {
+        Long getMemberId();
+        Long getPlannedMealId();
+        Instant getPostedAt();
+        String getMealType();
+    }
+    @org.springframework.data.jpa.repository.Query("select p.user.id as memberId, meal.id as plannedMealId, p.postedAt as postedAt, p.mealType as mealType from MealPost p left join p.plannedMeal meal where p.postedAt >= :start")
+    List<Summary> summarySince(Instant start);
     @org.springframework.data.jpa.repository.Query("select p.user.id, count(p) from MealPost p where p.postedAt >= :start and p.postedAt < :end group by p.user.id")
     List<Object[]> countsBetween(Instant start, Instant end);
     List<MealPost> findByPostedAtGreaterThanEqual(Instant start);

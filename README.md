@@ -77,7 +77,7 @@ Backend tests use isolated H2 databases and test-only fixtures, never the Supaba
 
 `backend/scripts/smoke_test.py` checks a running API and creates uniquely named Integration Check accounts. It requires `WELLNESS_ADMIN_PASSWORD` and accepts `WELLNESS_ADMIN_EMAIL` plus `WELLNESS_API_URL` (default localhost:8080/api). With PostgreSQL environment variables configured, `database_admin.py inspect` reports table/account counts. `database_admin.py cleanup-verification` backs up application tables and removes only those explicitly marked test accounts, verifying other accounts and their records are unchanged. Backups are private and Git-ignored. Do not run `reset-members` against a database whose member data must be retained.
 
-See [database notes](docs/database/README.md), [API contracts](docs/api-contracts/README.md), and [workflows](docs/workflows/README.md). OpenAPI is available at `http://localhost:8080/swagger-ui.html`.
+See [database notes](docs/database/README.md), [API contracts](docs/api-contracts/README.md), and [workflows](docs/workflows/README.md). OpenAPI is disabled by default to reduce production exposure and startup work. Set `API_DOCS_ENABLED=true` for development to use `http://localhost:8080/swagger-ui.html`.
 
 For a production Railway backend, EAS Android App Bundle, and Google Play release, follow the [deployment guide](docs/deployment.md).
 

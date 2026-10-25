@@ -48,4 +48,4 @@ Daily plan reads reconcile cached meals against the current admin plan: unposted
 
 The admin nudge POST returns the same timing result as shared access. Visible nudge screens refresh only their attention data every five seconds while focused and active, with a server-enforced lock on every send. The client displays the server expiry and removes completed items on synchronization.
 
-The generated OpenAPI UI at `http://localhost:8080/swagger-ui.html` is authoritative for validation fields and additional catalog/report endpoints. All dates follow the configured application timezone; timestamps use ISO-8601.
+For development, set `API_DOCS_ENABLED=true` to enable the generated OpenAPI UI at `http://localhost:8080/swagger-ui.html` for validation fields and additional catalog/report endpoints. It is disabled by default in production. All dates follow the configured application timezone; timestamps use ISO-8601.

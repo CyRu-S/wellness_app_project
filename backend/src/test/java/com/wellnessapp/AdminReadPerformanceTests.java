@@ -74,4 +74,21 @@ class AdminReadPerformanceTests {
         System.out.printf("Admin SQL counts (1 / 30 members): members=%d/%d, workspace=%d/%d, attention=%d/%d%n",
                 oneMembers, manyMembers, oneWorkspace, manyWorkspace, oneAttention, manyAttention);
     }
+
+    @Test void reportHistoryDoesNotLoadManagedMealOrPlanEntities() {
+        member(0);
+        member(1);
+        entityManager.flush(); entityManager.clear();
+        var statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+        statistics.clear();
+        var today = LocalDate.now(ZoneId.of("Asia/Kolkata"));
+        var history = meals.summaryBetween(today.minusDays(59), today);
+        assertThat(history).hasSize(2).allSatisfy(row -> {
+            assertThat(row.getMemberId()).isNotNull();
+            assertThat(row.getType()).isEqualTo("Breakfast");
+            assertThat(row.isConsumed()).isFalse();
+        });
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+        assertThat(statistics.getEntityLoadCount()).as("scalar reports must not fill the persistence context").isZero();
+    }
 }

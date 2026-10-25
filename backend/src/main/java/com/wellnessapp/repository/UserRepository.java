@@ -4,6 +4,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 import java.util.List;
 public interface UserRepository extends JpaRepository<User, Long> {
+    interface NudgeStamp {
+        Long getMemberId();
+        java.time.Instant getSentAt();
+    }
+    @org.springframework.data.jpa.repository.Query("select u.id as memberId, u.lastNudgedAt as sentAt from User u where u.lastNudgedAt > :cutoff")
+    List<NudgeStamp> recentNudges(java.time.Instant cutoff);
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
     @org.springframework.data.jpa.repository.Query(value = "DELETE FROM users WHERE id = :id", nativeQuery = true)
     int deleteAccountById(@org.springframework.data.repository.query.Param("id") Long id);

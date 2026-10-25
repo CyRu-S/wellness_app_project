@@ -200,9 +200,9 @@ class MemberAccessFeatureIntegrationTests {
         memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
         memberAccess.replaceAssignments("admin@mr-care.app", secondCoach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
 
-        String source = "member-nudge-HABITS-admin-test";
-        workflowNotifications.notify(member, com.wellnessapp.entity.PushDelivery.Kind.NUDGE, source,
-                "Kavya · Reminder", "Review today's assigned items.");
+        var item = missedEvents.saveAndFlush(MissedEvent.builder().user(member).sourceKey("admin-test")
+                .itemType("Healthy habit").itemTitle("Stretch overdue").missedAt(clock.instant()).build());
+        reminders.nudge(item.getId());
 
         assertThat(memberAccess.sharedMembers(coach.getEmail()).members().getFirst().nudgedToday()).isTrue();
         assertThat(memberAccess.sharedMembers(secondCoach.getEmail()).members().getFirst().nudgedToday()).isTrue();
@@ -273,9 +273,8 @@ class MemberAccessFeatureIntegrationTests {
         assertThat(reminders.sharedAttention(coach.getEmail(), member.getId()))
                 .isEqualTo(reminders.attention().stream().filter(row -> member.getId().equals(row.get("memberId"))).toList());
 
-        notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).stream()
-                .filter(event -> event.getSourceKey() != null && event.getSourceKey().startsWith("member-nudge-MEALS-"))
-                .forEach(event -> { event.setScheduledAt(clock.instant().minusSeconds(1860)); notifications.saveAndFlush(event); });
+        member.setLastNudgedAt(clock.instant().minusSeconds(1860));
+        users.saveAndFlush(member);
         assertThat(reminders.sharedAttention(coach.getEmail(), member.getId()))
                 .filteredOn(row -> "MEALS".equals(row.get("type")))
                 .allSatisfy(row -> assertThat(row.get("status")).isEqualTo("OPEN"));
@@ -284,9 +283,8 @@ class MemberAccessFeatureIntegrationTests {
         var hydration = missedEvents.saveAndFlush(MissedEvent.builder().user(member).sourceKey("shared-water")
                 .itemType("Hydration").itemTitle("Daily hydration goal is overdue").missedAt(clock.instant()).build());
         assertThat(reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), hydration.getId()).sent()).isFalse();
-        notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()).stream()
-                .filter(event -> event.getSourceKey() != null && event.getSourceKey().startsWith("member-nudge-"))
-                .forEach(event -> { event.setScheduledAt(clock.instant().minusSeconds(1860)); notifications.saveAndFlush(event); });
+        member.setLastNudgedAt(clock.instant().minusSeconds(1860));
+        users.saveAndFlush(member);
         assertThat(reminders.nudgeSharedAttention(coach.getEmail(), member.getId(), hydration.getId()).sent()).isTrue();
         assertThat(notifications.findTop30ByUserIdOrderByScheduledAtDesc(member.getId()))
                 .anySatisfy(event -> assertThat(event.getBody()).isEqualTo("Drink water and log your intake."));

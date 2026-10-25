@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { loadModule } from './loadModule.js';
+import { loadModule, deferred } from './loadModule.js';
 
 test('API responses survive a cold start, stay account-scoped, become stale, and clear on sign-out', async () => {
   const disk = new Map();
@@ -50,12 +50,12 @@ test('a timed-out GET retains stale read-only data, but a failed write is never 
   }, { fetch: async () => { fetches += 1; throw new TypeError('Network unavailable'); } });
   assert.deepEqual(client.API_URL, 'http://10.0.2.2:8080/api');
   assert.equal((await client.request('/meals', { headers: { Authorization: 'Bearer jwt' } })).meals[0], 'cached');
-  assert.equal(fetches, 2);
+  assert.equal(fetches, 1);
   await assert.rejects(client.request('/meals', { method: 'POST', headers: { Authorization: 'Bearer jwt' }, body: '{}' }), TypeError);
-  assert.equal(fetches, 3, 'writes must not be replayed after an uncertain failure');
+  assert.equal(fetches, 2, 'writes must not be replayed after an uncertain failure');
   const afterWrite = invalidations;
   await assert.rejects(client.request('/meals/analyze', { method: 'POST', timeoutMs: 60000 }), TypeError);
-  assert.equal(fetches, 4);
+  assert.equal(fetches, 3);
   assert.equal(invalidations, afterWrite, 'analysis must not discard otherwise valid dashboard data');
 });
 
@@ -106,4 +106,34 @@ test('presence heartbeats leave cached pages intact', async () => {
   await client.request('/presence', { method: 'POST', headers: { Authorization: 'Bearer jwt' } });
   assert.equal(invalidations, 0);
   assert.equal((await client.request('/dashboard', { headers: { Authorization: 'Bearer jwt' } })).count, 3);
+});
+
+
+test('simultaneous live reads share a request and another page refresh does not restart them', async () => {
+  let fetches = 0;
+  const pending = deferred();
+  const client = loadModule('../src/services/api/client.js', {
+    'react-native': { Platform: { OS: 'web' } },
+    'expo-constants': { expoConfig: null },
+    './responseCache': { cacheVersion: () => 0, invalidateCachedResponses: () => {},
+      readCachedResponse: async () => ({ hit: false }), saveCachedResponse: async () => {} },
+  }, { fetch: async () => { fetches++; return pending.promise; } });
+  const options = { headers: { Authorization: 'Bearer jwt' }, cachePolicy: 'network-only' };
+  const first = client.request('/admin/attention', options);
+  client.refreshPageResponses(['/profile']);
+  const second = client.request('/admin/attention', options);
+  assert.equal(first, second);
+  assert.equal(fetches, 1);
+  pending.resolve({ ok: true, status: 200, text: async () => '[]' });
+  await Promise.all([first, second]);
+});
+
+test('authorization failures never display a cached protected response', async () => {
+  const client = loadModule('../src/services/api/client.js', {
+    'react-native': { Platform: { OS: 'web' } },
+    'expo-constants': { expoConfig: null },
+    './responseCache': { cacheVersion: () => 0, invalidateCachedResponses: () => {},
+      readCachedResponse: async () => ({ hit: true, stale: true, value: { private: true } }), saveCachedResponse: async () => {} },
+  }, { fetch: async () => ({ ok: false, status: 403, json: async () => ({ message: 'Access revoked' }) }) });
+  await assert.rejects(client.request('/shared-members/12/today', { headers: { Authorization: 'Bearer jwt' } }), /Access revoked/);
 });

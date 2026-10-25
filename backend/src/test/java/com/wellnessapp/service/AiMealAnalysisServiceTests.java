@@ -8,6 +8,31 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AiMealAnalysisServiceTests {
+    @Test void imageAllocationsAreBoundedAndBusyUploadsAreRejectedBeforeReadingBytes() throws Exception {
+        var gemini = mock(GeminiFoodAnalysisClient.class); var service = new AiMealAnalysisService(gemini);
+        var entered = new java.util.concurrent.CountDownLatch(2);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        when(gemini.analyse(any(), anyString(), anyString())).thenAnswer(call -> {
+            entered.countDown();
+            assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            return null;
+        });
+        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 1};
+        var image = new MockMultipartFile("image", "meal.jpg", "image/jpeg", jpeg);
+        var third = spy(new MockMultipartFile("image", "meal.jpg", "image/jpeg", jpeg));
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> service.analyse(image, "meal"));
+            var second = executor.submit(() -> service.analyse(image, "meal"));
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(503, assertThrows(ResponseStatusException.class, () -> service.analyse(third, "meal")).getStatusCode().value());
+            verify(third, never()).getBytes();
+            release.countDown();
+            first.get(5, java.util.concurrent.TimeUnit.SECONDS); second.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            service.analyse(third, "meal");
+            verify(third).getBytes();
+        } finally { release.countDown(); executor.shutdownNow(); }
+    }
     @Test void herbalifeNeverSendsAnImageToAi() {
         var gemini = mock(GeminiFoodAnalysisClient.class); var service = new AiMealAnalysisService(gemini);
         for (String category : new String[]{"product", "HERBALIFE", "Herbalife product"})

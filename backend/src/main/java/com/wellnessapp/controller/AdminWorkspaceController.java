@@ -24,6 +24,12 @@ public class AdminWorkspaceController {
     @PostMapping("/hydration/nudge-all")
     Map<String, Object> nudgeHydrationForAll() {
         int notified = reminders.nudgeHydrationForAll();
-        return Map.of("notified", notified, "attention", reminders.attention());
+        var result = new java.util.LinkedHashMap<String, Object>();
+        result.put("notified", notified);
+        result.put("availableAt", reminders.hydrationStatus().availableAt());
+        result.put("attention", reminders.attention());
+        return result;
     }
+    @GetMapping("/hydration/nudge-all")
+    ReminderService.HydrationStatus hydrationStatus() { return reminders.hydrationStatus(); }
 }

@@ -14,7 +14,8 @@ export default function useLiveSync() {
     let stopped = false;
     let busy = false;
     const heartbeat = async () => {
-      if (stopped || busy || (AppState.currentState && AppState.currentState !== 'active')) return;
+      if (stopped || busy || (AppState.currentState && AppState.currentState !== 'active')
+        || (typeof document !== 'undefined' && document.hidden)) return;
       busy = true;
       try { await Promise.all([request('/presence', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }), dispatch(loadNotifications())]); }
       catch { /* The next foreground heartbeat retries after an outage. */ }

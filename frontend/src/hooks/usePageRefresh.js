@@ -27,7 +27,7 @@ export default function usePageRefresh() {
   const memberId = route.params?.memberId ?? route.params?.id;
   const config = useCallback((force = false) => {
     if (['AdminDashboard', 'Reports', 'DietPlans'].includes(name))
-      return { paths: ['/admin/workspace', '/admin/members', '/admin/approvals', '/leaderboard'], actions: [loadAdminMembers({ force }), loadLeaderboard({ force })] };
+      return { paths: ['/admin/workspace', '/admin/members', '/admin/approvals'], actions: [loadAdminMembers({ force })] };
     if (name === 'Products') return { paths: ['/admin/products'], actions: [loadAdminProducts()] };
     if (name === 'Alerts') return { paths: ['/admin/attention'], actions: [loadAdminAttention()] };
     if (name === 'UserList') return { paths: ['/admin/members'], actions: [loadAdminDirectory()] };
@@ -47,7 +47,8 @@ export default function usePageRefresh() {
     return null;
   }, [name, memberId, token]);
   const load = useCallback(async (force = false) => {
-    if (!token || busy.current || (AppState.currentState && AppState.currentState !== 'active')) return;
+    if (!token || busy.current || (AppState.currentState && AppState.currentState !== 'active')
+      || (typeof document !== 'undefined' && document.hidden)) return;
     const page = config(force);
     if (!page) return;
     busy.current = true;

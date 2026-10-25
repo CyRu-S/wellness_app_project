@@ -8,7 +8,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import AdminHeader from '../../components/admin/AdminHeader';
 import AdminScreen from '../../components/admin/AdminScreen';
 import MemberAttentionCard from '../../components/common/MemberAttentionCard';
-import useNudgeSync from '../../hooks/useNudgeSync';
 import {
   nudgeAttention,
   nudgePriorityAttention,
@@ -54,7 +53,6 @@ function Group({ eyebrow, title, description, items, token, navigation, dispatch
 }
 
 export default function AdminAttentionScreen({ navigation }) {
-  useNudgeSync();
   const dispatch = useDispatch();
   const attention = useSelector(selectAdminAttention);
   const attentionError = useSelector((state) => state.admin.attentionError);

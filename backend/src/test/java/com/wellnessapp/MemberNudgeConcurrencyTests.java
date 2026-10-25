@@ -23,11 +23,36 @@ class MemberNudgeConcurrencyTests {
     @Autowired NotificationRepository notices;
     @Autowired MemberAccessService access;
     @Autowired ReminderService reminders;
+    @Autowired NotificationService inbox;
     @MockitoBean Clock clock;
 
     private User member(String email) {
         return users.saveAndFlush(User.builder().email(email).fullName(email).passwordHash("test")
                 .role(User.Role.USER).status(User.Status.ACTIVE).emailVerifiedAt(Instant.parse("2026-09-07T02:00:00Z")).build());
+    }
+
+    @Test void concurrentClubRemindersShareDurableCooldownAndClearingInboxDoesNotUnlockIt() throws Exception {
+        var now = Instant.parse("2026-09-07T02:00:00Z");
+        when(clock.instant()).thenReturn(now);
+        var subject = member("recipient@club-race.test");
+        var gate = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> { gate.await(); return reminders.nudgeHydrationForAll(); });
+            var second = executor.submit(() -> { gate.await(); return reminders.nudgeHydrationForAll(); });
+            gate.countDown();
+            first.get(20, TimeUnit.SECONDS); second.get(20, TimeUnit.SECONDS);
+            assertThat(notices.findTop30ByUserIdOrderByScheduledAtDesc(subject.getId())).hasSize(1);
+            assertThat(reminders.hydrationStatus().availableAt()).isEqualTo(now.plusSeconds(1800));
+            inbox.clear(subject.getEmail());
+            assertThat(reminders.nudgeHydrationForAll()).isZero();
+            assertThat(reminders.hydrationStatus().availableAt()).isEqualTo(now.plusSeconds(1800));
+            assertThat(notices.findTop30ByUserIdOrderByScheduledAtDesc(subject.getId())).isEmpty();
+            when(clock.instant()).thenReturn(now.plusSeconds(1800));
+            assertThat(reminders.hydrationStatus().availableAt()).isNull();
+            assertThat(reminders.nudgeHydrationForAll()).isPositive();
+            assertThat(notices.findTop30ByUserIdOrderByScheduledAtDesc(subject.getId())).hasSize(1);
+        } finally { gate.countDown(); executor.shutdownNow(); }
     }
 
     @Test void simultaneousAdminAndCoachRequestsSendOnlyOneNudgeToTheRecipient() throws Exception {

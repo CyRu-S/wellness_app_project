@@ -45,6 +45,8 @@ public class SecurityConfig {
                 .map(String::trim).filter(s -> !s.isEmpty()).distinct().toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
+        // Cache origin/method/header checks, never account data or authorization decisions.
+        config.setMaxAge(1800L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**", config); return source;
     }
 }

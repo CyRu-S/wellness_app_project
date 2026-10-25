@@ -17,6 +17,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @RequiredArgsConstructor
 public class AiMealAnalysisService {
     private final GeminiFoodAnalysisClient gemini;
+    private final java.util.concurrent.Semaphore imageSlots = new java.util.concurrent.Semaphore(2);
 
     public MealAnalysisResponse analyse(MultipartFile image, String category) {
         String normalized = category == null ? "meal" : category.strip().toLowerCase(Locale.ROOT);
@@ -29,6 +30,9 @@ public class AiMealAnalysisService {
         String contentType = image.getContentType();
         if (contentType == null || !Set.of("image/jpeg", "image/png", "image/webp").contains(contentType))
             throw new ResponseStatusException(BAD_REQUEST, "Upload a JPEG, PNG or WebP food photo");
+        // Bound image copies and base64 payloads before allocating them on the small Railway heap.
+        if (!imageSlots.tryAcquire()) throw new ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                "Food photo analysis is busy. Please try again shortly.");
         try {
             byte[] bytes = image.getBytes();
             if (!MediaStorageService.matchesSignature(bytes, contentType))
@@ -36,6 +40,8 @@ public class AiMealAnalysisService {
             return gemini.analyse(bytes, contentType, normalized);
         } catch (IOException exception) {
             throw new ResponseStatusException(BAD_REQUEST, "Unable to read the uploaded image", exception);
+        } finally {
+            imageSlots.release();
         }
     }
 }

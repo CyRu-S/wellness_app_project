@@ -4,23 +4,22 @@ import { Animated, Image, Pressable, StyleSheet, useWindowDimensions, View } fro
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 import AdminMealRhythmChart from '../../components/admin/AdminMealRhythmChart';
 import AdminScreen from '../../components/admin/AdminScreen';
 import AppLogo from '../../components/common/AppLogo';
+import ClubHydrationReminder from '../../components/admin/ClubHydrationReminder';
 import useReducedMotion from '../../hooks/useReducedMotion';
 import {
   selectAdminApprovals,
   selectAdminAttention,
   selectAdminMealInsights,
   selectAdminSummary,
-  nudgeClubHydration,
+  selectAdminLeaderboard,
 } from '../../store/slices/adminSlice';
-import { selectLeaderboard } from '../../store/slices/leaderboardSlice';
 import { adminColors, adminFonts, adminRadius, adminShadow } from '../../theme/admin';
 import { selectUnreadNotificationCount } from '../../store/slices/notificationSlice';
-import Alert from '../../utils/appAlert';
 
 const heroArtwork = require('../../../assets/shake.png');
 
@@ -130,13 +129,11 @@ function PriorityRow({ item, last, onPress }) {
 }
 
 export default function AdminDashboardScreen({ navigation }) {
-  const dispatch = useDispatch();
   const summary = useSelector(selectAdminSummary);
   const approvals = useSelector(selectAdminApprovals);
   const attention = useSelector(selectAdminAttention);
   const insights = useSelector(selectAdminMealInsights);
-  const leaderboard = useSelector(selectLeaderboard);
-  const hydrationNudge = useSelector((state) => state.admin.hydrationNudge);
+  const leaderboard = useSelector(selectAdminLeaderboard);
   const admin = useSelector((state) => state.auth.user);
   const reduceMotion = useReducedMotion();
   const { width, fontScale } = useWindowDimensions();
@@ -205,16 +202,6 @@ export default function AdminDashboardScreen({ navigation }) {
     navigation.navigate(route, params);
   };
   const unreadCount = useSelector(selectUnreadNotificationCount);
-  const sendHydrationReminder = async () => {
-    try {
-      const result = await dispatch(nudgeClubHydration()).unwrap();
-      Alert.alert('Hydration reminder sent', result.notified
-        ? `${result.notified} members received today’s club hydration reminder.`
-        : 'Today’s hydration reminder was already sent to every active member.');
-    } catch (error) {
-      Alert.alert('Reminder not sent', error.message || 'Check your connection and try again.');
-    }
-  };
 
   return (
     <AdminScreen contentStyle={styles.screenContent}>
@@ -381,22 +368,7 @@ export default function AdminDashboardScreen({ navigation }) {
             <CompactSignal icon="alert-circle-outline" label="Attention" value={openAttention.length} meta={`${highPriorityCount} high priority`} tone="coral" onPress={() => openRoute('Alerts')} />
           </View>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Send a hydration reminder to all active members"
-          accessibilityState={{ busy: hydrationNudge.status === 'loading', disabled: hydrationNudge.status === 'loading' }}
-          disabled={hydrationNudge.status === 'loading'}
-          onPress={sendHydrationReminder}
-          style={({ pressed }) => [styles.hydrationAction, pressed && styles.pressed]}
-        >
-          <View style={styles.hydrationIcon}><Ionicons name="water" size={21} color={adminColors.white} /></View>
-          <View style={styles.hydrationCopy}>
-            <Text style={styles.hydrationLabel}>CLUB HYDRATION</Text>
-            <Text style={styles.hydrationTitle}>{hydrationNudge.status === 'loading' ? 'Sending reminder…' : 'Remind every member'}</Text>
-            <Text style={styles.hydrationMeta}>One notification reaches all active members.</Text>
-          </View>
-          <Ionicons name="notifications-outline" size={21} color={adminColors.deepTeal} />
-        </Pressable>
+        <ClubHydrationReminder />
       </Reveal>
 
       <Reveal delay={180} reduceMotion={reduceMotion}>
@@ -639,12 +611,6 @@ const styles = StyleSheet.create({
   emptyTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16 },
   emptyText: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 13, lineHeight: 19, marginTop: 3 },
   pressed: { opacity: 0.68, transform: [{ scale: 0.98 }] },
-  hydrationAction: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 14, padding: 14, borderRadius: 22, backgroundColor: adminColors.aqua, borderWidth: 1, borderColor: '#C4E2DC' },
-  hydrationIcon: { width: 46, height: 46, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.teal },
-  hydrationCopy: { flex: 1, minWidth: 0 },
-  hydrationLabel: { color: adminColors.teal, fontFamily: adminFonts.semibold, fontSize: 10, letterSpacing: 1 },
-  hydrationTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 16, marginTop: 2 },
-  hydrationMeta: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 12, marginTop: 2 },
   leaderboard: { marginTop: 28, paddingVertical: 17, borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line },
   leaderboardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   leaderboardTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 22, marginTop: 3 },

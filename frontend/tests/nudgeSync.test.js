@@ -15,7 +15,7 @@ test('nudge state synchronizes only for the visible member and stops in backgrou
     'react-redux': { useDispatch: () => async (action) => { actions.push(action); } },
     '../store/slices/adminSlice': { loadAdminAttention: () => ({ type: 'admin' }) },
     '../store/slices/memberAccessSlice': { syncSharedMemberAttention: (id) => ({ type: 'shared', id }) },
-  }, { setInterval: (callback, delay) => { timer = callback; assert.equal(delay, 5000); return 1; },
+  }, { setInterval: (callback, delay) => { timer = callback; assert.equal(delay, 30000); return 1; },
     clearInterval: () => { cleared = true; } });
   useSync(2, true); await Promise.resolve();
   assert.equal(actions.length, 1); assert.equal(actions[0].id, 2);
