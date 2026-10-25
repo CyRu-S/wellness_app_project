@@ -55,6 +55,10 @@ test('shared member profile has category nudges with a shared thirty minute cool
   assert.match(profile, /\['Today', 'Nudges', 'History', 'Reports'\]/);
   assert.match(profile, /Available in \$\{minutes\} min/);
   assert.match(profile, /locked for every admin and coach for 30 minutes/);
+  assert.match(profile, /memberName=\{memberName\}/);
+  assert.match(profile, /styles\.nudgeCategory/);
+  assert.match(profile, /Shared member/);
+  assert.match(profile, /option\.title/);
   assert.match(api, /nudges\/\$\{type\}/);
   assert.doesNotMatch(list, /Send nudge/);
 });
