@@ -123,6 +123,7 @@ test('web camera opens a live preview and captures a photo only after it is read
   const camera = preview.find((item) => item.type === 'CameraView');
   assert.ok(camera);
   assert.equal(camera.props.facing, 'back');
+  assert.equal(camera.props.autofocus, 'on');
   const shutter = preview.find((item) => item.props?.accessibilityLabel === 'Take photo');
   assert.equal(shutter.props.disabled, true);
   ui.attachCamera();

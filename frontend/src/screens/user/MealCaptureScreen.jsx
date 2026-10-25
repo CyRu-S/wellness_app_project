@@ -193,6 +193,7 @@ export default function MealCaptureScreen({ navigation, route }) {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.visual}>
         {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : focused && permission?.granted ? <CameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch}
+          autofocus={Platform.OS === 'web' ? 'on' : undefined}
           onCameraReady={() => { setCameraReady(true); setCameraError(null); }}
           onMountError={(error) => { setCameraReady(false); setCameraError(error.message || 'Camera could not start. Check browser permissions or choose a photo.'); }} /> : null}
         <View pointerEvents="none" style={styles.scrim} />
