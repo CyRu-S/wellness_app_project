@@ -37,7 +37,7 @@ These apply only when the assigned meal category is Product, Herbalife or Herbal
 | Rebuild | 174.75 |
 | Liftoff | 13.39 |
 
-Matching is case insensitive and ignores emoji, spaces and punctuation, including inside a product name. Extra admin text is allowed. Combined names add each recognized product once: `Afresh + Shake` is 224 kcal. Ordinary food categories do not inherit product values when a dish name contains “shake”. Unlisted Herbalife products go straight from the prepared photo to the dashboard, with no nutrition review or entry, and contribute zero to calorie and macro totals. Mixed names count only the recognized products.
+Matching is case insensitive and ignores emoji, spaces and punctuation, including inside a product name. Extra admin text is allowed. Combined names add each recognized product once: `Afresh + Shake` is 224 kcal. Ordinary food categories do not inherit product values when a dish name contains “shake”. Unlisted Herbalife products show the prepared photo with Retake and Add to dashboard actions before saving. No nutrition values or entry fields are shown, and these check-ins contribute zero to calorie and macro totals. Mixed names count only the recognized products.
 
 Recognized products skip Gemini, serving-weight scaling and editable nutrition. Their capture and photo detail screens show calories only. The backend enforces the same mapping using the assigned category/name so client-supplied calories cannot override it. Macronutrients are not estimated; zero values are stored for the existing required numeric fields and contribute nothing to macro totals. Decimal calories are retained in meal posts and dashboard totals; the legacy integer daily-meal cache is rounded.
 

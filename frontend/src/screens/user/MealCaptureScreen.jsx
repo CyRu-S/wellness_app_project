@@ -116,7 +116,6 @@ export default function MealCaptureScreen({ navigation, route }) {
       const prepared = await preparePhotoUpload(selectedPhoto);
       setPhoto(prepared.uri);
       const result = await analyzeCapturedMeal({ uri: prepared.uri, meal: targetMeal, category: analysisCategory, token });
-      if (manualProduct && result.nutritionOmitted && submitPhoto(result, prepared.uri)) return;
       setAnalysis(result);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (error) {
@@ -203,7 +202,7 @@ export default function MealCaptureScreen({ navigation, route }) {
           <Pressable accessibilityLabel="Toggle camera" onPress={() => setFacing((value) => value === 'back' ? 'front' : 'back')} style={styles.roundButton}><Ionicons name="camera-reverse-outline" size={20} color={colors.white} /></Pressable>
         </View>
 
-        <View style={styles.instruction}><Text style={styles.instructionTitle}>{cameraError ? 'Camera unavailable' : analyzing ? 'Preparing your photo' : analysis ? 'Review nutrition' : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{cameraError || (analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? 'Review the food and nutrition before saving.' : manualProduct ? 'Listed products use fixed calories.' : 'Keep the complete meal inside the guides and hold steady.')}</Text></View>
+        <View style={styles.instruction}><Text style={styles.instructionTitle}>{cameraError ? 'Camera unavailable' : analyzing ? 'Preparing your photo' : analysis ? (analysis.nutritionOmitted ? 'Review photo' : 'Review nutrition') : manualProduct ? 'Photograph your serving' : 'Frame the complete meal'}</Text><Text style={styles.instructionCopy}>{cameraError || (analyzing ? 'Identifying foods and estimating nutrition…' : analysis ? (analysis.nutritionOmitted ? 'Review the photo before saving.' : 'Review the food and nutrition before saving.') : manualProduct ? 'Listed products use fixed calories.' : 'Keep the complete meal inside the guides and hold steady.')}</Text></View>
 
         {!analysis ? <View pointerEvents="none" style={styles.frame}><View style={[styles.corner, styles.tl]} /><View style={[styles.corner, styles.tr]} /><View style={[styles.corner, styles.bl]} /><View style={[styles.corner, styles.br]} />{analyzing ? <Animated.View style={[styles.scan, { transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [0, 220] }) }] }]} /> : <View style={styles.centerTarget}><Ionicons name="scan-outline" size={27} color="rgba(255,255,255,0.75)" /></View>}</View> : null}
 

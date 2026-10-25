@@ -60,12 +60,25 @@ function elements(tree) {
   return [tree, ...elements(tree.props?.children)];
 }
 
-test('unlisted product photos post the prepared image once and open the dashboard without nutrition entry', async () => {
+test('unlisted product photos allow review and retake without nutrition, then save only on confirmation', async () => {
   const meal = { id: 7, type: 'Herbalife product', name: 'Other product', consumed: false };
   const ui = captureScreen(meal, mealAnalysis.herbalifeMealAnalysis(meal));
   const choose = elements(ui.render()).find((item) => item.props?.accessibilityLabel === 'Choose from photo library');
   await choose.props.onPress();
-  await choose.props.onPress();
+  assert.equal(ui.posts.length, 0);
+  assert.deepEqual(ui.visits, []);
+  const review = elements(ui.render());
+  assert.equal(review.find((item) => item.type === 'Image').props.source.uri, 'prepared.jpg');
+  assert.equal(review.some((item) => ['Meal name', 'calories', 'protein', 'carbs', 'fat'].includes(item.props?.accessibilityLabel)), false);
+  assert.equal(review.some((item) => item.props?.children.some((child) => ['KCAL', 'PROTEIN', 'CARBS', 'FAT'].includes(child))), false);
+  const retake = review.find((item) => item.props?.onPress && elements(item).some((child) => child.props?.children.includes('Retake')));
+  retake.props.onPress();
+  assert.equal(elements(ui.render()).some((item) => item.type === 'Image'), false);
+  assert.equal(ui.posts.length, 0);
+  await elements(ui.render()).find((item) => item.props?.accessibilityLabel === 'Choose from photo library').props.onPress();
+  const save = elements(ui.render()).find((item) => item.props?.accessibilityState?.busy === false);
+  save.props.onPress();
+  save.props.onPress();
   assert.equal(ui.posts.length, 1);
   assert.equal(ui.posts[0].imageUri, 'prepared.jpg');
   assert.equal(ui.posts[0].plannedMealId, 7);

@@ -57,6 +57,6 @@ The Log page also offers **Outside food**. It uses the same backend Gemini key a
 4. Log out, then verify subsequent notifications are not delivered to that account on this device. Sign in as another account and repeat the test.
 5. Deploy an updated web export and confirm the Update prompt installs it.
 6. As admin, refresh Members and Attention, decline a request, and remove shared access; confirm cancel does nothing and accepting completes the action. As member, verify the success buttons after email verification and password reset navigate correctly.
-7. Test Take photo, permission denial, front/back switching, capture and library upload. Review food-photo nutrition and save; unlisted Herbalife photos should go directly to the dashboard. Focus form fields and check the keyboard, input zoom and bottom navigation in portrait and landscape.
+7. Test Take photo, permission denial, front/back switching, capture and library upload. Review food-photo nutrition and save; unlisted Herbalife photos should offer Retake and Add to dashboard without displaying nutrition. Focus form fields and check the keyboard, input zoom and bottom navigation in portrait and landscape.
 
 Automated tests cover storage, user-gesture permission, subscription ownership/logout, provider separation, dead subscriptions and the service worker. Physical iOS delivery still requires the deployed HTTPS site and configured backend; local exports cannot verify Apple's push delivery or OS behavior.
