@@ -31,13 +31,14 @@ const isOnline = (member, now) => member.online === true && Number.isFinite(Date
 function MemberCard({ member, onPress, token, now }) {
   const needsAttention = member.attentionLevel === 'NEEDS_ATTENTION';
   const active = isOnline(member, now);
+  const completion = Math.min(100, Math.max(0, Number(member.todayCompletion ?? member.adherence ?? 0) || 0));
   const [imageFailed, setImageFailed] = useState(false);
   const avatarSource = imageFailed ? null : profileImageSource(member.profileImageUrl, token);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open ${member.name}'s profile. ${member.adherence} percent weekly adherence.`}
+      accessibilityLabel={`Open ${member.name}'s profile. ${completion} percent complete today.`}
       onPress={onPress}
       style={({ pressed }) => [styles.memberShell, needsAttention && styles.memberShellAttention, pressed && styles.pressed]}
     >
@@ -66,11 +67,11 @@ function MemberCard({ member, onPress, token, now }) {
         ) : null}
 
         <View style={styles.progressHeader}>
-          <Text style={styles.progressLabel}>WEEKLY ADHERENCE</Text>
-          <Text style={[styles.adherence, needsAttention && styles.adherenceAttention]}>{member.adherence}%</Text>
+          <Text style={styles.progressLabel}>{"TODAY'S COMPLETION"}</Text>
+          <Text style={[styles.adherence, needsAttention && styles.adherenceAttention]}>{completion}%</Text>
         </View>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, needsAttention && styles.progressFillAttention, { width: `${member.adherence}%` }]} />
+          <View style={[styles.progressFill, needsAttention && styles.progressFillAttention, { width: `${completion}%` }]} />
         </View>
 
         <View style={styles.memberFooter}>

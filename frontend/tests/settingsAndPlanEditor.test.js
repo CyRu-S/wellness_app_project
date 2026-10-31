@@ -85,3 +85,17 @@ test('theme ringtone is configurable and the test notification control is remove
   assert.doesNotMatch(preferences, /sendTestNotification|notifications\/test/);
   assert.match(app, /main_theme_alert\.wav/);
 });
+
+test('member cards show today completion and Z-Drink uses its own mark', async () => {
+  const [members, adminPlan, coachPlan] = await Promise.all([
+    source('../src/screens/admin/AdminMembersScreen.jsx'),
+    source('../src/screens/admin/UserDetailsScreen.jsx'),
+    source('../src/screens/user/SharedPlanEditorScreen.jsx'),
+  ]);
+  assert.match(members, /member\.todayCompletion \?\? member\.adherence/);
+  assert.match(members, /TODAY'S COMPLETION/);
+  assert.match(adminPlan, /zDrinkIconText}>Z</);
+  assert.match(coachPlan, /modeIconText}>Z</);
+  assert.doesNotMatch(adminPlan, /name="flask-outline"/);
+  assert.doesNotMatch(coachPlan, /name="flask-outline"/);
+});

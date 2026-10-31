@@ -65,6 +65,8 @@ public class AdminWorkspaceService {
             row.put("plan", ((String) plan.get("planName")).isBlank() ? "No plan assigned" : plan.get("planName"));
             var progress = weekly.get(user.getId());
             row.put("adherence", progress.percentage());
+            row.put("todayCompletion", progress.series().isEmpty() ? 0
+                    : ((Number) progress.series().getLast().getOrDefault("value", 0)).intValue());
             row.put("adherenceEstimatedHistory", progress.estimatedHistory());
             row.put("meals", postsByUser.getOrDefault(user.getId(), 0L));
             int goal = profile == null || profile.getWaterGoalMl() == null || profile.getWaterGoalMl() <= 0 ? 2000 : profile.getWaterGoalMl();

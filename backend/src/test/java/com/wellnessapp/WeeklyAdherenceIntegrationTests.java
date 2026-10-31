@@ -94,6 +94,7 @@ class WeeklyAdherenceIntegrationTests {
         at("2026-09-05T21:00:00");
         journals.updateWaterGoal(user.getId(), new UpdateMemberWaterGoalRequest(4000)); drink(user, 4000);
         assertThat(percentage()).isEqualTo(75); // Yesterday 50%, today 100%.
+        assertThat(row().get("todayCompletion")).isEqualTo(100);
         assertThat(targets.findByUserIdAndTargetDate(user.getId(), LocalDate.of(2026, 9, 4)).orElseThrow().getWaterGoalMl()).isEqualTo(2000);
     }
 

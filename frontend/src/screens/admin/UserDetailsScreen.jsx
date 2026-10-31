@@ -644,7 +644,7 @@ export default function UserDetailsScreen({ route, navigation }) {
       </Pressable>
 
       <Pressable accessibilityRole="button" accessibilityState={{ disabled: switchingPlan, busy: switchingPlan }} disabled={switchingPlan || (!plan.planName && !plan.zDrinkActive)} onPress={changeZDrink} style={({ pressed }) => [styles.zDrinkAction, plan.zDrinkActive && styles.zDrinkActionActive, (pressed || switchingPlan) && styles.pressed]}>
-        <View style={styles.zDrinkIcon}><Ionicons name="flask-outline" size={21} color={adminColors.deepTeal} /></View>
+        <View style={styles.zDrinkIcon}><Text style={styles.zDrinkIconText}>Z</Text></View>
         <View style={styles.zDrinkCopy}><Text style={styles.zDrinkLabel}>Z-DRINK DAY</Text><Text style={styles.zDrinkText}>{plan.canRevert ? 'Restore previous diet plan' : 'Convert current diet plan'}</Text><Text style={styles.zDrinkDetail}>{plan.zDrinkActive ? 'Temporary six-slot plan is active' : '3 shakes · 3 supplement / product slots'}</Text></View>
         {switchingPlan ? <ActivityIndicator color={adminColors.teal} /> : <Ionicons name="swap-horizontal" size={20} color={adminColors.teal} />}
       </Pressable>
@@ -710,6 +710,7 @@ const styles = StyleSheet.create({
   zDrinkAction: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, marginTop: 10, ...adminShadow },
   zDrinkActionActive: { backgroundColor: adminColors.aqua, borderColor: adminColors.aquaStrong },
   zDrinkIcon: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.7)' },
+  zDrinkIconText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 21, lineHeight: 25 },
   zDrinkCopy: { flex: 1, minWidth: 0 },
   zDrinkLabel: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 9, letterSpacing: 0.8 },
   zDrinkText: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 14, marginTop: 2 },

@@ -200,15 +200,19 @@ public class ReminderService {
             Instant lastSentAt = recentMemberNudges.get(e.getUser().getId());
             row.put("type", nudgeType(e).name());
             row.put("lastSentAt", lastSentAt);
-            row.put("availableAt", lastSentAt == null ? null : lastSentAt.plus(NUDGE_COOLDOWN));
+            row.put("availableAt", lastSentAt == null ? null : nudgeAvailableAt(lastSentAt, applicationZoneId));
             row.put("status", lastSentAt != null ? "NUDGED" : "OPEN"); return row;
         }).toList();
     }
 
     private Map<Long, Instant> recentMemberNudges() {
         Map<Long, Instant> recentMemberNudges = new HashMap<>();
-        for (var stamp : users.recentNudges(clock.instant().minus(NUDGE_COOLDOWN)))
-            recentMemberNudges.put(stamp.getMemberId(), stamp.getSentAt());
+        Instant now = clock.instant();
+        for (var stamp : users.recentNudges(now.minus(NUDGE_COOLDOWN))) {
+            if (nudgeActive(stamp.getSentAt(), now, applicationZoneId)) {
+                recentMemberNudges.put(stamp.getMemberId(), stamp.getSentAt());
+            }
+        }
         return recentMemberNudges;
     }
     @Transactional public void resolve(Long id) {
@@ -229,11 +233,12 @@ public class ReminderService {
     public HydrationStatus hydrationStatus() {
         var active = users.findByRoleAndStatusOrderByFullName(User.Role.USER, User.Status.ACTIVE);
         Instant next = null;
+        Instant now = clock.instant();
         for (var member : active) {
             var sentAt = member.getLastNudgedAt();
-            // A new member or an expired lock makes the button available.
-            if (sentAt == null || !sentAt.plus(NUDGE_COOLDOWN).isAfter(clock.instant())) return new HydrationStatus(0, null);
-            var available = sentAt.plus(NUDGE_COOLDOWN);
+            // Cooldowns never carry into the next local day.
+            if (!nudgeActive(sentAt, now, applicationZoneId)) return new HydrationStatus(0, null);
+            var available = nudgeAvailableAt(sentAt, applicationZoneId);
             if (next == null || available.isBefore(next)) next = available;
         }
         return new HydrationStatus(0, next);
@@ -284,14 +289,26 @@ public class ReminderService {
             throw new com.wellnessapp.exception.BadRequestException("This item is already completed or resolved. Refresh the view.");
         Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         Instant previous = lockedMember.getLastNudgedAt();
-        if (previous != null && previous.plus(NUDGE_COOLDOWN).isAfter(now)) {
+        if (nudgeActive(previous, now, applicationZoneId)) {
             Instant sentAt = previous;
-            return new NudgeResult(false, type, sentAt, sentAt.plus(NUDGE_COOLDOWN));
+            return new NudgeResult(false, type, sentAt, nudgeAvailableAt(sentAt, applicationZoneId));
         }
         notices.notify(lockedMember, PushDelivery.Kind.NUDGE, nudgeSourcePrefix(type) + now.toEpochMilli(),
                 firstName(lockedMember) + " · " + nudgeTitle(type), body);
         lockedMember.setLastNudgedAt(now);
-        return new NudgeResult(true, type, now, now.plus(NUDGE_COOLDOWN));
+        return new NudgeResult(true, type, now, nudgeAvailableAt(now, applicationZoneId));
+    }
+
+    static boolean nudgeActive(Instant sentAt, Instant now, ZoneId zone) {
+        return sentAt != null
+                && sentAt.atZone(zone).toLocalDate().equals(now.atZone(zone).toLocalDate())
+                && nudgeAvailableAt(sentAt, zone).isAfter(now);
+    }
+
+    static Instant nudgeAvailableAt(Instant sentAt, ZoneId zone) {
+        Instant cooldownEnd = sentAt.plus(NUDGE_COOLDOWN);
+        Instant nextDay = sentAt.atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant();
+        return cooldownEnd.isBefore(nextDay) ? cooldownEnd : nextDay;
     }
 
     private MemberNudgeType nudgeType(MissedEvent event) {

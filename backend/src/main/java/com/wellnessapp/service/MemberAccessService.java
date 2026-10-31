@@ -22,8 +22,6 @@ public class MemberAccessService {
     private static final int DEFAULT_WATER_GOAL_ML = 2000;
     private static final int DAILY_ACTIVITY_GOAL_MINUTES = 30;
     private static final int DAILY_ACTIVITY_GOAL_SECONDS = DAILY_ACTIVITY_GOAL_MINUTES * 60;
-    private static final Duration NUDGE_COOLDOWN = Duration.ofMinutes(30);
-
     private final UserRepository users;
     private final MemberAccessGrantRepository grants;
     private final MealRepository meals;
@@ -307,10 +305,10 @@ public class MemberAccessService {
     private SharedMemberTodayResponse.NudgeOption nudgeOption(
             User subject, MemberNudgeType type, String title, String detail, boolean needed) {
         Instant lastSentAt = subject.getLastNudgedAt();
-        if (lastSentAt != null && !lastSentAt.plus(NUDGE_COOLDOWN).isAfter(clock.instant())) lastSentAt = null;
+        if (!ReminderService.nudgeActive(lastSentAt, clock.instant(), applicationZoneId)) lastSentAt = null;
         return new SharedMemberTodayResponse.NudgeOption(
                 type, title, detail, needed, lastSentAt,
-                lastSentAt == null ? null : lastSentAt.plus(NUDGE_COOLDOWN));
+                lastSentAt == null ? null : ReminderService.nudgeAvailableAt(lastSentAt, applicationZoneId));
     }
 
     private SharedMemberTodayResponse.MealEntry mealEntry(Meal meal, MealPost post) {
