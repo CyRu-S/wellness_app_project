@@ -3,7 +3,7 @@ package com.wellnessapp.dto.access;
 import java.util.List;
 import java.math.BigDecimal;
 
-public record SharedMembersResponse(int total, List<SharedMemberSummary> members) {
+public record SharedMembersResponse(int total, boolean canAssignPlans, List<SharedMemberSummary> members) {
     public record SharedMemberSummary(
             Long id,
             String name,

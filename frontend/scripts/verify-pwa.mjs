@@ -14,6 +14,8 @@ assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.scope, '/');
 assert.equal(manifest.id, '/');
+assert.deepEqual(manifest.display_override, ['standalone', 'minimal-ui']);
+assert.equal(manifest.orientation, 'portrait-primary');
 for (const icon of [...manifest.icons, { src: '/icons/apple-touch-icon.png', sizes: '180x180' }]) {
   const png = await read(icon.src.slice(1), null);
   assert.equal(png.subarray(1, 4).toString(), 'PNG');
@@ -22,6 +24,7 @@ for (const icon of [...manifest.icons, { src: '/icons/apple-touch-icon.png', siz
 const worker = await read('service-worker.js');
 assert.doesNotMatch(worker, /__BUILD_CACHE__|\/\* PRECACHE \*\//);
 assert.match(worker, /mr-care-shell-[a-f0-9]{16}/);
+assert.match(worker, /navigationPreload\.enable/);
 const assets = JSON.parse(worker.match(/const ASSETS = (\[.*\]);/)[1]);
 for (const asset of assets) {
   assert.ok(asset.startsWith('/') && !asset.startsWith('/api/') && !asset.includes('..'));

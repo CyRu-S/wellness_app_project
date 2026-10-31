@@ -1,5 +1,7 @@
 package com.wellnessapp.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wellnessapp.dto.plan.*;
 import com.wellnessapp.entity.*;
 import com.wellnessapp.exception.*;
@@ -25,6 +27,8 @@ public class PlanService {
     private final ZoneId applicationZoneId;
     private final WorkflowNotificationService notices;
     private final WeeklyAdherenceService adherence;
+    private final MemberAccessGrantRepository grants;
+    private final ObjectMapper objectMapper;
     @Value("${app.admin.email:admin@mr-care.app}")
     private String adminEmail;
 
@@ -48,7 +52,7 @@ public class PlanService {
                     -meal.getId(), "MEAL", meal.getName(), meal.getType(), meal.getMealTime(), true, dailyItems.size(), "Meals"));
         }
         return new PlanResponse(plan.getId(), plan.getTitle(), plan.getGoal(), plan.getStartDate(), plan.getEndDate(),
-                dailyItems, coachName());
+                dailyItems, coachName(plan));
     }
 
     @Transactional(readOnly = true)
@@ -56,10 +60,7 @@ public class PlanService {
         Plan plan = current(memberId);
         if (plan == null) return emptyMemberPlan(memberId);
         var planItems = items.findByPlanIdOrderBySortOrder(plan.getId());
-        return Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", coachName(), "updatedAt", plan.getStartDate(),
-                "items", planItems.stream().filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null).map(this::mealMap).toList(),
-                "habits", planItems.stream().filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).map(this::taskMap).toList(),
-                "exercises", planItems.stream().filter(item -> item.getType() == PlanItem.Type.ACTIVITY).map(this::taskMap).toList());
+        return memberPlanMap(memberId, plan, planItems, coachName(plan));
     }
 
     @Transactional(readOnly = true)
@@ -74,7 +75,7 @@ public class PlanService {
         var groupedItems = currentPlans.isEmpty() ? Map.<Long, List<PlanItem>>of()
                 : items.findByPlanIdInOrderBySortOrder(currentPlans.values().stream().map(Plan::getId).toList())
                 .stream().collect(java.util.stream.Collectors.groupingBy(item -> item.getPlan().getId()));
-        var coach = coachName();
+        var fallbackCoach = defaultCoachName();
         for (var memberId : memberIds) {
             var plan = currentPlans.get(memberId);
             if (plan == null) {
@@ -82,17 +83,58 @@ public class PlanService {
                 continue;
             }
             var planItems = groupedItems.getOrDefault(plan.getId(), List.of());
-            result.put(memberId, Map.of("memberId", memberId, "planName", plan.getTitle(), "consultant", coach,
-                    "updatedAt", plan.getStartDate(), "items", planItems.stream()
-                    .filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null).map(this::mealMap).toList(),
-                    "habits", planItems.stream().filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).map(this::taskMap).toList(),
-                    "exercises", planItems.stream().filter(item -> item.getType() == PlanItem.Type.ACTIVITY).map(this::taskMap).toList()));
+            result.put(memberId, memberPlanMap(memberId, plan, planItems, coachName(plan, fallbackCoach)));
         }
         return result;
     }
 
     @Transactional
     public Map<String, Object> save(Long memberId, SaveMealPlanRequest request) {
+        User actor = users.findByEmailIgnoreCase(adminEmail)
+                .orElseThrow(() -> new NotFoundException("Administrator not found"));
+        return saveAuthorized(actor, memberId, request);
+    }
+
+    @Transactional
+    public Map<String, Object> save(String actorEmail, Long memberId, SaveMealPlanRequest request) {
+        User actor = authorizePlanManager(actorEmail, memberId);
+        return saveAuthorized(actor, memberId, request);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> sharedMemberPlan(String actorEmail, Long memberId) {
+        authorizePlanManager(actorEmail, memberId);
+        return memberPlan(memberId);
+    }
+
+    @Transactional
+    public Map<String, Object> convertToZDrink(String actorEmail, Long memberId) {
+        User actor = authorizePlanManager(actorEmail, memberId);
+        Plan current = current(memberId);
+        if (current == null) throw new BadRequestException("Assign a diet plan before converting to Z-Drink Day");
+        if (current.isZDrinkActive()) return memberPlan(memberId);
+        String snapshot = writeSnapshot(snapshotRequest(current));
+        saveAuthorized(actor, memberId, zDrinkRequest());
+        Plan converted = current(memberId);
+        converted.setZDrinkActive(true);
+        converted.setPreviousPlanSnapshot(snapshot);
+        converted.setAssignedBy(actor);
+        plans.save(converted);
+        return memberPlan(memberId);
+    }
+
+    @Transactional
+    public Map<String, Object> revertZDrink(String actorEmail, Long memberId) {
+        User actor = authorizePlanManager(actorEmail, memberId);
+        Plan current = current(memberId);
+        if (current == null || !current.isZDrinkActive() || current.getPreviousPlanSnapshot() == null) {
+            throw new BadRequestException("There is no previous diet plan to restore");
+        }
+        SaveMealPlanRequest previous = readSnapshot(current.getPreviousPlanSnapshot());
+        return saveAuthorized(actor, memberId, previous);
+    }
+
+    private Map<String, Object> saveAuthorized(User actor, Long memberId, SaveMealPlanRequest request) {
         User user = users.lockById(memberId).filter(u -> u.getRole() == User.Role.USER && u.getStatus() == User.Status.ACTIVE)
                 .orElseThrow(() -> new BadRequestException("Approve this member before assigning a plan"));
         adherence.captureToday(memberId);
@@ -112,9 +154,12 @@ public class PlanService {
         Plan plan = previous;
         if (plan == null) {
             plan = plans.save(Plan.builder().user(user).title(request.planName().trim()).goal("")
-                    .startDate(today()).endDate(LocalDate.of(9999, 12, 31)).active(true).build());
+                    .startDate(today()).endDate(LocalDate.of(9999, 12, 31)).active(true).assignedBy(actor).build());
         } else {
             plan.setTitle(request.planName().trim());
+            plan.setAssignedBy(actor);
+            plan.setZDrinkActive(false);
+            plan.setPreviousPlanSnapshot(null);
             plans.save(plan);
         }
 
@@ -295,9 +340,15 @@ public class PlanService {
         ingredients.deleteAll(ingredients.findByMealId(meal.getId()));
         meals.delete(meal);
     }
-    private String coachName() {
+    private String defaultCoachName() {
         String name = users.findByEmailIgnoreCase(adminEmail).filter(user -> user.getRole() == User.Role.ADMIN)
                 .map(User::getFullName).filter(value -> !value.isBlank()).orElse("Arjun");
+        return name.regionMatches(true, 0, "Coach ", 0, 6) ? name : "Coach " + name;
+    }
+    private String coachName(Plan plan) { return coachName(plan, defaultCoachName()); }
+    private String coachName(Plan plan, String fallback) {
+        if (plan.getAssignedBy() == null || plan.getAssignedBy().getFullName() == null || plan.getAssignedBy().getFullName().isBlank()) return fallback;
+        String name = plan.getAssignedBy().getFullName();
         return name.regionMatches(true, 0, "Coach ", 0, 6) ? name : "Coach " + name;
     }
     private Map<String, Object> mealMap(PlanItem item) {
@@ -311,7 +362,68 @@ public class PlanService {
                 "name", item.getTitle(), "time", item.getScheduledTime(), "calories", 0, "protein", 0, "ingredients", List.of());
     }
     private Map<String, Object> emptyMemberPlan(Long memberId) {
-        return Map.of("memberId", memberId, "planName", "", "items", List.of(), "habits", List.of(), "exercises", List.of());
+        return Map.of("memberId", memberId, "planName", "", "items", List.of(), "habits", List.of(), "exercises", List.of(),
+                "zDrinkActive", false, "canRevert", false);
+    }
+
+    private Map<String, Object> memberPlanMap(Long memberId, Plan plan, List<PlanItem> planItems, String consultant) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("memberId", memberId);
+        result.put("planName", plan.getTitle());
+        result.put("consultant", consultant);
+        result.put("updatedAt", plan.getStartDate());
+        result.put("zDrinkActive", plan.isZDrinkActive());
+        result.put("canRevert", plan.isZDrinkActive() && plan.getPreviousPlanSnapshot() != null);
+        result.put("items", planItems.stream().filter(item -> item.getType() == PlanItem.Type.MEAL && item.getMealType() != null).map(this::mealMap).toList());
+        result.put("habits", planItems.stream().filter(item -> item.getType() == PlanItem.Type.HEALTHY_HABIT).map(this::taskMap).toList());
+        result.put("exercises", planItems.stream().filter(item -> item.getType() == PlanItem.Type.ACTIVITY).map(this::taskMap).toList());
+        return result;
+    }
+
+    private User authorizePlanManager(String actorEmail, Long memberId) {
+        User actor = users.findByEmailIgnoreCase(actorEmail)
+                .orElseThrow(() -> new NotFoundException("Account not found"));
+        if (actor.getStatus() != User.Status.ACTIVE) throw new NotFoundException("Member not found");
+        if (actor.getRole() == User.Role.ADMIN) return actor;
+        if (!actor.isCanAssignPlans() || !grants.existsByViewerIdAndSubjectId(actor.getId(), memberId)) {
+            throw new NotFoundException("Member not found");
+        }
+        return actor;
+    }
+
+    private SaveMealPlanRequest snapshotRequest(Plan plan) {
+        List<SaveMealPlanRequest.Item> snapshotItems = items.findByPlanIdOrderBySortOrder(plan.getId()).stream()
+                .map(item -> new SaveMealPlanRequest.Item(
+                        item.getType() == PlanItem.Type.MEAL ? item.getMealType()
+                                : item.getType() == PlanItem.Type.ACTIVITY ? "Coach exercise" : "Healthy habit",
+                        item.getTitle(), item.getScheduledTime(), item.getCalories(), item.getProteinGrams(),
+                        split(item.getIngredients()), null, item.getType().name(), item.getDetail()))
+                .toList();
+        return new SaveMealPlanRequest(plan.getTitle(), snapshotItems);
+    }
+
+    private SaveMealPlanRequest zDrinkRequest() {
+        return new SaveMealPlanRequest("Z-Drink Day", List.of(
+                zDrinkItem("Shake 1", LocalTime.of(7, 0), "Shake"),
+                zDrinkItem("Supplements & Herbalife products 1", LocalTime.of(9, 30), "Herbalife product"),
+                zDrinkItem("Shake 2", LocalTime.of(12, 30), "Shake"),
+                zDrinkItem("Supplements & Herbalife products 2", LocalTime.of(15, 30), "Herbalife product"),
+                zDrinkItem("Shake 3", LocalTime.of(18, 30), "Shake"),
+                zDrinkItem("Supplements & Herbalife products 3", LocalTime.of(21, 0), "Herbalife product")));
+    }
+
+    private SaveMealPlanRequest.Item zDrinkItem(String name, LocalTime time, String type) {
+        return new SaveMealPlanRequest.Item(type, name, time, 0, 0, List.of(), null, "MEAL", type);
+    }
+
+    private String writeSnapshot(SaveMealPlanRequest request) {
+        try { return objectMapper.writeValueAsString(request); }
+        catch (JsonProcessingException error) { throw new BadRequestException("The current plan could not be preserved"); }
+    }
+
+    private SaveMealPlanRequest readSnapshot(String snapshot) {
+        try { return objectMapper.readValue(snapshot, SaveMealPlanRequest.class); }
+        catch (JsonProcessingException error) { throw new BadRequestException("The previous diet plan could not be restored"); }
     }
     private boolean isDailyTask(PlanItem item) {
         return item.getType() == PlanItem.Type.HEALTHY_HABIT || item.getType() == PlanItem.Type.ACTIVITY;

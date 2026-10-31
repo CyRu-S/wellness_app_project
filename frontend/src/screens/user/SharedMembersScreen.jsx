@@ -108,6 +108,7 @@ export default function SharedMembersScreen({ navigation }) {
     [payload],
   );
   const total = Array.isArray(payload) ? members.length : asNumber(payload?.total, members.length);
+  const canAssignPlans = Boolean(payload?.canAssignPlans);
   const status = access.sharedMembersStatus || access.listStatus || access.status || 'idle';
   const error = access.sharedMembersError || access.error;
   const loading = status === 'loading' || status === 'pending';
@@ -131,7 +132,7 @@ export default function SharedMembersScreen({ navigation }) {
       <StaggeredView delay={35} style={styles.intro}>
         <Text style={styles.eyebrow}>SHARED WITH YOU</Text>
         <Text style={styles.title}>Your circle</Text>
-        <Text style={styles.introCopy}>You are the coach for the members shown here. Their activity history and health reports are read-only.</Text>
+        <Text style={styles.introCopy}>You are the coach for every member shown here. There is no assignment limit.{canAssignPlans ? ' You can also update their diet plans.' : ' Progress access is read-only.'}</Text>
       </StaggeredView>
 
       <StaggeredView delay={95} style={styles.hero}>
@@ -140,7 +141,7 @@ export default function SharedMembersScreen({ navigation }) {
           <Text style={styles.heroLabel}>TODAY’S SHARED VIEW</Text>
           <Text style={styles.heroCount}>{String(total).padStart(2, '0')}</Text>
           <Text style={styles.heroTitle}>{total === 1 ? 'member in your care' : 'members in your care'}</Text>
-          <Text style={styles.heroText}>Access is read-only and includes today, meal history, and saved health reports.</Text>
+          <Text style={styles.heroText}>{canAssignPlans ? 'Progress, meal history, reports, and diet-plan assignment are available.' : 'Access includes today, meal history, and saved health reports.'}</Text>
         </View>
         <View style={styles.heroMark}>
           <Ionicons name="shield-checkmark" size={28} color={colors.accent} />
@@ -175,7 +176,7 @@ export default function SharedMembersScreen({ navigation }) {
         renderItem={({ item }) => <MemberCard member={item} onPress={() => openMember(item)} />}
         ListHeaderComponent={header}
         ListEmptyComponent={loading ? <View style={styles.loadingState}><ActivityIndicator color={colors.tealMid} /><Text style={styles.loadingText}>Loading your shared circle…</Text></View> : errorState || <EmptyState />}
-        ListFooterComponent={members.length ? <View style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={16} color={colors.tealDark} /><Text style={styles.privacyText}>You can view assigned members’ activity history and reports. Access is managed by your club admin.</Text></View> : null}
+        ListFooterComponent={members.length ? <View style={styles.privacyNote}><Ionicons name="lock-closed-outline" size={16} color={colors.tealDark} /><Text style={styles.privacyText}>Only assigned members are visible. Your club admin controls progress and diet-plan permissions.</Text></View> : null}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={Platform.OS !== 'web' ? <RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} /> : undefined}

@@ -20,6 +20,8 @@ import {
   selectAdminMembers,
   updateMemberMealPlan,
   deleteMemberAccount,
+  convertMemberToZDrink,
+  revertMemberZDrink,
 } from '../../store/slices/adminSlice';
 import {
   loadAdminMemberJournal,
@@ -511,6 +513,7 @@ export default function UserDetailsScreen({ route, navigation }) {
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [deletingMember, setDeletingMember] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [switchingPlan, setSwitchingPlan] = useState(false);
   const member = useMemo(
     () => members.find((item) => item.id === route.params?.id || item.name === route.params?.name) || directMember,
     [members, route.params, directMember],
@@ -548,6 +551,22 @@ export default function UserDetailsScreen({ route, navigation }) {
     } catch (error) {
       Alert.alert('Could not update water goal', error?.message || 'Please try again.');
     }
+  };
+  const changeZDrink = () => {
+    const reverting = Boolean(plan.canRevert);
+    Alert.alert(reverting ? 'Restore previous plan?' : 'Switch to Z-Drink Day?', reverting
+      ? `The plan saved before Z-Drink Day will be assigned to ${profileMember.name} again.`
+      : `This saves ${profileMember.name}'s current plan, then assigns three shakes and three supplement / Herbalife product slots.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: reverting ? 'Restore plan' : 'Switch plan', onPress: async () => {
+        setSwitchingPlan(true);
+        try {
+          await dispatch(reverting ? revertMemberZDrink(member.id) : convertMemberToZDrink(member.id)).unwrap();
+          retryJournal();
+        } catch (error) { Alert.alert('Plan not changed', error.message || 'Please try again.'); }
+        finally { setSwitchingPlan(false); }
+      } },
+    ]);
   };
   const confirmDeleteMember = () => {
     if (deletingMember) return;
@@ -624,6 +643,12 @@ export default function UserDetailsScreen({ route, navigation }) {
         </LinearGradient>
       </Pressable>
 
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: switchingPlan, busy: switchingPlan }} disabled={switchingPlan || (!plan.planName && !plan.zDrinkActive)} onPress={changeZDrink} style={({ pressed }) => [styles.zDrinkAction, plan.zDrinkActive && styles.zDrinkActionActive, (pressed || switchingPlan) && styles.pressed]}>
+        <View style={styles.zDrinkIcon}><Ionicons name="flask-outline" size={21} color={adminColors.deepTeal} /></View>
+        <View style={styles.zDrinkCopy}><Text style={styles.zDrinkLabel}>Z-DRINK DAY</Text><Text style={styles.zDrinkText}>{plan.canRevert ? 'Restore previous diet plan' : 'Convert current diet plan'}</Text><Text style={styles.zDrinkDetail}>{plan.zDrinkActive ? 'Temporary six-slot plan is active' : '3 shakes · 3 supplement / product slots'}</Text></View>
+        {switchingPlan ? <ActivityIndicator color={adminColors.teal} /> : <Ionicons name="swap-horizontal" size={20} color={adminColors.teal} />}
+      </Pressable>
+
       <Pressable accessibilityRole="button" accessibilityLabel={`Set daily water goal. Current goal ${profileMember.waterGoalMl || 2000} millilitres`} onPress={() => setEditingWaterGoal(true)} style={({ pressed }) => [styles.waterAction, pressed && styles.pressed]}>
         <View style={styles.waterActionIcon}><Ionicons name="water-outline" size={22} color={adminColors.teal} /></View>
         <View style={styles.waterActionCopy}><Text style={styles.waterActionLabel}>DAILY HYDRATION</Text><Text style={styles.waterActionText}>Set water goal</Text></View>
@@ -682,6 +707,13 @@ const styles = StyleSheet.create({
   adjustLabel: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.85 },
   adjustText: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 16, lineHeight: 21, marginTop: 2 },
   adjustIcon: { width: 42, height: 42, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  zDrinkAction: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, marginTop: 10, ...adminShadow },
+  zDrinkActionActive: { backgroundColor: adminColors.aqua, borderColor: adminColors.aquaStrong },
+  zDrinkIcon: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.7)' },
+  zDrinkCopy: { flex: 1, minWidth: 0 },
+  zDrinkLabel: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 9, letterSpacing: 0.8 },
+  zDrinkText: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 14, marginTop: 2 },
+  zDrinkDetail: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 10, marginTop: 3 },
   waterAction: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, marginTop: 10, ...adminShadow },
   waterActionIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
   waterActionCopy: { flex: 1, minWidth: 0, paddingHorizontal: 12 },

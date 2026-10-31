@@ -7,6 +7,7 @@ import {
   nudgeSharedMember as nudgeSharedMemberApi,
   getSharedMembers,
   replaceAdminMemberAccess,
+  updateCoachPlanPermission as updateCoachPlanPermissionApi,
 } from '../../services/api/memberAccessApi';
 
 const idleRequest = { status: 'idle', error: null };
@@ -29,6 +30,7 @@ export const memberAccessInitialState = {
   errorStatus: null,
   overviewRequest: { ...idleRequest },
   saveRequest: { ...idleRequest },
+  permissionRequest: { ...idleRequest, viewerId: null },
   sharedRequest: { ...idleRequest },
   todayRequest: { ...idleRequest, memberId: null, revoked: false },
   lastSavedViewerId: null,
@@ -78,6 +80,16 @@ export const replaceMemberAccessAssignments = createAsyncThunk(
     requireApiToken(context.token);
     const viewer = await replaceAdminMemberAccess(context.token, viewerId, normalizedMemberIds);
     return { source: context.source, viewerId: Number(viewerId), viewer };
+  },
+);
+
+export const updateCoachPlanPermission = createAsyncThunk(
+  'memberAccess/updatePlanPermission',
+  async ({ viewerId, canAssignPlans }, { getState }) => {
+    const context = accessContext(getState);
+    requireApiToken(context.token);
+    const viewer = await updateCoachPlanPermissionApi(context.token, viewerId, canAssignPlans);
+    return { viewerId: Number(viewerId), viewer };
   },
 );
 
@@ -178,6 +190,17 @@ const memberAccessSlice = createSlice({
       })
       .addCase(replaceMemberAccessAssignments.rejected, (state, action) => {
         state.saveRequest = { status: 'failed', error: errorMessage(action, 'Unable to save access changes.') };
+      })
+      .addCase(updateCoachPlanPermission.pending, (state, action) => {
+        state.permissionRequest = { status: 'loading', error: null, viewerId: Number(action.meta.arg.viewerId) };
+      })
+      .addCase(updateCoachPlanPermission.fulfilled, (state, action) => {
+        const index = state.overview.viewers.findIndex((row) => row.id === action.payload.viewer.id);
+        if (index >= 0) state.overview.viewers[index] = action.payload.viewer;
+        state.permissionRequest = { status: 'succeeded', error: null, viewerId: action.payload.viewerId };
+      })
+      .addCase(updateCoachPlanPermission.rejected, (state, action) => {
+        state.permissionRequest = { status: 'failed', error: errorMessage(action, 'Unable to update diet-plan access.'), viewerId: Number(action.meta.arg.viewerId) };
       })
       .addCase(loadSharedMembers.pending, (state) => {
         state.sharedRequest = { status: 'loading', error: null };
@@ -294,6 +317,7 @@ const selectSlice = (state) => state.memberAccess || memberAccessInitialState;
 export const selectMemberAccessOverview = (state) => selectSlice(state).overview;
 export const selectMemberAccessOverviewRequest = (state) => selectSlice(state).overviewRequest;
 export const selectMemberAccessSaveRequest = (state) => selectSlice(state).saveRequest;
+export const selectCoachPlanPermissionRequest = (state) => selectSlice(state).permissionRequest;
 export const selectLastSavedViewerId = (state) => selectSlice(state).lastSavedViewerId;
 export const selectSharedMembers = (state) => selectSlice(state).shared;
 export const selectSharedMembersRequest = (state) => selectSlice(state).sharedRequest;

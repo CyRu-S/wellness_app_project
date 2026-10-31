@@ -3,9 +3,10 @@ import com.wellnessapp.entity.Plan;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 public interface PlanRepository extends JpaRepository<Plan, Long> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user", "assignedBy"})
     Optional<Plan> findFirstByUserIdAndActiveTrueOrderByStartDateDesc(Long userId);
     long countByActiveTrue();
-    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "user")
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user", "assignedBy"})
     java.util.List<Plan> findByUserIdInAndActiveTrueOrderByStartDateDescIdDesc(java.util.Collection<Long> userIds);
 }
 

@@ -18,6 +18,7 @@ import HealthReportsScreen from '../screens/user/HealthReportsScreen';
 import SharedMembersScreen from '../screens/user/SharedMembersScreen';
 import SharedMemberTodayScreen from '../screens/user/SharedMemberTodayScreen';
 import SharedPhotoScreen from '../screens/user/SharedPhotoScreen';
+import SharedPlanEditorScreen from '../screens/user/SharedPlanEditorScreen';
 import LeaderboardScreen from '../screens/user/LeaderboardScreen';
 import { colors } from '../theme';
 
@@ -26,7 +27,7 @@ const header = { headerStyle: { backgroundColor: colors.paper }, headerShadowVis
 function HomeStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} /><Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ headerShown: false }} /><Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} /></Stack.Navigator>; }
 function LogStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="TodayTimeline" component={MealsScreen} options={{ headerShown: false }} /><Stack.Screen name="MealDetails" component={MealDetailsScreen} options={{ headerShown: false }} /><Stack.Screen name="MealCapture" component={MealCaptureScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
 function ProfileStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ headerShown: false }} /><Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} /><Stack.Screen name="BodyDetails" component={BodyDetailsScreen} options={{ headerShown: false }} /><Stack.Screen name="HealthPreferences" component={HealthPreferencesScreen} options={{ headerShown: false }} /><Stack.Screen name="HealthReports" component={HealthReportsScreen} options={{ headerShown: false }} /><Stack.Screen name="PrivacyData" component={PrivacyDataScreen} options={{ headerShown: false }} /></Stack.Navigator>; }
-function SharedStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="SharedMembers" component={SharedMembersScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedMemberToday" component={SharedMemberTodayScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedPhoto" component={SharedPhotoScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
+function SharedStack() { return <Stack.Navigator screenOptions={header}><Stack.Screen name="SharedMembers" component={SharedMembersScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedMemberToday" component={SharedMemberTodayScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedPlanEditor" component={SharedPlanEditorScreen} options={{ headerShown: false }} /><Stack.Screen name="SharedPhoto" component={SharedPhotoScreen} options={{ headerShown: false, animation: 'fade', presentation: 'fullScreenModal' }} /></Stack.Navigator>; }
 export default function UserNavigator() {
   const insets = useSafeAreaInsets();
   const dockSpace = 83 + Math.max(insets.bottom, 8);

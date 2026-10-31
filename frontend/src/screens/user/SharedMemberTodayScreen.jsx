@@ -12,14 +12,16 @@ import { clearSharedMemberToday, loadSharedMemberToday, nudgeSharedMember } from
 import Alert from '../../utils/appAlert';
 import { colors, fonts, radius, type } from '../../theme';
 
-function BackHeader({ navigation }) {
+const detailSections = ['Today', 'Nudges', 'History', 'Reports'];
+
+function BackHeader({ navigation, canAssignPlans }) {
   return (
     <View style={styles.topBar}>
       <Pressable accessibilityRole="button" accessibilityLabel="Back to shared members" onPress={() => navigation.goBack()} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
         <Ionicons name="arrow-back" size={21} color={colors.ink} />
       </Pressable>
       <Text style={styles.topTitle}>Shared today</Text>
-      <View style={styles.readOnlyPill}><Ionicons name="eye-outline" size={13} color={colors.tealDark} /><Text style={styles.readOnlyText}>READ ONLY</Text></View>
+      <View style={styles.readOnlyPill}><Ionicons name={canAssignPlans ? 'nutrition-outline' : 'eye-outline'} size={13} color={colors.tealDark} /><Text style={styles.readOnlyText}>{canAssignPlans ? 'PLAN ACCESS' : 'READ ONLY'}</Text></View>
     </View>
   );
 }
@@ -50,6 +52,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   const [section, setSection] = useState('Today');
   const [now, setNow] = useState(0);
   const nudge = access.sharedNudge || { status: 'idle' };
+  const canAssignPlans = Boolean(access.sharedMembers?.canAssignPlans ?? access.shared?.canAssignPlans);
   const today = useMemo(() => {
     if (!payload) return null;
     if (payload.byMemberId) return payload.byMemberId[memberId] || null;
@@ -94,7 +97,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   if (!today && loading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-        <View style={styles.content}><BackHeader navigation={navigation} /><View style={styles.loadingState}><ActivityIndicator color={colors.tealMid} size="large" /><Text style={styles.loadingTitle}>Opening today’s snapshot</Text><Text style={styles.loadingCopy}>Loading shared check-ins securely…</Text></View></View>
+        <View style={styles.content}><BackHeader navigation={navigation} canAssignPlans={canAssignPlans} /><View style={styles.loadingState}><ActivityIndicator color={colors.tealMid} size="large" /><Text style={styles.loadingTitle}>Opening today’s snapshot</Text><Text style={styles.loadingCopy}>Loading shared check-ins securely…</Text></View></View>
       </SafeAreaView>
     );
   }
@@ -102,7 +105,7 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
   if (!today && error) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-        <View style={styles.content}><BackHeader navigation={navigation} /><FailedState revoked={revoked} message={errorMessage} onRetry={load} onBack={() => navigation.goBack()} /></View>
+        <View style={styles.content}><BackHeader navigation={navigation} canAssignPlans={canAssignPlans} /><FailedState revoked={revoked} message={errorMessage} onRetry={load} onBack={() => navigation.goBack()} /></View>
       </SafeAreaView>
     );
   }
@@ -115,11 +118,12 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
         refreshControl={Platform.OS !== 'web' ? <RefreshControl refreshing={pageRefresh.refreshing} onRefresh={pageRefresh.onRefresh} colors={[colors.tealMid]} tintColor={colors.tealMid} /> : undefined}
       >
-        <BackHeader navigation={navigation} />
+        <BackHeader navigation={navigation} canAssignPlans={canAssignPlans} />
         <View style={styles.sections}>
-          {['Today', 'Nudges', 'History', 'Reports'].map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: section === item }} onPress={() => setSection(item)} style={[styles.section, section === item && styles.sectionActive]}><Text style={[styles.sectionText, section === item && styles.sectionTextActive]}>{item}</Text></Pressable>)}
+          {[detailSections[0], ...(canAssignPlans ? ['Plan'] : []), ...detailSections.slice(1)].map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: section === item }} onPress={() => setSection(item)} style={[styles.section, section === item && styles.sectionActive]}><Text style={[styles.sectionText, section === item && styles.sectionTextActive]}>{item}</Text></Pressable>)}
         </View>
         {section === 'Today' ? <MemberTodaySnapshot snapshot={today} token={token} onOpenPhoto={openPhoto} showAccessNote /> : null}
+        {section === 'Plan' ? <SharedPlanAccess memberName={memberName} onOpen={() => navigation.navigate('SharedPlanEditor', { memberId, memberName })} /> : null}
         {section === 'Nudges' ? <SharedNudges memberName={memberName} options={today?.nudges || []} now={now} token={token} onMember={() => setSection('Today')} nudge={nudgeForMember ? nudge : null} onSend={sendNudge} /> : null}
         {section === 'History' ? <SharedHistory days={journal?.history || []} retentionDays={journal?.retentionDays || 21} onOpenPhoto={openPhoto} /> : null}
         {section === 'Reports' ? <SharedReports reports={journal?.healthReports || []} memberName={today?.member?.name || fallbackName} /> : null}
@@ -127,6 +131,19 @@ export default function SharedMemberTodayScreen({ navigation, route }) {
       </PageRefresh>
     </SafeAreaView>
   );
+}
+
+function SharedPlanAccess({ memberName, onOpen }) {
+  return <View style={styles.detailSection}>
+    <Text style={styles.detailEyebrow}>DIET PLAN ACCESS</Text>
+    <Text style={styles.detailTitle}>Manage {memberName}’s plan</Text>
+    <Text style={styles.detailCopy}>Your admin enabled plan assignment for the members shared with you.</Text>
+    <View style={styles.planAccessPanel}>
+      <View style={styles.planAccessIcon}><Ionicons name="nutrition-outline" size={25} color={colors.tealDark} /></View>
+      <View style={styles.planAccessCopy}><Text style={styles.planAccessTitle}>Recurring diet schedule</Text><Text style={styles.planAccessText}>Edit meals and habits, switch to Z-Drink Day, or restore the previous plan.</Text></View>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Manage ${memberName}'s diet plan`} onPress={onOpen} style={styles.planAccessButton}><Ionicons name="arrow-forward" size={19} color={colors.white} /></Pressable>
+    </View>
+  </View>;
 }
 
 function SharedNudges({ memberName, options, now, token, onMember, nudge, onSend }) {
@@ -215,6 +232,12 @@ const styles = StyleSheet.create({
   reportPreference: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 6 },
   emptyDetail: { alignItems: 'center', paddingVertical: 48 },
   emptyDetailTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 17, marginTop: 11 },
+  planAccessPanel: { minHeight: 102, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, marginTop: 18 },
+  planAccessIcon: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
+  planAccessCopy: { flex: 1, minWidth: 0 },
+  planAccessTitle: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14 },
+  planAccessText: { color: colors.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  planAccessButton: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.tealMid },
   nudgeList: { marginTop: 18, gap: 14 },
 
 });

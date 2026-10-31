@@ -2,6 +2,7 @@ package com.wellnessapp.controller;
 
 import com.wellnessapp.dto.access.AdminMemberAccessResponse;
 import com.wellnessapp.dto.access.ReplaceMemberAccessRequest;
+import com.wellnessapp.dto.access.UpdateCoachPlanPermissionRequest;
 import com.wellnessapp.service.MemberAccessService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,5 +26,13 @@ public class AdminMemberAccessController {
             @PathVariable Long viewerId,
             @Valid @RequestBody ReplaceMemberAccessRequest request) {
         return memberAccess.replaceAssignments(authentication.getName(), viewerId, request);
+    }
+
+    @PatchMapping("/{viewerId}/plan-permission")
+    AdminMemberAccessResponse.ViewerAccess updatePlanPermission(
+            Authentication authentication,
+            @PathVariable Long viewerId,
+            @Valid @RequestBody UpdateCoachPlanPermissionRequest request) {
+        return memberAccess.updatePlanPermission(authentication.getName(), viewerId, request.canAssignPlans());
     }
 }

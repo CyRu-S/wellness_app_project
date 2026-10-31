@@ -40,5 +40,8 @@ public class User {
     @Column(name = "follow_up_at") private Instant followUpAt;
     @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(name = "last_nudged_at") private Instant lastNudgedAt;
+    @Builder.Default
+    @Column(name = "can_assign_plans", nullable = false)
+    private boolean canAssignPlans = false;
 }
 

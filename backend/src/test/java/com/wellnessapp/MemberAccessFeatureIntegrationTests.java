@@ -64,6 +64,35 @@ class MemberAccessFeatureIntegrationTests {
     }
 
     @Test
+    void adminDelegatesPlanAssignmentAndCoachCanConvertThenRestoreZDrinkPlan() {
+        User coach = user("user@mr-care.app");
+        User member = user("kavya.menon@example.com");
+        var original = new com.wellnessapp.dto.plan.SaveMealPlanRequest("Kavya regular plan", List.of(
+                new com.wellnessapp.dto.plan.SaveMealPlanRequest.Item(
+                        "Breakfast", "Oats and fruit", java.time.LocalTime.of(8, 0), 320, 18, List.of("Oats", "Fruit"), null)));
+        plans.save(member.getId(), original);
+        memberAccess.replaceAssignments("admin@mr-care.app", coach.getId(), new ReplaceMemberAccessRequest(List.of(member.getId())));
+
+        assertThatThrownBy(() -> plans.sharedMemberPlan(coach.getEmail(), member.getId()))
+                .isInstanceOf(NotFoundException.class);
+        var permission = memberAccess.updatePlanPermission("admin@mr-care.app", coach.getId(), true);
+        assertThat(permission.canAssignPlans()).isTrue();
+        assertThat(memberAccess.sharedMembers(coach.getEmail()).canAssignPlans()).isTrue();
+
+        var converted = plans.convertToZDrink(coach.getEmail(), member.getId());
+        assertThat(converted.get("planName")).isEqualTo("Z-Drink Day");
+        assertThat(converted.get("zDrinkActive")).isEqualTo(true);
+        assertThat((List<?>) converted.get("items")).hasSize(6);
+        assertThat(converted.get("consultant")).isEqualTo("Coach Aarav Mehta");
+
+        var restored = plans.revertZDrink(coach.getEmail(), member.getId());
+        assertThat(restored.get("planName")).isEqualTo("Kavya regular plan");
+        assertThat(restored.get("zDrinkActive")).isEqualTo(false);
+        assertThat((List<?>) restored.get("items")).singleElement().satisfies(item ->
+                assertThat(((java.util.Map<?, ?>) item).get("name")).isEqualTo("Oats and fruit"));
+    }
+
+    @Test
     void preventsSelfAccessAndRejectsNonUserSubjects() {
         User aarav = user("user@mr-care.app");
         User admin = user("admin@mr-care.app");

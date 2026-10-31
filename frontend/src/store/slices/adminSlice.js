@@ -79,7 +79,12 @@ export const updateMemberMealPlan = createAsyncThunk('admin/savePlan', async ({ 
   const result = await request(`/admin/plans/members/${memberId}`, { method: 'PUT', headers: headers(getState), body: JSON.stringify(body) });
   return result;
 });
-const writes = [approveRequest, declineRequest, nudgeAttention, resolveAttention, nudgeClubHydration, updateMemberMealPlan, deleteMemberAccount];
+const zDrinkAction = (name, suffix) => createAsyncThunk(name, async (memberId, { getState }) => (
+  request(`/admin/plans/members/${memberId}/z-drink${suffix}`, { method: 'POST', headers: headers(getState) })
+));
+export const convertMemberToZDrink = zDrinkAction('admin/convertToZDrink', '');
+export const revertMemberZDrink = zDrinkAction('admin/revertZDrink', '/revert');
+const writes = [approveRequest, declineRequest, nudgeAttention, resolveAttention, nudgeClubHydration, updateMemberMealPlan, convertMemberToZDrink, revertMemberZDrink, deleteMemberAccount];
 const emptyRange = { label: '', totalLogs: 0, completionRate: 0, comparison: 0, series: [] };
 const syncAttentionState = (state) => {
   const open = state.attention.filter((item) => item.status === 'OPEN');
@@ -248,6 +253,12 @@ const slice = createSlice({
       state.attention = state.attention.filter((item) => item.memberId !== action.payload);
       delete state.memberMealPlans[action.payload]; state.summary.totalMembers = state.members.length;
       syncAttentionState(state);
+    })
+    .addMatcher((action) => [convertMemberToZDrink.fulfilled.type, revertMemberZDrink.fulfilled.type].includes(action.type), (state, action) => {
+      state.memberMealPlans[action.meta.arg] = { ...action.payload, items: action.payload.items.map(normalizeMeal),
+        habits: (action.payload.habits || []).map(normalizeMeal), exercises: (action.payload.exercises || []).map(normalizeMeal) };
+      const member = state.members.find((row) => row.id === action.meta.arg);
+      if (member) member.plan = action.payload.planName || 'No plan assigned';
     })
     .addMatcher((action) => writes.some((write) => write.pending.match(action)), (state, action) => {
       state.writes[action.meta.requestId] = true; state.readId = null; state.pageReads = {};

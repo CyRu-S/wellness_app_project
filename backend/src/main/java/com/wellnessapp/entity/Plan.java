@@ -14,5 +14,8 @@ public class Plan {
     @Column(name = "start_date", nullable = false) private LocalDate startDate;
     @Column(name = "end_date", nullable = false) private LocalDate endDate;
     @Column(nullable = false) private boolean active;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "assigned_by_user_id") private User assignedBy;
+    @Builder.Default @Column(name = "z_drink_active", nullable = false) private boolean zDrinkActive = false;
+    @Column(name = "previous_plan_snapshot", columnDefinition = "text") private String previousPlanSnapshot;
 }
 

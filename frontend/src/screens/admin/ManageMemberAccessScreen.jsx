@@ -14,6 +14,8 @@ import {
   selectMemberAccessOverview,
   selectMemberAccessOverviewRequest,
   selectMemberAccessSaveRequest,
+  selectCoachPlanPermissionRequest,
+  updateCoachPlanPermission,
 } from '../../store/slices/memberAccessSlice';
 import {
   adminColors,
@@ -65,6 +67,7 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
   const overview = useSelector(selectMemberAccessOverview);
   const overviewRequest = useSelector(selectMemberAccessOverviewRequest);
   const saveRequest = useSelector(selectMemberAccessSaveRequest);
+  const permissionRequest = useSelector(selectCoachPlanPermissionRequest);
   const lastSavedViewerId = useSelector(selectLastSavedViewerId);
   const viewer = overview.viewers.find((item) => item.id === viewerId);
   const [query, setQuery] = useState('');
@@ -115,6 +118,15 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
       setBaselineIds([...selectedIds]);
     } catch {
       // Redux renders the server or demo adapter error below the controls.
+    }
+  };
+
+  const togglePlanPermission = async () => {
+    if (!viewer || permissionRequest.status === 'loading') return;
+    try {
+      await dispatch(updateCoachPlanPermission({ viewerId, canAssignPlans: !viewer.canAssignPlans })).unwrap();
+    } catch {
+      // The inline permission notice keeps this action recoverable.
     }
   };
 
@@ -182,9 +194,34 @@ export default function ManageMemberAccessScreen({ navigation, route }) {
             </View>
           </View>
 
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: Boolean(viewer.canAssignPlans), disabled: permissionRequest.status === 'loading' }}
+            accessibilityLabel={`Allow ${viewer.name} to assign diet plans`}
+            disabled={permissionRequest.status === 'loading'}
+            onPress={togglePlanPermission}
+            style={({ pressed }) => [styles.planPermission, viewer.canAssignPlans && styles.planPermissionEnabled, pressed && styles.pressed]}
+          >
+            <View style={[styles.planPermissionIcon, viewer.canAssignPlans && styles.planPermissionIconEnabled]}>
+              <Ionicons name="nutrition-outline" size={21} color={viewer.canAssignPlans ? adminColors.white : adminColors.deepTeal} />
+            </View>
+            <View style={styles.planPermissionCopy}>
+              <Text style={styles.planPermissionLabel}>DIET PLAN PERMISSION</Text>
+              <Text style={styles.planPermissionTitle}>{viewer.canAssignPlans ? 'Coach can assign plans' : 'Progress access only'}</Text>
+              <Text style={styles.planPermissionText}>Applies only to members selected below.</Text>
+            </View>
+            {permissionRequest.status === 'loading' ? <ActivityIndicator color={adminColors.teal} /> : (
+              <View style={[styles.switchTrack, viewer.canAssignPlans && styles.switchTrackEnabled]}><View style={[styles.switchThumb, viewer.canAssignPlans && styles.switchThumbEnabled]} /></View>
+            )}
+          </Pressable>
+
+          {permissionRequest.status === 'failed' && permissionRequest.viewerId === viewerId ? (
+            <View accessibilityRole="alert" style={styles.errorNotice}><Ionicons name="alert-circle" size={20} color={adminColors.coral} /><Text style={styles.errorNoticeText}>{permissionRequest.error}</Text></View>
+          ) : null}
+
           <View style={styles.boundaryNote}>
             <View style={styles.boundaryIcon}><Ionicons name="eye-outline" size={20} color={adminColors.deepTeal} /></View>
-            <Text style={styles.boundaryText}>Read-only access. Contact details, body metrics, goals, and previous days stay private.</Text>
+            <Text style={styles.boundaryText}>Assign any number of members. There is no five-member limit; access remains restricted to the people selected here.</Text>
           </View>
 
           {saveRequest.status === 'succeeded' && lastSavedViewerId === viewerId ? (
@@ -302,6 +339,18 @@ const styles = StyleSheet.create({
   selectionCount: { minWidth: 65, minHeight: 55, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: adminColors.aqua },
   selectionCountValue: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 20, lineHeight: 23 },
   selectionCountLabel: { color: adminColors.deepTeal, fontFamily: adminFonts.semibold, fontSize: 9, letterSpacing: 0.65 },
+  planPermission: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 21, backgroundColor: adminColors.surface, borderWidth: 1, borderColor: adminColors.line, marginTop: 11 },
+  planPermissionEnabled: { backgroundColor: '#F0FAF7', borderColor: adminColors.aquaStrong },
+  planPermissionIcon: { width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: adminColors.aqua },
+  planPermissionIconEnabled: { backgroundColor: adminColors.teal },
+  planPermissionCopy: { flex: 1, minWidth: 0 },
+  planPermissionLabel: { color: adminColors.muted, fontFamily: adminFonts.semibold, fontSize: 9, letterSpacing: 0.75 },
+  planPermissionTitle: { color: adminColors.ink, fontFamily: adminFonts.semibold, fontSize: 15, marginTop: 2 },
+  planPermissionText: { color: adminColors.muted, fontFamily: adminFonts.regular, fontSize: 11, marginTop: 3 },
+  switchTrack: { width: 45, height: 27, borderRadius: 14, padding: 3, backgroundColor: adminColors.sage },
+  switchTrackEnabled: { backgroundColor: adminColors.teal },
+  switchThumb: { width: 21, height: 21, borderRadius: 11, backgroundColor: adminColors.white },
+  switchThumbEnabled: { transform: [{ translateX: 18 }] },
   boundaryNote: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 12, borderRadius: 19, backgroundColor: adminColors.aqua, marginTop: 11 },
   boundaryIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.7)' },
   boundaryText: { flex: 1, color: adminColors.deepTeal, fontFamily: adminFonts.medium, fontSize: 12, lineHeight: 18 },

@@ -2,10 +2,17 @@
   "id": "/",
   "name": "Mr_Care Wellness",
   "short_name": "Mr_Care",
-  "description": "Your meals, hydration, daily plan and coach reminders.",
+  "description": "Meals, hydration, daily plans, coach progress and reminders in one installable app.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "categories": ["health", "lifestyle"],
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
   "background_color": "#002E36",
   "theme_color": "#002E36",
   "lang": "en",

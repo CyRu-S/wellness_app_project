@@ -31,6 +31,7 @@ public class MemberAccessService {
     private final WaterLogRepository waterLogs;
     private final ActivitySessionRepository activities;
     private final PlanItemCompletionRepository completions;
+    private final NotificationRepository notifications;
     private final UserProfileRepository profiles;
     private final Clock clock;
     private final ZoneId applicationZoneId;
@@ -86,15 +87,83 @@ public class MemberAccessService {
     @Transactional
     public SharedMembersResponse sharedMembers(String viewerEmail) {
         User viewer = user(viewerEmail, "Account not found");
-        if (!isEligible(viewer)) return new SharedMembersResponse(0, List.of());
+        if (!isEligible(viewer)) return new SharedMembersResponse(0, false, List.of());
 
-        List<SharedMembersResponse.SharedMemberSummary> members = grants.findByViewerIdOrderBySubjectFullName(viewer.getId())
-                .stream()
-                .map(MemberAccessGrant::getSubject)
-                .filter(this::isEligible)
-                .map(subject -> summary(buildToday(subject)))
-                .toList();
-        return new SharedMembersResponse(members.size(), members);
+        List<User> subjects = grants.findByViewerIdOrderBySubjectFullName(viewer.getId()).stream()
+                .map(MemberAccessGrant::getSubject).filter(this::isEligible).toList();
+        List<SharedMembersResponse.SharedMemberSummary> members = sharedSummaries(subjects);
+        return new SharedMembersResponse(members.size(), viewer.isCanAssignPlans(), members);
+    }
+
+    private List<SharedMembersResponse.SharedMemberSummary> sharedSummaries(List<User> subjects) {
+        if (subjects.isEmpty()) return List.of();
+        LocalDate date = LocalDate.now(clock.withZone(applicationZoneId));
+        Instant start = date.atStartOfDay(applicationZoneId).toInstant();
+        Instant end = date.plusDays(1).atStartOfDay(applicationZoneId).toInstant();
+        Set<Long> memberIds = subjects.stream().map(User::getId).collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, Map<String, Object>> planByMember = plans.memberPlans(memberIds);
+        Map<Long, List<Meal>> mealsByMember = meals.findByUserIdInAndMealDateOrderByMealTime(memberIds, date).stream()
+                .collect(Collectors.groupingBy(meal -> meal.getUser().getId()));
+        Map<Long, Object[]> postByMember = rowsById(mealPosts.summariesForUsersBetween(memberIds, start, end));
+        Map<Long, Integer> waterByMember = intTotals(waterLogs.totalsForUsersBetween(memberIds, start, end));
+        Map<Long, Integer> activityByMember = intTotals(activities.totalsForUsersBetween(memberIds, start, end));
+        Map<Long, Long> completedTasks = completions.findByUserIdInAndCompletedDate(memberIds, date).stream()
+                .collect(Collectors.groupingBy(value -> value.getUser().getId(), Collectors.counting()));
+        Map<Long, Integer> waterGoals = profiles.findByUserIdIn(memberIds).stream().collect(Collectors.toMap(
+                profile -> profile.getUser().getId(), profile -> profile.getWaterGoalMl() > 0 ? profile.getWaterGoalMl() : DEFAULT_WATER_GOAL_ML));
+        Set<Long> nudged = new HashSet<>(notifications.userIdsByKindAndUserIdInBetween(
+                PushDelivery.Kind.NUDGE, memberIds, start, end));
+
+        return subjects.stream().map(subject -> {
+            Long id = subject.getId();
+            Map<String, Object> plan = planByMember.getOrDefault(id, Map.of());
+            int plannedMeals = ((List<?>) plan.getOrDefault("items", List.of())).size();
+            int plannedTasks = ((List<?>) plan.getOrDefault("habits", List.of())).size()
+                    + ((List<?>) plan.getOrDefault("exercises", List.of())).size();
+            List<Meal> memberMeals = mealsByMember.getOrDefault(id, List.of());
+            int completedMeals = (int) memberMeals.stream().filter(Meal::isConsumed).count();
+            Object[] post = postByMember.get(id);
+            int postCount = post == null ? 0 : ((Number) post[1]).intValue();
+            BigDecimal calories = post == null || post[2] == null ? BigDecimal.ZERO : (BigDecimal) post[2];
+            int protein = post == null || post[3] == null ? 0 : ((BigDecimal) post[3]).setScale(0, RoundingMode.HALF_UP).intValue();
+            int hydration = waterByMember.getOrDefault(id, 0);
+            int hydrationGoal = waterGoals.getOrDefault(id, DEFAULT_WATER_GOAL_ML);
+            int activitySeconds = activityByMember.getOrDefault(id, 0);
+            int taskCompletions = completedTasks.getOrDefault(id, 0L).intValue();
+            int completion = dailyCompletion(plannedMeals, completedMeals, plannedTasks, taskCompletions,
+                    hydration, hydrationGoal, activitySeconds);
+            return new SharedMembersResponse.SharedMemberSummary(id, subject.getFullName(), plannedMeals,
+                    completedMeals, postCount, calories, protein, hydration, hydrationGoal, activitySeconds / 60,
+                    DAILY_ACTIVITY_GOAL_MINUTES, plannedTasks, taskCompletions, completion, nudged.contains(id));
+        }).toList();
+    }
+
+    private Map<Long, Object[]> rowsById(List<Object[]> rows) {
+        return rows.stream().collect(Collectors.toMap(row -> ((Number) row[0]).longValue(), Function.identity()));
+    }
+
+    private Map<Long, Integer> intTotals(List<Object[]> rows) {
+        return rows.stream().collect(Collectors.toMap(row -> ((Number) row[0]).longValue(), row -> ((Number) row[1]).intValue()));
+    }
+
+    @Transactional
+    public AdminMemberAccessResponse.ViewerAccess updatePlanPermission(
+            String adminEmail, Long viewerId, boolean canAssignPlans) {
+        User admin = user(adminEmail, "Administrator not found");
+        if (admin.getRole() != User.Role.ADMIN || admin.getStatus() != User.Status.ACTIVE) {
+            throw new NotFoundException("Administrator not found");
+        }
+        User viewer = users.lockById(viewerId).filter(this::isEligible)
+                .orElseThrow(() -> new NotFoundException("Coach not found"));
+        viewer.setCanAssignPlans(canAssignPlans);
+        users.save(viewer);
+        List<MemberAccessGrant> assigned = grants.findByViewerIdOrderBySubjectFullName(viewerId);
+        notices.notify(viewer, PushDelivery.Kind.ACCESS, "plan-access-" + UUID.randomUUID(),
+                canAssignPlans ? "Diet plan access enabled" : "Diet plan access removed",
+                canAssignPlans
+                        ? "Your admin has enabled diet plan assignment for your shared members."
+                        : "Your admin has removed diet plan assignment access. Shared progress remains available.");
+        return viewerResponse(viewer, assigned);
     }
 
     @Transactional
@@ -291,7 +360,7 @@ public class MemberAccessService {
                 .toList();
         Instant lastGrantedAt = assigned.stream().map(MemberAccessGrant::getGrantedAt)
                 .filter(Objects::nonNull).max(Comparator.naturalOrder()).orElse(null);
-        return new AdminMemberAccessResponse.ViewerAccess(viewer.getId(), viewer.getFullName(), members.size(), members, lastGrantedAt);
+        return new AdminMemberAccessResponse.ViewerAccess(viewer.getId(), viewer.getFullName(), viewer.isCanAssignPlans(), members.size(), members, lastGrantedAt);
     }
 
     private List<User> eligibleMembers() {

@@ -138,7 +138,7 @@ export default function AdminMemberAccessScreen({ navigation }) {
       <View style={styles.heading}>
         <Text style={styles.eyebrow}>TRUST & VISIBILITY</Text>
         <Text style={styles.title}>Support, shared with intention.</Text>
-        <Text style={styles.subtitle}>Choose each coach, then assign the members they can view. Access is read-only and limited to today.</Text>
+        <Text style={styles.subtitle}>Choose each coach, assign any number of members, and optionally allow diet-plan updates.</Text>
       </View>
 
       <View style={styles.heroShell}>
@@ -152,7 +152,7 @@ export default function AdminMemberAccessScreen({ navigation }) {
             </View>
           </View>
           <Text style={styles.heroStatement}>A clear circle of care.</Text>
-          <Text style={styles.heroCopy}>Coaches only see the members assigned to them.</Text>
+          <Text style={styles.heroCopy}>Coaches only see assigned members. There is no five-member limit.</Text>
           <View style={styles.heroMetrics}>
             <View style={styles.heroMetric}>
               <Text style={styles.heroMetricValue}>{overview.totalGrants}</Text>

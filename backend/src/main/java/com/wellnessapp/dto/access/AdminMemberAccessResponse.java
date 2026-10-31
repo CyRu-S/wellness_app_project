@@ -13,6 +13,7 @@ public record AdminMemberAccessResponse(
     public record ViewerAccess(
             Long id,
             String name,
+            boolean canAssignPlans,
             int assignedCount,
             List<Member> assignedMembers,
             Instant lastGrantedAt
